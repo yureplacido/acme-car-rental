@@ -14,7 +14,7 @@ http:
 
     reservation:
       entryPoints: ["web"]
-      rule: "PathPrefix(`/reservation`)"
+      rule: "PathPrefix(`/reservations`)"
       service: reservation
       priority: 100
 
@@ -32,7 +32,7 @@ http:
 
     inventory:
       entryPoints: ["web"]
-      rule: "PathPrefix(`/inventory`)"
+      rule: "PathPrefix(`/graphql`)"
       service: inventory
       priority: 100
 

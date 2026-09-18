@@ -10,7 +10,7 @@ import org.acme.rental.model.Rental;
 import java.time.LocalDate;
 import java.util.concurrent.atomic.AtomicLong;
 
-@Path("/")
+@Path("/rental")
 public class RentalResource {
     private final AtomicLong id = new AtomicLong(0);
 
