@@ -15,6 +15,25 @@ import java.util.List;
 @Description("Envelope genérico para respostas paginadas")
 public class Page<T> {
 
+    public static final int MAX_LIMIT = 100;
+
+    public static <T> Page<T> of(List<T> source, int offset, int limit) {
+        int from = Math.max(0, offset);
+        int size = Math.max(0, Math.min(limit, MAX_LIMIT));
+        List<T> items = source.stream()
+                .skip(from)
+                .limit(size)
+                .toList();
+
+        return Page.<T>builder()
+                .items(items)
+                .total(source.size())
+                .offset(from)
+                .limit(size)
+                .hasNextPage(from + size < source.size())
+                .build();
+    }
+
     @Description("Itens da página atual")
     private List<T> items;
 

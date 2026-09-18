@@ -21,8 +21,6 @@ import java.util.Optional;
 @Description("API de exemplo para controle e monitoramento de frotas e inventário de veículos")
 public class GraphQLInventoryService {
 
-    private static final int MAX_LIMIT = 100;
-
     private final CarInventory inventory;
 
     // Injeção do contexto para rastrear metadados da requisição
@@ -47,33 +45,14 @@ public class GraphQLInventoryService {
         if (offset == null && limit == null) {
             return all;
         }
-        int from = Math.max(0, offset == null ? 0 : offset);
-        int size = Math.min(limit == null ? MAX_LIMIT : limit, MAX_LIMIT);
-        return all.stream()
-                .skip(from)
-                .limit(size)
-                .toList();
+        return Page.of(all, offset == null ? 0 : offset, limit == null ? Page.MAX_LIMIT : limit).getItems();
     }
 
     @Query("allCarsPage")
     @Description("Retorna uma página de veículos do inventário, com metadados de paginação (total, hasNextPage)")
     public Page<Car> carsPage(@Name("offset") @DefaultValue("0") int offset,
                               @Name("limit") @DefaultValue("20") int limit) {
-        int from = Math.max(0, offset);
-        int size = Math.min(limit, MAX_LIMIT);
-        List<Car> all = inventory.getCars();
-        List<Car> items = all.stream()
-                .skip(from)
-                .limit(size)
-                .toList();
-
-        return Page.<Car>builder()
-                .items(items)
-                .total(all.size())
-                .offset(from)
-                .limit(size)
-                .hasNextPage(from + size < all.size())
-                .build();
+        return Page.of(inventory.getCars(), offset, limit);
     }
 
     @Query("findCar")
