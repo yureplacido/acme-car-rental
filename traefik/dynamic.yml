@@ -1,0 +1,68 @@
+http:
+  routers:
+    swagger:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/`)"
+      service: swagger
+      priority: 1
+
+    users:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/users`)"
+      service: users
+      priority: 100
+
+    reservation:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/reservation`)"
+      service: reservation
+      priority: 100
+
+    rental:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/rental`)"
+      service: rental
+      priority: 100
+
+    billing:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/billing`)"
+      service: billing
+      priority: 100
+
+    inventory:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/inventory`)"
+      service: inventory
+      priority: 100
+
+  services:
+    swagger:
+      loadBalancer:
+        servers:
+          - url: "http://acme-swagger:80"
+
+    users:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:{{ env `USER_SERVICE_PORT` }}"
+
+    reservation:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:{{ env `RESERVATION_PORT` }}"
+
+    rental:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:{{ env `RENTAL_PORT` }}"
+
+    billing:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:{{ env `BILLING_PORT` }}"
+
+    inventory:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:{{ env `INVENTORY_PORT` }}"

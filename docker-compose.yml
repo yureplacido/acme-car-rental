@@ -1,0 +1,97 @@
+name: acme-car-rental
+
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: acme-traefik
+    restart: unless-stopped
+    env_file:
+      - .env
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.traefik.address=:8080
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --log.level=INFO
+    ports:
+      - "${GATEWAY_PORT:-8090}:80"
+      - "${DASHBOARD_PORT:-8095}:8080"
+    volumes:
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  swagger:
+    image: nginx:1.27-alpine
+    container_name: acme-swagger
+    restart: unless-stopped
+    volumes:
+      - ./swagger:/usr/share/nginx/html:ro
+
+  users-service:
+    profiles: ["docker"]
+    build:
+      context: ./users-service
+      dockerfile: Dockerfile
+    container_name: users-service
+    env_file:
+      - .env
+    environment:
+      QUARKUS_PROFILE: docker
+    ports:
+      - "${USER_SERVICE_PORT:-8080}:${USER_SERVICE_PORT:-8080}"
+
+  reservation-service:
+    profiles: ["docker"]
+    build:
+      context: ./reservation-service
+      dockerfile: Dockerfile
+    container_name: reservation-service
+    env_file:
+      - .env
+    environment:
+      QUARKUS_PROFILE: docker
+    ports:
+      - "${RESERVATION_PORT:-8081}:${RESERVATION_PORT:-8081}"
+
+  rental-service:
+    profiles: ["docker"]
+    build:
+      context: ./rental-service
+      dockerfile: Dockerfile
+    container_name: rental-service
+    env_file:
+      - .env
+    environment:
+      QUARKUS_PROFILE: docker
+    ports:
+      - "${RENTAL_PORT:-8082}:${RENTAL_PORT:-8082}"
+
+  inventory-service:
+    profiles: ["docker"]
+    build:
+      context: ./inventory-service
+      dockerfile: Dockerfile
+    container_name: inventory-service
+    env_file:
+      - .env
+    environment:
+      QUARKUS_PROFILE: docker
+    ports:
+      - "${INVENTORY_PORT:-8083}:${INVENTORY_PORT:-8083}"
+
+  billing-service:
+    profiles: ["docker"]
+    build:
+      context: ./billing-service
+      dockerfile: Dockerfile
+    container_name: billing-service
+    env_file:
+      - .env
+    environment:
+      QUARKUS_PROFILE: docker
+    ports:
+      - "${BILLING_PORT:-8084}:${BILLING_PORT:-8084}"
