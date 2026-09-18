@@ -6,7 +6,7 @@ import org.eclipse.microprofile.graphql.Query;
 import java.util.List;
 
 @GraphQLClientApi(configKey = "inventory")
-public interface GraphQLInventoryClient extends InventoryClient {
+public interface GraphQLInventoryClient {
 
     @Query("allCars")
     List<Car> allCars();

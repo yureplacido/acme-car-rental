@@ -24,17 +24,15 @@ public class CarInventory {
     }
 
     private void initialData() {
-         Car mazda = new Car();
-        mazda.setId(ids.incrementAndGet());
-        mazda.setManufacturer("Mazda");
-        mazda.setModel("6");
-        mazda.setLicensePlateNumber("ABC123");
-        cars.add(mazda);
-        Car ford = new Car();
-        ford.setId(ids.incrementAndGet());
-        ford.setManufacturer("Ford");
-        ford.setModel("Mustang");
-        ford.setLicensePlateNumber("XYZ987");
-        cars.add(ford);
+        cars.addAll(List.of(
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Mazda").model("6").licensePlateNumber("ABC123").build(),
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Ford").model("Mustang").licensePlateNumber("XYZ987").build(),
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Chevrolet").model("Camaro").licensePlateNumber("QWE321").build(),
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Volkswagen").model("Gol").licensePlateNumber("ASD456").build(),
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Toyota").model("Corolla").licensePlateNumber("ZXC789").build(),
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Honda").model("Civic").licensePlateNumber("RTY654").build(),
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Fiat").model("Uno").licensePlateNumber("UIO852").build(),
+                Car.builder().id(ids.incrementAndGet()).manufacturer("Renault").model("Clio").licensePlateNumber("FGH741").build()
+        ));
     }
 }

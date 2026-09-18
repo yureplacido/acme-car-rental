@@ -4,6 +4,8 @@ import io.smallrye.graphql.api.Context;
 import jakarta.inject.Inject;
 import org.acme.inventory.database.CarInventory;
 import org.acme.inventory.model.Car;
+import org.acme.inventory.model.Page;
+import org.eclipse.microprofile.graphql.DefaultValue;
 import org.eclipse.microprofile.graphql.Description;
 import org.eclipse.microprofile.graphql.GraphQLApi;
 import org.eclipse.microprofile.graphql.GraphQLException;
@@ -19,23 +21,59 @@ import java.util.Optional;
 @Description("API de exemplo para controle e monitoramento de frotas e inventário de veículos")
 public class GraphQLInventoryService {
 
+    private static final int MAX_LIMIT = 100;
+
     private final CarInventory inventory;
 
     // Injeção do contexto para rastrear metadados da requisição
+
     @Inject
-    Context context;
+    private final Context context;
 
     // Injeção por construtor recomendada pelo Quarkus
-    public GraphQLInventoryService(CarInventory inventory) {
+    public GraphQLInventoryService(CarInventory inventory, Context context) {
         this.inventory = inventory;
+        this.context = context;
     }
 
     @Query("allCars")
-    @Description("Retorna a lista completa de todos os veículos disponíveis no inventário")
-    public List<Car> cars() {
+    @Description("Retorna a lista de veículos disponíveis no inventário, com paginação opcional via offset/limit")
+    public List<Car> cars(@Name("offset") Integer offset,
+                          @Name("limit") Integer limit) {
         // Exemplo prático de telemetria de campos selecionados pelo cliente no Dev UI
         System.out.println("Campos solicitados no inventário de carros: " + context.getSelectedFields());
-        return inventory.getCars();
+
+        List<Car> all = inventory.getCars();
+        if (offset == null && limit == null) {
+            return all;
+        }
+        int from = Math.max(0, offset == null ? 0 : offset);
+        int size = Math.min(limit == null ? MAX_LIMIT : limit, MAX_LIMIT);
+        return all.stream()
+                .skip(from)
+                .limit(size)
+                .toList();
+    }
+
+    @Query("allCarsPage")
+    @Description("Retorna uma página de veículos do inventário, com metadados de paginação (total, hasNextPage)")
+    public Page<Car> carsPage(@Name("offset") @DefaultValue("0") int offset,
+                              @Name("limit") @DefaultValue("20") int limit) {
+        int from = Math.max(0, offset);
+        int size = Math.min(limit, MAX_LIMIT);
+        List<Car> all = inventory.getCars();
+        List<Car> items = all.stream()
+                .skip(from)
+                .limit(size)
+                .toList();
+
+        return Page.<Car>builder()
+                .items(items)
+                .total(all.size())
+                .offset(from)
+                .limit(size)
+                .hasNextPage(from + size < all.size())
+                .build();
     }
 
     @Query("findCar")

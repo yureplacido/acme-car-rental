@@ -2,25 +2,31 @@ package org.acme.reservation.reservation;
 
 import io.quarkus.logging.Log;
 import io.smallrye.graphql.client.GraphQLClient;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import org.acme.reservation.inventory.Car;
+import org.acme.reservation.inventory.CarPage;
 import org.acme.reservation.inventory.DynamicInventoryClient;
 import org.acme.reservation.inventory.GraphQLInventoryClient;
-import org.acme.reservation.inventory.InventoryClient;
 import org.acme.reservation.rental.Rental;
 import org.acme.reservation.rental.RentalClient;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.RestQuery;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Path("/reservations") // Alterado para um path mais semântico e RESTful
@@ -28,8 +34,12 @@ import java.util.stream.Collectors;
 @Consumes(MediaType.APPLICATION_JSON)
 public class ReservationResource {
 
+    private static final Set<String> ALLOWED_FIELDS = Set.of("id", "plateNumber", "manufacturer", "model");
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_LIMIT = 100;
+
     private final ReservationsRepository reservationsRepository;
-    private final InventoryClient inventoryClient;
+    private final GraphQLInventoryClient inventoryClient;
     private final DynamicInventoryClient dynamicInventoryClient;
     private final RentalClient rentalClient;
 
@@ -47,23 +57,72 @@ public class ReservationResource {
     @Path("availability")
     public Collection<Car> availability(@RestQuery LocalDate startDate,
                                         @RestQuery LocalDate endDate) {
-        return availableCars(inventoryClient, startDate, endDate);
+        return availableCars(() -> inventoryClient.allCars(), startDate, endDate);
     }
 
     @GET
     @Path("availability/dynamic")
     public Collection<Car> availabilityDynamic(@RestQuery LocalDate startDate,
                                                @RestQuery LocalDate endDate) {
-        return availableCars(dynamicInventoryClient, startDate, endDate);
+        return availableCars(dynamicInventoryClient::all, startDate, endDate);
     }
 
-    private Collection<Car> availableCars(InventoryClient client,
+    @GET
+    @Path("inventory")
+    public List<Car> inventory(@RestQuery @DefaultValue("0") Integer offset,
+                               @RestQuery Integer limit,
+                               @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields) {
+        return dynamicInventoryClient.page(validateOffset(offset), validateLimit(limit), parseFields(fields));
+    }
+
+    @GET
+    @Path("inventory/pages")
+    public CarPage inventoryPage(@RestQuery @DefaultValue("0") Integer offset,
+                                 @RestQuery Integer limit,
+                                 @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields) {
+        return dynamicInventoryClient.carPage(validateOffset(offset), validateLimit(limit), parseFields(fields));
+    }
+
+    // --- Validação da fachada REST ---
+
+    private int validateOffset(Integer offset) {
+        if (offset != null && offset < 0) {
+            throw new BadRequestException("offset deve ser um valor não negativo");
+        }
+        return offset == null ? 0 : offset;
+    }
+
+    private int validateLimit(Integer limit) {
+        if (limit == null) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        if (limit < 1) {
+            throw new BadRequestException("limit deve ser um valor positivo");
+        }
+        return Math.min(limit, MAX_LIMIT);
+    }
+
+    private List<String> parseFields(String fields) {
+        List<String> parsed = Arrays.stream(fields.split(","))
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .toList();
+        List<String> unknown = parsed.stream()
+                .filter(name -> !ALLOWED_FIELDS.contains(name))
+                .toList();
+        if (!unknown.isEmpty()) {
+            throw new BadRequestException("Campos inválidos: " + unknown + ". Permitidos: " + ALLOWED_FIELDS);
+        }
+        return parsed;
+    }
+
+    private Collection<Car> availableCars(Supplier<List<Car>> carsSupplier,
                                           LocalDate startDate,
                                           LocalDate endDate) {
         Log.debugf("Verificando disponibilidade de veículos de %s até %s", startDate, endDate);
 
         // Transforma a lista de carros do cliente GraphQL em um mapa indexado por ID de forma funcional
-        Map<Long, Car> carsById = client.allCars().stream()
+        Map<Long, Car> carsById = carsSupplier.get().stream()
                 .collect(Collectors.toMap(Car::getId, Function.identity()));
 
         // Filtra e remove os carros que já possuem reservas sobrepostas no período selecionado

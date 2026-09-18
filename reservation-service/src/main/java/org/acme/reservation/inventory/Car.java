@@ -4,6 +4,7 @@ import jakarta.json.bind.annotation.JsonbProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.eclipse.microprofile.graphql.Name;
 
 @Data
 @NoArgsConstructor
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class Car {
 
     private Long id;
+    @Name("plateNumber")
     @JsonbProperty("plateNumber")
     private String licensePlateNumber;
     private String manufacturer;
