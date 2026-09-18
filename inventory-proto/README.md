@@ -10,7 +10,7 @@ stubs a partir dele na própria build.
 <dependency>
     <groupId>org.acme</groupId>
     <artifactId>inventory-proto</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
 
