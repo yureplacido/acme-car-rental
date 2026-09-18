@@ -8,6 +8,6 @@ import java.util.List;
 @GraphQLClientApi(configKey = "inventory")
 public interface GraphQLInventoryClient extends InventoryClient {
 
-    @Query("cars")
+    @Query("allCars")
     List<Car> allCars();
 }
