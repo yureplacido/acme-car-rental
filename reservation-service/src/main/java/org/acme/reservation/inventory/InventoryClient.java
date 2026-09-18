@@ -15,7 +15,9 @@ public interface InventoryClient<T> {
 
     List<T> all();
 
-    List<T> page(int offset, int limit, Collection<String> fields);
+    List<T> all(Collection<String> fields);
+
+    List<T> page(InventoryQuery query);
 
     List<String> getDefaultFields();
 

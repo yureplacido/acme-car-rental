@@ -11,9 +11,13 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import org.acme.reservation.inventory.Car;
+import org.acme.reservation.inventory.CarFilter;
 import org.acme.reservation.inventory.CarPage;
+import org.acme.reservation.inventory.CarSortField;
 import org.acme.reservation.inventory.DynamicInventoryClient;
 import org.acme.reservation.inventory.GraphQLInventoryClient;
+import org.acme.reservation.inventory.InventoryQuery;
+import org.acme.reservation.inventory.SortOrder;
 import org.acme.reservation.rental.Rental;
 import org.acme.reservation.rental.RentalClient;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
@@ -35,6 +39,11 @@ import java.util.stream.Collectors;
 public class ReservationResource {
 
     private static final Set<String> ALLOWED_FIELDS = Set.of("id", "plateNumber", "manufacturer", "model");
+    private static final Map<String, CarSortField> SORT_FIELDS = Map.of(
+            "id", CarSortField.ID,
+            "platenumber", CarSortField.PLATE_NUMBER,
+            "manufacturer", CarSortField.MANUFACTURER,
+            "model", CarSortField.MODEL);
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_LIMIT = 100;
 
@@ -57,30 +66,44 @@ public class ReservationResource {
     @Path("availability")
     public Collection<Car> availability(@RestQuery LocalDate startDate,
                                         @RestQuery LocalDate endDate) {
-        return availableCars(() -> inventoryClient.allCars(), startDate, endDate);
+        return availableCars(inventoryClient::allCars, startDate, endDate);
     }
 
     @GET
     @Path("availability/dynamic")
     public Collection<Car> availabilityDynamic(@RestQuery LocalDate startDate,
-                                               @RestQuery LocalDate endDate) {
-        return availableCars(dynamicInventoryClient::all, startDate, endDate);
+                                               @RestQuery LocalDate endDate,
+                                               @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields) {
+        List<String> projected = parseFields(fields);
+        return availableCars(() -> dynamicInventoryClient.all(projected), startDate, endDate);
     }
 
     @GET
     @Path("inventory")
     public List<Car> inventory(@RestQuery @DefaultValue("0") Integer offset,
                                @RestQuery Integer limit,
-                               @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields) {
-        return dynamicInventoryClient.page(validateOffset(offset), validateLimit(limit), parseFields(fields));
+                               @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields,
+                               @RestQuery String q,
+                               @RestQuery String manufacturer,
+                               @RestQuery String model,
+                               @RestQuery String plate,
+                               @RestQuery String sort,
+                               @RestQuery String order) {
+        return dynamicInventoryClient.page(query(offset, limit, fields, q, manufacturer, model, plate, sort, order));
     }
 
     @GET
     @Path("inventory/pages")
     public CarPage inventoryPage(@RestQuery @DefaultValue("0") Integer offset,
                                  @RestQuery Integer limit,
-                                 @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields) {
-        return dynamicInventoryClient.carPage(validateOffset(offset), validateLimit(limit), parseFields(fields));
+                                 @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields,
+                                 @RestQuery String q,
+                                 @RestQuery String manufacturer,
+                                 @RestQuery String model,
+                                 @RestQuery String plate,
+                                 @RestQuery String sort,
+                                 @RestQuery String order) {
+        return dynamicInventoryClient.carPage(query(offset, limit, fields, q, manufacturer, model, plate, sort, order));
     }
 
     // --- Validação da fachada REST ---
@@ -114,6 +137,45 @@ public class ReservationResource {
             throw new BadRequestException("Campos inválidos: " + unknown + ". Permitidos: " + ALLOWED_FIELDS);
         }
         return parsed;
+    }
+
+    private InventoryQuery query(Integer offset, Integer limit, String fields,
+                                 String q, String manufacturer, String model, String plate,
+                                 String sort, String order) {
+        CarFilter filter = new CarFilter(norm(manufacturer), norm(model), norm(plate));
+        return new InventoryQuery(validateOffset(offset), validateLimit(limit),
+                norm(q), filter,
+                parseSort(sort), parseOrder(order),
+                parseFields(fields));
+    }
+
+    private CarSortField parseSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return null;
+        }
+        CarSortField field = SORT_FIELDS.get(sort.trim().toLowerCase());
+        if (field == null) {
+            throw new BadRequestException("sort inválido: " + sort + ". Permitidos: id, plateNumber, manufacturer, model");
+        }
+        return field;
+    }
+
+    private SortOrder parseOrder(String order) {
+        if (order == null || order.isBlank()) {
+            return null;
+        }
+        return switch (order.trim().toLowerCase()) {
+            case "asc" -> SortOrder.ASC;
+            case "desc" -> SortOrder.DESC;
+            default -> throw new BadRequestException("order deve ser 'asc' ou 'desc'");
+        };
+    }
+
+    private String norm(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private Collection<Car> availableCars(Supplier<List<Car>> carsSupplier,

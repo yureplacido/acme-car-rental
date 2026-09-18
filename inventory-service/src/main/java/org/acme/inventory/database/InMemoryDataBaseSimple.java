@@ -11,11 +11,27 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Getter
 @ApplicationScoped
-public class CarInventory {
+public class InMemoryDataBaseSimple {
 
     private List<Car> cars;
 
     public static final AtomicLong ids = new AtomicLong(0);
+
+    private static final String[] MANUFACTURERS = {
+            "Mazda", "Ford", "Chevrolet", "Volkswagen",
+            "Toyota", "Honda", "Fiat", "Renault",
+            "Hyundai", "Nissan", "Jeep", "BMW",
+            "Mercedes-Benz", "Audi", "Kia", "Peugeot",
+            "Citroën", "Volvo", "Mitsubishi", "Subaru"
+    };
+
+    private static final String[] MODELS = {
+            "6", "Mustang", "Camaro", "Gol",
+            "Corolla", "Civic", "Uno", "Clio",
+            "HB20", "Kicks", "Compass", "320i",
+            "C180", "A3", "Sportage", "208",
+            "C3", "XC40", "L200", "Impreza"
+    };
 
     @PostConstruct
     void initialize() {
@@ -34,5 +50,19 @@ public class CarInventory {
                 Car.builder().id(ids.incrementAndGet()).manufacturer("Fiat").model("Uno").licensePlateNumber("UIO852").build(),
                 Car.builder().id(ids.incrementAndGet()).manufacturer("Renault").model("Clio").licensePlateNumber("FGH741").build()
         ));
+
+        for (int i = 0; i < 100; i++) {
+            String manufacturer = MANUFACTURERS[i % MANUFACTURERS.length];
+            String model = MODELS[(i / MANUFACTURERS.length) % MODELS.length];
+            String plate = String.format("GEN%04d", i + 1);
+            cars.add(
+                    Car.builder()
+                            .id(ids.incrementAndGet())
+                            .manufacturer(manufacturer)
+                            .model(model)
+                            .licensePlateNumber(plate)
+                            .build()
+            );
+        }
     }
 }
