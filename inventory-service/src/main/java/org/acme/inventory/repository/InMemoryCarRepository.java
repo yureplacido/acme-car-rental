@@ -1,21 +1,18 @@
-package org.acme.inventory.database;
+package org.acme.inventory.repository;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
-import lombok.Getter;
 import org.acme.inventory.model.Car;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-@Getter
 @ApplicationScoped
-public class InMemoryDataBaseSimple {
+public class InMemoryCarRepository implements CarRepository {
 
-    private List<Car> cars;
-
-    public static final AtomicLong ids = new AtomicLong(0);
+    private final List<Car> cars = new CopyOnWriteArrayList<>();
+    private static final AtomicLong ids = new AtomicLong(0);
 
     private static final String[] MANUFACTURERS = {
             "Mazda", "Ford", "Chevrolet", "Volkswagen",
@@ -35,8 +32,17 @@ public class InMemoryDataBaseSimple {
 
     @PostConstruct
     void initialize() {
-        cars = new CopyOnWriteArrayList<>();
         initialData();
+    }
+
+    @Override
+    public List<Car> findAll() {
+        return cars;
+    }
+
+    @Override
+    public long nextId() {
+        return ids.incrementAndGet();
     }
 
     private void initialData() {

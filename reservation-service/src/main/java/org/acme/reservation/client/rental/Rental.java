@@ -1,4 +1,4 @@
-package org.acme.reservation.rental;
+package org.acme.reservation.client.rental;
 
 import java.time.LocalDate;
 import lombok.Value;

@@ -1,4 +1,4 @@
-package org.acme.reservation.inventory;
+package org.acme.reservation.client.inventory;
 
 import java.util.Collection;
 

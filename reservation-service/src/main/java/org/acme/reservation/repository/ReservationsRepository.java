@@ -1,4 +1,6 @@
-package org.acme.reservation.reservation;
+package org.acme.reservation.repository;
+
+import org.acme.reservation.model.Reservation;
 
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package org.acme.reservation.inventory;
+package org.acme.reservation.client.inventory;
 
 import io.smallrye.graphql.client.GraphQLClient;
 import io.smallrye.graphql.client.Response;

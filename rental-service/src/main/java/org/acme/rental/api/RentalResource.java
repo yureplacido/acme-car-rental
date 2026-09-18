@@ -1,11 +1,11 @@
-package org.acme.rental;
-
+package org.acme.rental.api;
 
 import io.quarkus.logging.Log;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.acme.rental.model.Rental;
 
 import java.time.LocalDate;
 import java.util.concurrent.atomic.AtomicLong;

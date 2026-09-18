@@ -1,13 +1,13 @@
-package org.acme.inventory.service;
+package org.acme.inventory.api;
 
 import io.smallrye.graphql.api.Context;
 import jakarta.inject.Inject;
-import org.acme.inventory.database.InMemoryDataBaseSimple;
 import org.acme.inventory.model.Car;
 import org.acme.inventory.model.CarFilter;
 import org.acme.inventory.model.CarSortField;
 import org.acme.inventory.model.Page;
 import org.acme.inventory.model.SortOrder;
+import org.acme.inventory.repository.CarRepository;
 import org.eclipse.microprofile.graphql.DefaultValue;
 import org.eclipse.microprofile.graphql.Description;
 import org.eclipse.microprofile.graphql.GraphQLApi;
@@ -26,7 +26,7 @@ import java.util.function.Predicate;
 @Description("API de exemplo para controle e monitoramento de frotas e inventário de veículos")
 public class GraphQLInventoryService {
 
-    private final InMemoryDataBaseSimple inventory;
+    private final CarRepository carRepository;
 
     // Injeção do contexto para rastrear metadados da requisição
 
@@ -34,8 +34,8 @@ public class GraphQLInventoryService {
     private final Context context;
 
     // Injeção por construtor recomendada pelo Quarkus
-    public GraphQLInventoryService(InMemoryDataBaseSimple inventory, Context context) {
-        this.inventory = inventory;
+    public GraphQLInventoryService(CarRepository carRepository, Context context) {
+        this.carRepository = carRepository;
         this.context = context;
     }
 
@@ -50,7 +50,7 @@ public class GraphQLInventoryService {
         // Exemplo prático de telemetria de campos selecionados pelo cliente no Dev UI
         System.out.println("Campos solicitados no inventário de carros: " + context.getSelectedFields());
 
-        List<Car> all = inventory.getCars();
+        List<Car> all = carRepository.findAll();
         if (offset == null && limit == null && search == null && filter == null) {
             return all;
         }
@@ -66,7 +66,7 @@ public class GraphQLInventoryService {
                               @Name("filter") CarFilter filter,
                               @Name("sort") @DefaultValue("ID") CarSortField sort,
                               @Name("order") @DefaultValue("ASC") SortOrder order) {
-        return Page.of(inventory.getCars(), offset, limit, matching(search, filter), sortedBy(sort, order));
+        return Page.of(carRepository.findAll(), offset, limit, matching(search, filter), sortedBy(sort, order));
     }
 
     private Predicate<Car> matching(String search, CarFilter filter) {
@@ -103,7 +103,7 @@ public class GraphQLInventoryService {
     @Query("findCar")
     @Description("Busca um veículo específico no inventário utilizando o número da placa")
     public Car findCarByPlate(@Name("plate") String licensePlateNumber) throws GraphQLException {
-        return inventory.getCars().stream()
+        return carRepository.findAll().stream()
                 .filter(car -> car.getLicensePlateNumber().equals(licensePlateNumber))
                 .findAny()
                 .orElseThrow(() -> new GraphQLException("Carro com a placa " + licensePlateNumber + " não encontrado."));
@@ -114,20 +114,20 @@ public class GraphQLInventoryService {
     public Car register(Car car) {
         // Mapeia e cria a instância de forma limpa usando o padrão Builder
         Car newCar = Car.builder()
-                .id(InMemoryDataBaseSimple.ids.incrementAndGet())
+                .id(carRepository.nextId())
                 .manufacturer(car.getManufacturer())
                 .model(car.getModel())
                 .licensePlateNumber(car.getLicensePlateNumber())
                 .build();
 
-        inventory.getCars().add(newCar);
+        carRepository.findAll().add(newCar);
         return newCar;
     }
 
     @Mutation
     @Description("Remove um veículo do inventário com base na placa informada")
     public boolean remove(@Name("plate") String licensePlateNumber) {
-        List<Car> cars = inventory.getCars();
+        List<Car> cars = carRepository.findAll();
         Optional<Car> toBeRemoved = cars.stream()
                 .filter(car -> car.getLicensePlateNumber().equals(licensePlateNumber))
                 .findAny();

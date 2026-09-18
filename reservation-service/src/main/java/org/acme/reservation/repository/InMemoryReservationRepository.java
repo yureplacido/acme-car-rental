@@ -1,6 +1,7 @@
-package org.acme.reservation.reservation;
+package org.acme.reservation.repository;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.acme.reservation.model.Reservation;
 
 import java.time.LocalDate;
 import java.util.ArrayList;

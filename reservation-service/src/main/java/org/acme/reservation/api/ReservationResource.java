@@ -1,4 +1,4 @@
-package org.acme.reservation.reservation;
+package org.acme.reservation.api;
 
 import io.quarkus.logging.Log;
 import io.smallrye.graphql.client.GraphQLClient;
@@ -10,16 +10,18 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-import org.acme.reservation.inventory.Car;
-import org.acme.reservation.inventory.CarFilter;
-import org.acme.reservation.inventory.CarPage;
-import org.acme.reservation.inventory.CarSortField;
-import org.acme.reservation.inventory.DynamicInventoryClient;
-import org.acme.reservation.inventory.GraphQLInventoryClient;
-import org.acme.reservation.inventory.InventoryQuery;
-import org.acme.reservation.inventory.SortOrder;
-import org.acme.reservation.rental.Rental;
-import org.acme.reservation.rental.RentalClient;
+import org.acme.reservation.client.inventory.Car;
+import org.acme.reservation.client.inventory.CarFilter;
+import org.acme.reservation.client.inventory.CarPage;
+import org.acme.reservation.client.inventory.CarSortField;
+import org.acme.reservation.client.inventory.DynamicInventoryClient;
+import org.acme.reservation.client.inventory.GraphQLInventoryClient;
+import org.acme.reservation.client.inventory.InventoryQuery;
+import org.acme.reservation.client.inventory.SortOrder;
+import org.acme.reservation.client.rental.Rental;
+import org.acme.reservation.client.rental.RentalClient;
+import org.acme.reservation.model.Reservation;
+import org.acme.reservation.repository.ReservationsRepository;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.RestQuery;
 
