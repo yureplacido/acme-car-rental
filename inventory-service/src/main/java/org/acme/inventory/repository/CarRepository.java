@@ -9,4 +9,8 @@ public interface CarRepository {
     List<Car> findAll();
 
     long nextId();
+
+    Car save(Car car);
+
+    void remove(Car car);
 }

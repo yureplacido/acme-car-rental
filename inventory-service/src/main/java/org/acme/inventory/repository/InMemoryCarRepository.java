@@ -45,6 +45,17 @@ public class InMemoryCarRepository implements CarRepository {
         return ids.incrementAndGet();
     }
 
+    @Override
+    public Car save(Car car) {
+        cars.add(car);
+        return car;
+    }
+
+    @Override
+    public void remove(Car car) {
+        cars.remove(car);
+    }
+
     private void initialData() {
         cars.addAll(List.of(
                 Car.builder().id(ids.incrementAndGet()).manufacturer("Mazda").model("6").licensePlateNumber("ABC123").build(),
