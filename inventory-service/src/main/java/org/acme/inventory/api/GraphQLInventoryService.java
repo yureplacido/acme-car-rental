@@ -19,7 +19,6 @@ import org.eclipse.microprofile.graphql.Source;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 @GraphQLApi
@@ -103,35 +102,20 @@ public class GraphQLInventoryService {
     @Query("findCar")
     @Description("Busca um veículo específico no inventário utilizando o número da placa")
     public Car findCarByPlate(@Name("plate") String licensePlateNumber) throws GraphQLException {
-        return carRepository.findAll().stream()
-                .filter(car -> car.getLicensePlateNumber().equals(licensePlateNumber))
-                .findAny()
+        return carRepository.findByPlate(licensePlateNumber)
                 .orElseThrow(() -> new GraphQLException("Carro com a placa " + licensePlateNumber + " não encontrado."));
     }
 
     @Mutation
-    @Description("Cadastra e atribui um ID sequencial para um novo veículo no inventário")
+    @Description("Cadastra um novo veículo no inventário. O ID é atribuído pelo repositório.")
     public Car register(Car car) {
-        // Mapeia e cria a instância de forma limpa usando o padrão Builder
-        Car newCar = Car.builder()
-                .id(carRepository.nextId())
-                .manufacturer(car.getManufacturer())
-                .model(car.getModel())
-                .licensePlateNumber(car.getLicensePlateNumber())
-                .build();
-
-        carRepository.findAll().add(newCar);
-        return newCar;
+        return carRepository.save(car);
     }
 
     @Mutation
     @Description("Remove um veículo do inventário com base na placa informada")
     public boolean remove(@Name("plate") String licensePlateNumber) {
-        List<Car> cars = carRepository.findAll();
-        Optional<Car> toBeRemoved = cars.stream()
-                .filter(car -> car.getLicensePlateNumber().equals(licensePlateNumber))
-                .findAny();
-        return toBeRemoved.map(cars::remove).orElse(false);
+        return carRepository.deleteByPlate(licensePlateNumber).isPresent();
     }
 
     // --- FIELD RESOLVER DINÂMICO (@Source) ---

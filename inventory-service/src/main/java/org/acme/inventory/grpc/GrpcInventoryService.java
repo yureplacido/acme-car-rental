@@ -21,25 +21,20 @@ public class GrpcInventoryService implements InventoryService {
     @Override
     public Uni<CarResponse> add(InsertCarRequest request) {
         Car car = Car.builder()
-                .id(carRepository.nextId())
                 .manufacturer(request.getManufacturer())
                 .model(request.getModel())
                 .licensePlateNumber(request.getLicensePlateNumber())
                 .build();
-        carRepository.save(car);
-        return Uni.createFrom().item(toResponse(car));
+        Car saved = carRepository.save(car);
+        return Uni.createFrom().item(toResponse(saved));
     }
 
     @Override
     public Uni<CarResponse> remove(RemoveCarRequest request) {
-        Optional<Car> optionalCar = carRepository.findAll().stream()
-                .filter(car -> request.getLicensePlateNumber().equals(car.getLicensePlateNumber()))
-                .findFirst();
+        Optional<Car> optionalCar = carRepository.deleteByPlate(request.getLicensePlateNumber());
 
         if (optionalCar.isPresent()) {
-            Car removedCar = optionalCar.get();
-            carRepository.remove(removedCar);
-            return Uni.createFrom().item(toResponse(removedCar));
+            return Uni.createFrom().item(toResponse(optionalCar.get()));
         }
         return Uni.createFrom().nullItem();
     }

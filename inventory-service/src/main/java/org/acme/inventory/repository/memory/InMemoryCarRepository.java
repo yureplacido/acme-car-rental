@@ -1,18 +1,22 @@
-package org.acme.inventory.repository;
+package org.acme.inventory.repository.memory;
 
+import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.inventory.model.Car;
+import org.acme.inventory.repository.CarRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
+@IfBuildProperty(name = "app.repository", stringValue = "memory", enableIfMissing = true)
 public class InMemoryCarRepository implements CarRepository {
 
     private final List<Car> cars = new CopyOnWriteArrayList<>();
-    private static final AtomicLong ids = new AtomicLong(0);
+    private final AtomicLong ids = new AtomicLong(0);
 
     private static final String[] MANUFACTURERS = {
             "Mazda", "Ford", "Chevrolet", "Volkswagen",
@@ -41,19 +45,26 @@ public class InMemoryCarRepository implements CarRepository {
     }
 
     @Override
-    public long nextId() {
-        return ids.incrementAndGet();
+    public Optional<Car> findByPlate(String licensePlateNumber) {
+        return cars.stream()
+                .filter(car -> car.getLicensePlateNumber().equals(licensePlateNumber))
+                .findAny();
     }
 
     @Override
     public Car save(Car car) {
+        if (car.getId() == null) {
+            car.setId(ids.incrementAndGet());
+        }
         cars.add(car);
         return car;
     }
 
     @Override
-    public void remove(Car car) {
-        cars.remove(car);
+    public Optional<Car> deleteByPlate(String licensePlateNumber) {
+        Optional<Car> toBeRemoved = findByPlate(licensePlateNumber);
+        toBeRemoved.ifPresent(cars::remove);
+        return toBeRemoved;
     }
 
     private void initialData() {

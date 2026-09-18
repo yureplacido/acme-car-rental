@@ -1,7 +1,9 @@
-package org.acme.reservation.repository;
+package org.acme.reservation.repository.memory;
 
+import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.reservation.model.Reservation;
+import org.acme.reservation.repository.ReservationsRepository;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -10,6 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 
 @ApplicationScoped
+@IfBuildProperty(name = "app.repository", stringValue = "memory", enableIfMissing = true)
 public class InMemoryReservationRepository implements ReservationsRepository {
 
     // Lista mutável simulando a tabela do banco de dados em memória
