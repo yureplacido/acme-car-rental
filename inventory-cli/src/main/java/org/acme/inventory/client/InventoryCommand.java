@@ -3,6 +3,7 @@ package org.acme.inventory.client;
 import io.quarkus.grpc.GrpcClient;
 import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
+import io.smallrye.mutiny.Multi;
 import org.acme.inventory.model.InventoryService;
 import org.acme.inventory.model.InsertCarRequest;
 import org.acme.inventory.model.RemoveCarRequest;
@@ -33,14 +34,14 @@ public class InventoryCommand implements QuarkusApplication {
     }
 
     private void add(String licensePlateNumber, String manufacturer, String model) {
-        inventory.add(InsertCarRequest.newBuilder()
+        inventory.add(Multi.createFrom().item(InsertCarRequest.newBuilder()
                 .setLicensePlateNumber(licensePlateNumber)
                 .setManufacturer(manufacturer)
                 .setModel(model)
-                .build())
-                .onItem().invoke(carResponse ->
-                        System.out.println("Inserted new car " + carResponse))
-                .await().indefinitely();
+                .build()))
+                .collect().asList()
+                .await().indefinitely()
+                .forEach(carResponse -> System.out.println("Inserted new car " + carResponse));
     }
 
     private void remove(String licensePlateNumber) {
