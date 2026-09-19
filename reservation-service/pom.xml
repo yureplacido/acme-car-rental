@@ -57,6 +57,21 @@
             <artifactId>quarkus-junit</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Cap.5 do livro: RestAssured para testes REST de nível HTTP. -->
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            Cap.5.3.2: integração com Mockito (QuarkusMock). Atenção: a partir do Quarkus 3.31
+            o artefato quarkus-junit5-mockito foi relocado para quarkus-junit-mockito.
+        -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit-mockito</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

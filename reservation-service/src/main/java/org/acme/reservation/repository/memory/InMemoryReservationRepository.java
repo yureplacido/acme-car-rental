@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicLong;
 @IfBuildProperty(name = "app.repository", stringValue = "memory", enableIfMissing = true)
 public class InMemoryReservationRepository implements ReservationsRepository {
 
+    private final AtomicLong idGenerator = new AtomicLong(3);
+
     // Lista mutável simulando a tabela do banco de dados em memória
     private final List<Reservation> reservations = new ArrayList<>(List.of(
             Reservation.builder()
@@ -37,7 +39,6 @@ public class InMemoryReservationRepository implements ReservationsRepository {
                     .build()
     ));
 
-    private final AtomicLong idGenerator = new AtomicLong(3);
 
     public List<Reservation> findAll() {
         return reservations;
