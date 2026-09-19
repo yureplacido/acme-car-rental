@@ -20,7 +20,7 @@ flowchart LR
     end
 
     subgraph Services["Serviços (host JVM/Dev ou Docker)"]
-        U["users-service<br/>:8080 (🚧 placeholder)"]
+        U["users-service<br/>:8080 (UI Qute + OIDC)"]
         R["reservation-service<br/>:8081"]
         RT["rental-service<br/>:8082"]
         I["inventory-service<br/>:8083 HTTP + :9000 gRPC"]
@@ -61,6 +61,8 @@ flowchart LR
 | Traefik gateway | 8090 | — | — | 8090 |
 | Traefik dashboard | 8095 | — | — | 8095 |
 | inventory-cli | — | client → localhost:9000 | — | — |
+| Keycloak (prod) | 7777 | — | — | 7777 |
+| PostgreSQL (prod) | — | — | — | (interno, só Keycloak) |
 | inventory-proto | — | (contrato, não executa) | — | — |
 
 Portas via env (`.env` / `${VAR}`): `USER_SERVICE_PORT`, `RESERVATION_PORT`,
@@ -127,19 +129,20 @@ sequenceDiagram
 | 5 | Teste do reservation em porta dedicada (`8181`) | Evita clash com o dev 8081 no continuous testing |
 | 6 | Testes de mock só com Mockito (`QuarkusMock`) | Cap.5: `@Mock` CDI (5.3.1) conflita com Mockito (5.3.2) |
 | 7 | CLI de inventário como app Quarkus Main | Ferramenta administrativa executável via `java -jar` |
+| 8 | Keycloak via Dev Services em dev; realm manual (`car-rental`) em produção | Cap.6: segurança OIDC compartilhada entre users (web_app) e reservation (service) |
 
 ## Estado por serviço (resumo)
 
 | Serviço | Estado | Observação |
 |---|---|---|
 | inventory-service | ✅ | GraphQL + gRPC completos (cap.4) |
-| reservation-service | ✅ | REST + clientes + testes (cap.4-5) |
+| reservation-service | ✅ | REST + clientes + testes + OIDC service (cap.4-6) |
 | rental-service | ⚠️ | REST básico; Mongo preparado, sem banco |
-| users-service | 🚧 | Placeholder (deps OIDC para cap.6) |
+| users-service | ✅ | UI Qute/HTMX + OIDC (cap.6) |
 | billing-service | 🚧 | Placeholder (deps messaging/mongo p/ caps. futuros) |
 | inventory-cli | ✅ | gRPC add (stream) / remove |
 | inventory-proto | ✅ | Contrato standalone 1.0.0-SNAPSHOT |
 
 ---
 
-_Próximo capítulo a integrar: **cap.6 (Exposing e securing web applications)** — veja [roadmap.md](./roadmap.md)._
+_Próximo capítulo a integrar: **cap.7 (Database access)** — veja [roadmap.md](./roadmap.md)._

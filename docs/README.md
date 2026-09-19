@@ -56,4 +56,4 @@ capítulo, atualize as páginas indicadas e marque o item no [roadmap.md](./road
 
 ---
 
-_Última atualização: 2026-09-19 (base cap.1-5 do livro)._
+_Última atualização: 2026-09-19 (base cap.1-6 do livro)._

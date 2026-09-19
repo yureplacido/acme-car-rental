@@ -1,6 +1,6 @@
 # Testes
 
-> **Última atualização:** 2026-09-19 (cap.5) · **Fonte da verdade:** o código.
+> **Última atualização:** 2026-09-19 (caps.5-6) · **Fonte da verdade:** o código.
 
 Estratégia do cap.5 do livro, aplicada hoje no **reservation-service** (demais serviços
 ainda sem testes). Duas camadas:
@@ -79,6 +79,15 @@ são pulados quando um filtro de tag existe.
   ou ficarem só em classes `@QuarkusTest`.
 - `@QuarkusTest` injeta o mock via flag/instalação **antes** de qualquer chamada HTTP
   (ex.: `QuarkusMock.installMockForType` logo no início do método).
+
+## OIDC e testes (cap.6)
+
+- Com `quarkus-oidc` no classpath, o `@QuarkusTest` do reservation-service sobe um
+  **Keycloak Dev Services** (container) — agora os testes do reservation **exigem
+  Docker**. Sem Docker, use `quarkus.oidc.tenant-enabled=false` num perfil de teste.
+- A validação do cap.6.2/6.4 foi feita por **E2E manual** (curl através do fluxo
+  Authorization Code: login `alice` → `/`, `/available`, `/reserve` → confere
+  `userId=alice` em `/reservations/all`). Dev/prod passam no mesmo roteiro.
 
 ---
 

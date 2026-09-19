@@ -22,11 +22,15 @@ Legenda: **[ ]** pendente · **[x]** feito.
   - [x] `@QuarkusIntegrationTest` (nativo) + `IT`/`skipITs`
   - [x] Mockito + `QuarkusMock`; testes de perfis (`@TestProfile`, tags)
   - [ ] ☐ Reserva: rodar um `verify -Dnative` de verdade (requer GraalVM) — infra já pronta
-- [ ] **Cap. 6 — Exposing e securing web apps** 🔜
-  - [ ] Exposição web/estática (Qute já no users-service)
-  - [ ] **Segurança OIDC** no users-service (`quarkus-oidc`, token propagation já previsto)
-  - [ ] Proteção dos endpoints dos serviços + testes de autenticação
-  - [ ] Atualizar: `services.md` (users/security), `deployment.md`, `testing.md`
+- [x] **Cap. 6 — Exposing e securing web apps** ✅
+  - [x] users-service: página `/` + `/whoami` (Qute) e `/logout`
+  - [x] **Segurança OIDC** (Keycloak): users `web_app` (login obrigatório),
+    reservation `service` (Bearer opcional, grava `userId`)
+  - [x] Propagação do token (`@AccessToken` no `ReservationsClient`) + UI HTMX
+    (`/get`, `/available`, `/reserve`) — validado E2E em dev e produção
+  - [x] Produção: Keycloak+PostgreSQL no compose (realm `car-rental`) + wiring
+    `%prod`/`%docker`
+  - [x] Atualizado: `services.md` (users/security), `deployment.md`, `testing.md`
 - [ ] **Cap. 7 — Database access** 🔜
   - [ ] inventory → **MySQL** (datasource + Panache), trocar `app.repository`
   - [ ] reservation → **PostgreSQL reativo** (Panache reativo)
@@ -53,8 +57,7 @@ Legenda: **[ ]** pendente · **[x]** feito.
 - [ ] Testes nos demais serviços (rental, inventory, users, billing)
 - [ ] Subir stack toda via `docker compose up --profile docker` e validar fluxo fim-a-fim
   no gateway (ver [deployment.md](./deployment.md))
-- [ ] Committar o **cap.5** (testes) e esta documentação
 
 ---
 
-_Próximo: **cap.6 — Exposing e securing web applications** (p.143 do livro)._
+_Próximo: **cap.7 — Database access** (p.171 do livro)._
