@@ -1,0 +1,15 @@
+package org.acme.users.model;
+
+import java.time.LocalDate;
+
+/**
+ * Cópia simplificada do Reservation do reservation-service (livro 6.7),
+ * usada pelo users-service para listar e criar reservas do usuário.
+ */
+public class Reservation {
+    public Long id;
+    public String userId;
+    public Long carId;
+    public LocalDate startDay;
+    public LocalDate endDay;
+}

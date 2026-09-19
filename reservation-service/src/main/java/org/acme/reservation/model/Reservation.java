@@ -17,6 +17,7 @@ public class Reservation {
     private Long carId;
     private LocalDate startDay;
     private LocalDate endDay;
+    private String userId;
 
     /**
      * Check if the given duration overlaps with this reservation

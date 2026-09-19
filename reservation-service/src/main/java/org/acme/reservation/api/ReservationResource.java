@@ -2,6 +2,7 @@ package org.acme.reservation.api;
 
 import io.quarkus.logging.Log;
 import io.smallrye.graphql.client.GraphQLClient;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
@@ -10,6 +11,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.SecurityContext;
 import org.acme.reservation.client.inventory.Car;
 import org.acme.reservation.client.inventory.CarFilter;
 import org.acme.reservation.client.inventory.CarPage;
@@ -54,6 +56,10 @@ public class ReservationResource {
     private final DynamicInventoryClient dynamicInventoryClient;
     private final RentalClient rentalClient;
 
+    // Misto de injeção: SecurityContext por campo + construtor para os demais (nota do livro 6.2.1)
+    @Inject
+    SecurityContext context;
+
     public ReservationResource(ReservationsRepository reservations,
                                @GraphQLClient("inventory") GraphQLInventoryClient inventoryClient,
                                DynamicInventoryClient dynamicInventoryClient,
@@ -62,6 +68,24 @@ public class ReservationResource {
         this.inventoryClient = inventoryClient;
         this.dynamicInventoryClient = dynamicInventoryClient;
         this.rentalClient = rentalClient;
+    }
+
+    /**
+     * Lista as reservas do usuário autenticado (principal). Sem usuário (anônimo),
+     * devolve todas — simplificação do livro 6.2.1 para desenvolvimento.
+     */
+    @GET
+    @Path("all")
+    public Collection<Reservation> allReservations() {
+        String userId = userId();
+        return reservationsRepository.findAll().stream()
+                .filter(reservation -> userId == null || userId.equals(reservation.getUserId()))
+                .collect(Collectors.toList());
+    }
+
+    private String userId() {
+        return context.getUserPrincipal() != null
+                ? context.getUserPrincipal().getName() : null;
     }
 
     @GET
@@ -201,6 +225,10 @@ public class ReservationResource {
     public Reservation make(Reservation reservation) {
         Log.infof("Processando nova reserva para o veículo ID: %d", reservation.getCarId());
 
+        // Cap.6.2.1: registra quem fez a reserva (livro 6.4). Sem login, "anonymous".
+        reservation.setUserId(context.getUserPrincipal() != null
+                ? context.getUserPrincipal().getName() : "anonymous");
+
         Reservation result = reservationsRepository.save(reservation);
 
         // Se a reserva inicia hoje, engatilha o fluxo assíncrono/REST com o serviço de aluguel (Rental)
@@ -213,7 +241,8 @@ public class ReservationResource {
 
     // Encapsulamento da lógica de negócio periférica para manter o método principal limpo
     private void triggerImmediateRental(Reservation reservation) {
-        String defaultUserId = "anonymous_user"; // Evitar hardcoding puro sem contexto
+        // O dono da reserva agora vem do principal autenticado (setado em make)
+        String defaultUserId = reservation.getUserId();
         try {
             Log.infof("Reserva iniciando hoje. Solicitando ativação de aluguel imediato para o usuário: %s", defaultUserId);
             Rental rental = rentalClient.start(defaultUserId, reservation.getId());
