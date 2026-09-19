@@ -11,7 +11,6 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.SecurityContext;
 import org.acme.reservation.client.inventory.Car;
 import org.acme.reservation.client.inventory.CarFilter;
 import org.acme.reservation.client.inventory.CarPage;
@@ -24,6 +23,7 @@ import org.acme.reservation.client.rental.Rental;
 import org.acme.reservation.client.rental.RentalClient;
 import org.acme.reservation.model.Reservation;
 import org.acme.reservation.repository.ReservationsRepository;
+import org.acme.reservation.security.CurrentUser;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.RestQuery;
 
@@ -56,9 +56,9 @@ public class ReservationResource {
     private final DynamicInventoryClient dynamicInventoryClient;
     private final RentalClient rentalClient;
 
-    // Misto de injeção: SecurityContext por campo + construtor para os demais (nota do livro 6.2.1)
+    // Injeção mista: CurrentUser por campo + construtor para os demais
     @Inject
-    SecurityContext context;
+    CurrentUser currentUser;
 
     public ReservationResource(ReservationsRepository reservations,
                                @GraphQLClient("inventory") GraphQLInventoryClient inventoryClient,
@@ -84,8 +84,7 @@ public class ReservationResource {
     }
 
     private String userId() {
-        return context.getUserPrincipal() != null
-                ? context.getUserPrincipal().getName() : null;
+        return currentUser.getUserId();
     }
 
     @GET
@@ -226,8 +225,8 @@ public class ReservationResource {
         Log.infof("Processando nova reserva para o veículo ID: %d", reservation.getCarId());
 
         // Cap.6.2.1: registra quem fez a reserva (livro 6.4). Sem login, "anonymous".
-        reservation.setUserId(context.getUserPrincipal() != null
-                ? context.getUserPrincipal().getName() : "anonymous");
+        reservation.setUserId(currentUser.getUserId() != null
+                ? currentUser.getUserId() : "anonymous");
 
         Reservation result = reservationsRepository.save(reservation);
 

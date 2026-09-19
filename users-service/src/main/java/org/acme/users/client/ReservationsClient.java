@@ -1,4 +1,4 @@
-package org.acme.users;
+package org.acme.users.client;
 
 import io.quarkus.oidc.token.propagation.common.AccessToken;
 import org.acme.users.model.Car;
@@ -12,15 +12,6 @@ import jakarta.ws.rs.Path;
 import java.time.LocalDate;
 import java.util.Collection;
 
-/**
- * Cap.6.2.2 (livro 6.8): REST client para o reservation-service.
- * A anotação @AccessToken faz o ID token do usuário autenticado ser
- * propagado no header Authorization Ex: Bearer ... em todas as chamadas.
- *
- * Adaptação: usamos o path semântico /reservations (plural, padrão adotado
- * neste projeto) em vez de /reservation do livro. A URL é resolvida via
- * quarkus.rest-client.reservations.url no application.properties.
- */
 @RegisterRestClient(configKey = "reservations")
 @AccessToken
 @Path("reservations")
