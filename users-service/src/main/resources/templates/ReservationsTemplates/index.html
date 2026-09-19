@@ -3,39 +3,55 @@
 {@java.time.LocalDate endDate}
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reservations</title>
-  <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
-  <script src="https://unpkg.com/htmx.org@1.7.0"></script>
+  <link rel="stylesheet" href="/webjars/bootstrap/css/bootstrap.min.css">
+  <script src="/webjars/htmx.org/dist/htmx.min.js"></script>
 </head>
-<body>
+<body class="bg-light">
 
-<header>
-  <h1>Reservations</h1>
-  <p>For logged-in user: {name}</p>
-  <a href="/logout">Log out</a>
-</header>
+<nav class="navbar navbar-dark bg-dark">
+  <div class="container">
+    <span class="navbar-brand mb-0 h1">Acme Car Rental</span>
+    <span class="navbar-text">Logged in as <strong>{name}</strong>
+      <a class="btn btn-outline-light btn-sm ms-2" href="/logout">Log out</a>
+    </span>
+  </div>
+</nav>
 
-<h2>List of reservations</h2>
-<div id="reservations" hx-get="/get" hx-trigger="load">
-  <!-- To be replaced by the result of calling /get -->
-</div>
+<main class="container py-4">
 
-<h2>Available cars to rent</h2>
-<form hx-get="/available" hx-target="#availability">
-  <p>Start date:<input id="startDateInput" type="date"
-                       name="startDate" value="{startDate}"/></p>
-  <p>End date:<input id="endDateInput" type="date"
-                     name="endDate" value="{endDate}"/></p>
-  <input type="submit" value="Update list"/>
-</form>
-<div id="availability" hx-get="/available"
-     hx-trigger="load, update-available-cars-list from:body"
-     hx-include="[id='startDateInput'],[id='endDateInput']">
-  <!-- To be replaced by the result of calling /available -->
-</div>
+  <h2 class="h4 text-secondary">List of reservations</h2>
+  <div id="reservations" hx-get="/get" hx-trigger="load">
+    <!-- To be replaced by the result of calling /get -->
+  </div>
+
+  <h2 class="h4 text-secondary mt-4">Available cars to rent</h2>
+  <form class="row g-3 align-items-end mb-3" hx-get="/available" hx-target="#availability">
+    <div class="col-auto">
+      <label class="form-label mb-1" for="startDateInput">Start date</label>
+      <input class="form-control" id="startDateInput" type="date"
+             name="startDate" value="{startDate}"/>
+    </div>
+    <div class="col-auto">
+      <label class="form-label mb-1" for="endDateInput">End date</label>
+      <input class="form-control" id="endDateInput" type="date"
+             name="endDate" value="{endDate}"/>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary" type="submit">Update list</button>
+    </div>
+  </form>
+  <div id="availability" hx-get="/available"
+       hx-trigger="load, update-available-cars-list from:body"
+       hx-include="[id='startDateInput'],[id='endDateInput']">
+    <!-- To be replaced by the result of calling /available -->
+  </div>
+
+</main>
 
 </body>
 </html>

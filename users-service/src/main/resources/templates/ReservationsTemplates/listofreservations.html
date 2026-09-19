@@ -1,8 +1,9 @@
 {@org.acme.users.model.Reservation[] reservations}
 
-<div id="listofreservations">
-<table>
-  <thead>
+{#if reservations.size > 0}
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead class="table-dark">
   <tr>
     <th>ID</th>
     <th>Car ID</th>
@@ -10,6 +11,7 @@
     <th>End day</th>
   </tr>
   </thead>
+  <tbody>
   {#for i in reservations}
     <tr>
     <td>{i.id}</td>
@@ -18,5 +20,9 @@
     <td>{i.endDay}</td>
     </tr>
   {/for}
+  </tbody>
 </table>
 </div>
+{#else}
+<p class="text-muted">No reservations yet.</p>
+{/if}

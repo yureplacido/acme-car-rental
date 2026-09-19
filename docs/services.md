@@ -153,17 +153,24 @@ reservation-service **propagando o token** do usuário logado (cap.6).
 
 | Método | Path | Descrição |
 |---|---|---|
-| GET | `/` | Página de gerenciamento (`ReservationsResource/index.html`): header com usuário + logout, lista de reservas e carros disponíveis |
+| GET | `/` | Página de gerenciamento (`templates/ReservationsTemplates/index.html`): header com usuário + logout, lista de reservas e carros disponíveis |
 | GET | `/get` | Fragmento HTML: tabela de reservas do usuário (via `client.allReservations()`) |
 | GET | `/available?startDate&endDate` | Fragmento HTML: carros disponíveis no período (via `client.availability()`) |
 | POST | `/reserve` (startDate, endDate, carId) | Cria reserva (via `client.make()`); responde lista atualizada + header `HX-Trigger-After-Swap` (recarrega carros) |
 | GET | `/whoami` | `WhoAmIResource` — mostra usuário autenticado (ou `anonymous`) + link de logout |
 | GET | `/logout` | Logout OIDC (`quarkus.oidc.logout.path`) |
 
-Templates (Qute **checked**): `templates/ReservationsResource/{index,availablecars,
-listofreservations}.html` + `templates/whoami.html`. HTMX via CDN
-(`unpkg.com/htmx.org@1.7.0`); as atualizações da página são **fragmentos HTML**, sem
+Templates (Qute **checked**, namespaces extraídas): `templates/ReservationsTemplates/{index,
+availablecars,listofreservations}.html` + `templates/WhoAmITemplates/whoami.html`. **Estilo:
+Bootstrap 5.3 via WebJars** (`/webjars/bootstrap/css/bootstrap.min.css`) **+ HTMX local**
+(WebJars npm, `/webjars/htmx.org/dist/htmx.min.js`, via `quarkus-web-dependency-locator`) —
+sem CDN/internet no runtime. As atualizações da página são **fragmentos HTML**, sem
 JavaScript.
+
+O usuário-service é organizado em camadas (espelhando o reservation-service):
+`web` (resources que servem páginas), `client` (REST client), `model`, `templates`
+(namespaces `@CheckedTemplate`) e `security` — o bean request-scoped **`CurrentUser`**
+(baseado em `SecurityIdentity`) centraliza o usuário autenticado (`getUserId()`/`getDisplayName()`).
 
 ### Segurança OIDC
 
