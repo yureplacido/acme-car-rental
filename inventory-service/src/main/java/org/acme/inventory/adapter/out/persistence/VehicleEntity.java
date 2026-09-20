@@ -10,6 +10,7 @@ import jakarta.persistence.Table;
 import org.acme.inventory.domain.model.FuelType;
 import org.acme.inventory.domain.model.Transmission;
 import org.acme.inventory.domain.model.VehicleCategory;
+import org.acme.inventory.domain.model.VehicleCondition;
 import org.acme.inventory.domain.model.VehicleStatus;
 
 import java.math.BigDecimal;
@@ -32,10 +33,13 @@ public class VehicleEntity {
     public Transmission transmission;
     @Enumerated(EnumType.STRING)
     public FuelType fuelType;
+    @Enumerated(EnumType.STRING)
+    public VehicleCondition condition;
 
     public Integer year;
     public String color;
     public Integer seats;
+    public Long odometerKm;
 
     // Transitional persistence field. Pricing ownership moves to the Pricing context.
     public BigDecimal dailyRate;
