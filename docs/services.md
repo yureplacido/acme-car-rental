@@ -2,147 +2,212 @@
 
 > Fonte da verdade: código + docs/domain.md + docs/ddd-tdd-standards.md.
 
-Todos os serviços de negócio seguem o mesmo idioma arquitetural: domain, application, ports e adapters. A diferença entre eles é determinada pelo bounded context e pelo papel do módulo.
+Todos os serviços de negócio seguem o mesmo idioma arquitetural: **Domain → Application → Ports → Adapters**. As diferenças são explicadas pelo bounded context ou pelo papel técnico do módulo.
 
 ## inventory-service
 
-Responsável pela frota e pelo ciclo de vida dos veículos.
+**Bounded Context:** Inventory / Fleet.
 
-Aggregate root: Vehicle.
+Responsável pela frota, ciclo de vida e estado operacional dos veículos.
 
-Domínio:
-- VehicleId
-- LicensePlate
-- VehicleSpecifications
-- VehicleLocation
-- VehicleStatus
-- VehicleCategory
-- Transmission
-- FuelType
+### Aggregate roots
 
-Casos de uso atuais:
-- RegisterVehicle
-- ListVehicles
-- DecommissionVehicle
+- `Vehicle`
+- `MaintenanceOrder`
 
-Adapters de entrada: GraphQL e gRPC.
-Adapter de saída: persistência JPA/Panache sobre MySQL.
+### Vehicle domain
 
-GraphQL continua expondo o conceito externo Car para compatibilidade do laboratório; Car é DTO de transporte, não objeto de domínio.
+Value objects:
+- `VehicleId`
+- `LicensePlate`
+- `VehicleSpecifications`
+- `VehicleLocation`
+- `VehicleDailyRate`
+- `OdometerReading`
 
-O antigo CarInventoryService foi removido. Regras como descomissionamento agora pertencem ao aggregate Vehicle.
+Concepts:
+- `VehicleStatus`: AVAILABLE, IN_MAINTENANCE, DECOMMISSIONED
+- `VehicleCondition`: GOOD, NEEDS_INSPECTION, DAMAGED
+- `VehicleCategory`
+- `Transmission`
+- `FuelType`
+
+Behavior:
+- registration starts AVAILABLE;
+- decommissioning is a state transition/soft delete;
+- maintenance state transitions are explicit;
+- relocation is explicit;
+- odometer cannot decrease;
+- condition is explicit;
+- base daily rate is immutable.
+
+### Maintenance domain
+
+`MaintenanceOrder` models a maintenance work lifecycle:
+
+`OPEN → IN_PROGRESS → COMPLETED`
+
+with cancellation rules and `MaintenanceOrderId`, `MaintenanceType`, `MaintenanceStatus`.
+
+Future behavior can add scheduled maintenance, inspections, damage assessment and odometer-based maintenance policies.
+
+### Application use cases
+
+- `RegisterVehicle`
+- `SearchVehicles`
+- `FindVehicleByPlate`
+- `ListVehicles`
+- `DecommissionVehicle`
+
+### Adapters
+
+Inbound:
+- GraphQL
+- gRPC
+
+Outbound:
+- JPA/Panache + MySQL
+
+GraphQL exposes a transport DTO named `Car` for compatibility with the existing laboratory contract. It is not a domain object.
+
+The GraphQL adapter maps filtering/sorting/pagination to application query objects; the application use case owns that selection logic.
 
 ## reservation-service
 
-Responsável por reservas.
+**Bounded Context:** Reservation.
 
-Aggregate root: Reservation.
+Owns the booking commitment between customer and vehicle for a rental period.
+
+Aggregate:
+- `Reservation`
 
 Value objects:
-- ReservationId
-- CustomerId
-- VehicleId
-- RentalPeriod
+- `ReservationId`
+- `CustomerId`
+- `VehicleId`
+- `RentalPeriod`
 
-Estados: PENDING, CONFIRMED, CANCELLED, REJECTED, COMPLETED.
+States:
+- PENDING
+- CONFIRMED
+- CANCELLED
+- REJECTED
+- COMPLETED
 
-Casos de uso:
-- CreateReservation
-- FindAvailableVehicles
-- ListReservations
+Use cases:
+- `CreateReservation`
+- `FindAvailableVehicles`
+- `ListReservations`
 
-Ports de saída:
-- ReservationRepository
-- InventoryGateway
-- RentalGateway
+Ports:
+- `ReservationRepository`
+- `InventoryGateway`
+- `RentalGateway`
 
 Adapters:
-- REST de entrada
-- segurança OIDC
-- GraphQL de saída para inventory
-- REST de saída para rental
-- Hibernate Reactive/Panache para PostgreSQL
+- REST in
+- OIDC/security in
+- GraphQL out to Inventory
+- REST out to Rental
+- Hibernate Reactive/Panache out to PostgreSQL
 
-Disponibilidade é calculada pelo Reservation context combinando veículos do Inventory e reservas sobrepostas.
+Availability is derived in the Reservation context by combining Inventory data and reservation conflicts. Inventory does not own period availability.
 
 ## rental-service
 
-Responsável pelo ciclo de vida físico da locação.
+**Bounded Context:** Rental.
 
-Aggregate root: Rental.
+Owns the physical rental lifecycle.
 
-Estados: PENDING, ACTIVE, COMPLETED, CANCELLED.
+Aggregate:
+- `Rental`
 
-Casos de uso:
-- StartRental
-- EndRental
-- ListRentals
+Value objects:
+- `RentalId`
+- `ReservationId`
+- `CustomerId`
 
-Adapter de entrada: REST.
-Adapter de saída: MongoDB/Panache.
+States:
+- PENDING
+- ACTIVE
+- COMPLETED
+- CANCELLED
 
-O booleano active deixou de ser o modelo de domínio. A persistência pode manter compatibilidade física quando necessário, mas a regra de negócio usa RentalStatus.
+Use cases:
+- `StartRental`
+- `EndRental`
+- `ListRentals`
+
+Adapter in:
+- REST
+
+Adapter out:
+- MongoDB/Panache
+
+The domain uses `RentalStatus`; the persistence representation may keep compatibility fields as required by the current schema.
 
 ## billing-service
 
-Responsável futuro por cobrança e pagamento.
+**Bounded Context:** Billing / Payment.
 
-Aggregate root inicial: Invoice.
+Aggregate:
+- `Invoice`
 
-Domínio inicial:
-- Invoice
-- InvoiceLine
-- Money
-- InvoiceStatus
-- PaymentMethod
-- PaymentStatus
+Domain:
+- `Invoice`
+- `InvoiceLine`
+- `InvoiceId`
+- `Money`
+- `InvoiceStatus`
+- `PaymentMethod`
+- `PaymentStatus`
 
-CreateInvoice já existe como caso de uso. A persistência real e os fluxos de mensageria entram nos capítulos seguintes.
+The current implementation is a domain/application foundation. Persistence, messaging and external payment workflows will be introduced as the corresponding Quarkus chapters are studied.
 
 ## users-service
 
-BFF/interface web.
+**Role:** Web BFF.
 
-Não possui cópia do domínio de Reservation ou Inventory.
+It owns browser-facing orchestration and presentation models, not the Reservation/Inventory domain.
 
 Application:
-- ReservationFacade
+- `ReservationFacade`
 
-Ports:
-- ReservationsGateway
+Port:
+- `ReservationsGateway`
 
 Adapters:
-- web/Qute
-- security/OIDC
-- REST para reservation
+- Qute/web
+- OIDC/security
+- REST to reservation
 
-Os modelos de Reservation e Car do BFF são modelos de transporte do adapter.
+Transport models from reservation remain inside the outbound adapter.
 
 ## inventory-cli
 
-Cliente administrativo do Inventory.
+**Role:** administrative client.
 
 Application:
-- InventoryAdminGateway
+- `InventoryAdminGateway`
 
 Adapters:
-- CLI
-- gRPC
+- CLI in
+- gRPC out
 
-O CLI não é bounded context.
+Not a bounded context.
 
 ## inventory-proto
 
-Módulo de contrato gRPC.
+Contract-only module.
 
-Contém apenas schema/protocolo. Não possui domínio.
+Contains the protobuf schema and build configuration used to generate consumer/server stubs. No domain logic.
 
-## Padrão de dependências
+## Dependency rule
 
 ~~~text
 adapter in
    ↓
-application use case
+application
    ↓
 domain
    ↑
@@ -151,16 +216,16 @@ application port out
 adapter out
 ~~~
 
-Os fluxos de dados podem atravessar contextos; os modelos de domínio não.
+Models do not cross bounded-context boundaries merely to avoid mapping.
 
-## Estado da migração
+## Migration status
 
-| Serviço | DDD baseline | TDD baseline | Observação |
-|---|---|---|---|
-| inventory | ✅ | ✅ | Vehicle aggregate + tests |
-| reservation | ✅ | ✅ | use cases + reactive persistence |
-| rental | ✅ | ✅ | lifecycle aggregate |
-| billing | ✅ | ✅ | domain foundation |
-| users | ✅ | ✅ | BFF profile |
-| inventory-cli | ✅ | — | client profile |
-| inventory-proto | ✅ | — | contract-only |
+| Module | Domain boundary | Application/use cases | TDD foundation | Special profile |
+|---|---|---|---|---|
+| inventory-service | ✅ | ✅ | ✅ | business service |
+| reservation-service | ✅ | ✅ | ✅ | business service |
+| rental-service | ✅ | ✅ | ✅ | business service |
+| billing-service | ✅ | ✅ | ✅ | business service foundation |
+| users-service | ✅ | ✅ | ✅ | BFF |
+| inventory-cli | ✅ | ✅ | — | client |
+| inventory-proto | ✅ | — | — | contract |
