@@ -54,6 +54,30 @@ class CreateReservationTest {
     }
 
     @Test
+    void shouldStartRentalWhenReservationStartsToday() {
+        Reservation persisted = Reservation.rehydrate(
+                new org.acme.reservation.domain.model.ReservationId(42L),
+                new org.acme.reservation.domain.model.CustomerId("alice"),
+                new org.acme.reservation.domain.model.VehicleId(10L),
+                new org.acme.reservation.domain.model.RentalPeriod(
+                        LocalDate.of(2035, 3, 20),
+                        LocalDate.of(2035, 3, 29)),
+                org.acme.reservation.domain.model.ReservationStatus.PENDING);
+
+        when(repository.hasOverlap(any(), any())).thenReturn(Uni.createFrom().item(false));
+        when(repository.save(any())).thenReturn(Uni.createFrom().item(persisted));
+        when(rentalGateway.start("alice", 42L)).thenReturn(Uni.createFrom().voidItem());
+
+        service.handle(new CreateReservation.Command(
+                "alice", 10L,
+                LocalDate.of(2035, 3, 20),
+                LocalDate.of(2035, 3, 29),
+                LocalDate.of(2035, 3, 20))).await().indefinitely();
+
+        verify(rentalGateway).start("alice", 42L);
+    }
+
+    @Test
     void shouldRejectOverlappingVehicleReservation() {
         when(repository.hasOverlap(any(), any())).thenReturn(Uni.createFrom().item(true));
 
