@@ -1,5 +1,6 @@
 package org.acme.inventory.application.usecase;
 
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.inventory.application.port.out.VehicleRepository;
@@ -17,7 +18,7 @@ public class ListVehicles {
         this.repository = repository;
     }
 
-    public List<Vehicle> handle() {
-        return repository.findAll();
+    public Uni<List<Vehicle>> handle() {
+        return repository.all();
     }
 }

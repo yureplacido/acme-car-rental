@@ -1,11 +1,11 @@
 package org.acme.inventory.adapter.in.grpc;
 
 import io.quarkus.grpc.GrpcService;
-import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import org.acme.inventory.application.usecase.DecommissionVehicle;
+import org.acme.inventory.application.usecase.BulkRegisterVehicles;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.model.FuelType;
 import org.acme.inventory.domain.model.Transmission;
@@ -23,31 +23,29 @@ import java.util.Optional;
 @GrpcService
 public class GrpcInventoryResource implements InventoryService {
 
-    private final RegisterVehicle registerVehicle;
+    private final BulkRegisterVehicles bulkRegisterVehicles;
     private final DecommissionVehicle decommissionVehicle;
 
     @Inject
-    public GrpcInventoryResource(RegisterVehicle registerVehicle,
+    public GrpcInventoryResource(BulkRegisterVehicles bulkRegisterVehicles,
                                  DecommissionVehicle decommissionVehicle) {
-        this.registerVehicle = registerVehicle;
+        this.bulkRegisterVehicles = bulkRegisterVehicles;
         this.decommissionVehicle = decommissionVehicle;
     }
 
-    @Blocking
     @Override
     public Multi<CarResponse> add(Multi<InsertCarRequest> requests) {
-        return requests
-                .map(this::toCommand)
-                .map(registerVehicle::handle)
+        return bulkRegisterVehicles
+                .handle(requests.map(this::toCommand))
                 .map(this::toResponse);
     }
 
-    @Blocking
     @Override
     public Uni<CarResponse> remove(RemoveCarRequest request) {
-        Optional<Vehicle> vehicle = decommissionVehicle.handle(request.getLicensePlateNumber());
-        return vehicle.map(v -> Uni.createFrom().item(toResponse(v)))
-                .orElseGet(() -> Uni.createFrom().nullItem());
+        return decommissionVehicle.handle(request.getLicensePlateNumber())
+                .flatMap(optional -> optional
+                        .map(vehicle -> Uni.createFrom().item(toResponse(vehicle)))
+                        .orElseGet(Uni.createFrom()::nullItem));
     }
 
     private RegisterVehicle.Command toCommand(InsertCarRequest request) {

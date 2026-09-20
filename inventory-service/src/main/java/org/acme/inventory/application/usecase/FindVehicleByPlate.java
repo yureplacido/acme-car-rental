@@ -1,5 +1,6 @@
 package org.acme.inventory.application.usecase;
 
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.inventory.application.port.out.VehicleRepository;
@@ -18,7 +19,7 @@ public class FindVehicleByPlate {
         this.repository = repository;
     }
 
-    public Optional<Vehicle> handle(String plate) {
+    public Uni<Optional<Vehicle>> handle(String plate) {
         return repository.findByLicensePlate(new LicensePlate(plate));
     }
 }

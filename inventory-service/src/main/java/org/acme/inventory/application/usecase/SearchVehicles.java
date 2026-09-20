@@ -1,5 +1,6 @@
 package org.acme.inventory.application.usecase;
 
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.inventory.application.port.out.VehicleRepository;
@@ -27,25 +28,28 @@ public class SearchVehicles {
         this.repository = repository;
     }
 
-    public VehiclePage handle(VehicleSearch search) {
+    public Uni<VehiclePage> handle(VehicleSearch search) {
         int limit = Math.min(search.limit(), MAX_LIMIT);
 
-        List<Vehicle> matching = repository.findAll().stream()
-                .filter(matches(search.search(), search.filter()))
-                .sorted(comparator(search.sort(), search.direction()))
-                .toList();
+        return repository.all()
+                .map(vehicles -> {
+                    List<Vehicle> matching = vehicles.stream()
+                            .filter(matches(search.search(), search.filter()))
+                            .sorted(comparator(search.sort(), search.direction()))
+                            .toList();
 
-        List<Vehicle> items = matching.stream()
-                .skip(search.offset())
-                .limit(limit)
-                .toList();
+                    List<Vehicle> items = matching.stream()
+                            .skip(search.offset())
+                            .limit(limit)
+                            .toList();
 
-        return new VehiclePage(
-                items,
-                matching.size(),
-                search.offset(),
-                limit,
-                search.offset() + limit < matching.size());
+                    return new VehiclePage(
+                            items,
+                            matching.size(),
+                            search.offset(),
+                            limit,
+                            search.offset() + limit < matching.size());
+                });
     }
 
     private Predicate<Vehicle> matches(String search, VehicleFilter filter) {
