@@ -16,6 +16,7 @@ import org.acme.inventory.domain.model.Transmission;
 import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
 import org.acme.inventory.domain.model.VehicleLocation;
+import org.eclipse.microprofile.graphql.DefaultValue;
 import org.eclipse.microprofile.graphql.Description;
 import org.eclipse.microprofile.graphql.GraphQLApi;
 import org.eclipse.microprofile.graphql.GraphQLException;
@@ -48,12 +49,12 @@ public class GraphQLInventoryResource {
     }
 
     @Query("allCars")
-    public List<Car> cars(@Name("offset") Integer offset,
-                                  @Name("limit") Integer limit,
+    public List<Car> cars(@Name("offset") @DefaultValue("0") Integer offset,
+                                  @Name("limit") @DefaultValue("100") Integer limit,
                                   @Name("search") String search,
                                   @Name("filter") CarFilter filter,
-                                  @Name("sort") CarSortField sort,
-                                  @Name("order") SortOrder order) {
+                                  @Name("sort") @DefaultValue("ID") CarSortField sort,
+                                  @Name("order") @DefaultValue("ASC") SortOrder order) {
         System.out.println("Campos solicitados no inventário: " + context.getSelectedFields());
         return page(offset == null ? 0 : offset,
                 limit == null ? Page.MAX_LIMIT : limit,
@@ -61,12 +62,12 @@ public class GraphQLInventoryResource {
     }
 
     @Query("allCarsPage")
-    public Page<Car> carsPage(@Name("offset") int offset,
-                                @Name("limit") int limit,
+    public Page<Car> carsPage(@Name("offset") @DefaultValue("0") int offset,
+                                @Name("limit") @DefaultValue("20") int limit,
                                 @Name("search") String search,
                                 @Name("filter") CarFilter filter,
-                                @Name("sort") CarSortField sort,
-                                @Name("order") SortOrder order) {
+                                @Name("sort") @DefaultValue("ID") CarSortField sort,
+                                @Name("order") @DefaultValue("ASC") SortOrder order) {
         return page(offset, limit, search, filter, sort, order);
     }
 
