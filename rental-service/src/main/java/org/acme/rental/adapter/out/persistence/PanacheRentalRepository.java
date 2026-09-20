@@ -26,20 +26,20 @@ public class PanacheRentalRepository implements RentalRepository {
     public Optional<Rental> findByCustomerAndReservation(String customerId, Long reservationId) {
         return RentalEntity.find("userId = ?1 and reservationId = ?2", customerId, reservationId)
                 .firstResultOptional()
-                .map(RentalMapper::toDomain);
+                .map(entity -> RentalMapper.toDomain((RentalEntity) entity));
     }
 
     @Override
     public List<Rental> findAll() {
         return RentalEntity.listAll().stream()
-                .map(RentalMapper::toDomain)
+                .map(entity -> RentalMapper.toDomain((RentalEntity) entity))
                 .toList();
     }
 
     @Override
     public List<Rental> findActive() {
         return RentalEntity.list("status", RentalStatus.ACTIVE.name()).stream()
-                .map(RentalMapper::toDomain)
+                .map(entity -> RentalMapper.toDomain((RentalEntity) entity))
                 .toList();
     }
 }
