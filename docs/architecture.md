@@ -206,7 +206,7 @@ Reservation já usa Hibernate Reactive + Mutiny. A regra arquitetural é:
 - operações bloqueantes são isoladas;
 - backpressure é tratado como capacidade do fluxo, não como sinônimo de thread pool.
 
-Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante e alto nível de concorrência; WithTransaction cria a fronteira transacional reativa para métodos CDI que retornam Uni. citeturn679014search0turn679014search1
+Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; `@WithTransaction` é a anotação usada para fronteiras transacionais reativas em métodos CDI que retornam `Uni`. Ver <https://quarkus.io/guides/hibernate-reactive> e <https://quarkus.io/guides/hibernate-reactive-panache>.
 
 ## Decisões
 
