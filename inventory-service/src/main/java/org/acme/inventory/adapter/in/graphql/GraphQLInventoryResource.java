@@ -78,7 +78,7 @@ public class GraphQLInventoryResource {
     }
 
     @Query("findCar")
-    public Car findCarByPlate(@Name("plate") String plate) {
+    public Car findCarByPlate(@Name("plate") String plate) throws GraphQLException {
         return findVehicleByPlate.handle(plate)
                 .map(this::toView)
                 .orElseThrow(() -> new GraphQLException(
