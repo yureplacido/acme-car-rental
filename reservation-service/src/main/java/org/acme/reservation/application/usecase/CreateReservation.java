@@ -31,13 +31,13 @@ public class CreateReservation {
                 new VehicleId(command.vehicleId()),
                 new RentalPeriod(command.startDate(), command.endDate()));
 
-        return repository.hasOverlap(reservation.vehicleId(), reservation)
-                .chain(overlap -> {
-                    if (overlap) {
+        return repository.findByVehicle(reservation.vehicleId())
+                .chain(existing -> {
+                    boolean conflict = existing.stream().anyMatch(reservation::conflictsWith);
+                    if (conflict) {
                         return Uni.createFrom().failure(
                                 new IllegalStateException("vehicle is already reserved for the requested period"));
                     }
-
                     return repository.save(reservation);
                 })
                 .call(persisted -> {
