@@ -8,7 +8,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 
 @Path("/rental")
-@RegisterRestClient(configKey = "rental")
+@RegisterRestClient
 public interface RentalClient {
     @POST
     @Path("/start/{userId}/{reservationId}")
