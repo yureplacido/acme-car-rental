@@ -1,6 +1,7 @@
 package org.acme.reservation.adapter.out.persistence;
 
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
+import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,6 +24,7 @@ public class PanacheReservationRepository implements ReservationRepository, Pana
     }
 
     @Override
+    @WithTransaction
     public Uni<Reservation> save(Reservation reservation) {
         ReservationEntity entity = ReservationMapper.toEntity(reservation);
         return persist(entity).map(ReservationMapper::toDomain);
