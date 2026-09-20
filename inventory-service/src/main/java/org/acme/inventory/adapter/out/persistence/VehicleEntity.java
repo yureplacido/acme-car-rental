@@ -39,6 +39,7 @@ public class VehicleEntity {
 
     // Transitional persistence field. Pricing ownership moves to the Pricing context.
     public BigDecimal dailyRate;
+    public String dailyRateCurrency;
 
     public String branchCode;
     public String city;
