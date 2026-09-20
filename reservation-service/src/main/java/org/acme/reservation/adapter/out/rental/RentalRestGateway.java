@@ -4,8 +4,8 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.reservation.application.port.out.RentalGateway;
-import org.acme.reservation.client.rental.Rental;
-import org.acme.reservation.client.rental.RentalClient;
+
+import org.acme.reservation.adapter.out.rental.RentalClient;
 
 @ApplicationScoped
 public class RentalRestGateway implements RentalGateway {
