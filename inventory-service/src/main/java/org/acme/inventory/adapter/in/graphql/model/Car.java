@@ -37,4 +37,6 @@ public class Car {
     private BigDecimal dailyRate;
     private String branchCode;
     private String city;
+    private Long odometerKm;
+    private VehicleCondition condition;
 }
