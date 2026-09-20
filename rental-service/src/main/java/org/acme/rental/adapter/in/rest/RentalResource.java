@@ -32,30 +32,32 @@ public class RentalResource {
 
     @POST
     @Path("/start/{userId}/{reservationId}")
-    public Rental start(@jakarta.ws.rs.PathParam("userId") String userId,
-                        @jakarta.ws.rs.PathParam("reservationId") Long reservationId) {
-        return startRental.handle(new StartRental.Command(userId, reservationId, LocalDate.now()));
+    public RentalResponse start(@jakarta.ws.rs.PathParam("userId") String userId,
+                                @jakarta.ws.rs.PathParam("reservationId") Long reservationId) {
+        return RentalResponse.from(
+                startRental.handle(new StartRental.Command(userId, reservationId, LocalDate.now())));
     }
 
     @PUT
     @Path("/end/{userId}/{reservationId}")
-    public Rental end(@jakarta.ws.rs.PathParam("userId") String userId,
-                      @jakarta.ws.rs.PathParam("reservationId") Long reservationId) {
+    public RentalResponse end(@jakarta.ws.rs.PathParam("userId") String userId,
+                              @jakarta.ws.rs.PathParam("reservationId") Long reservationId) {
         try {
-            return endRental.handle(new EndRental.Command(userId, reservationId, LocalDate.now()));
+            return RentalResponse.from(
+                    endRental.handle(new EndRental.Command(userId, reservationId, LocalDate.now())));
         } catch (IllegalArgumentException e) {
             throw new NotFoundException("Rental not found", e);
         }
     }
 
     @GET
-    public List<Rental> list() {
-        return listRentals.handle(false);
+    public List<RentalResponse> list() {
+        return listRentals.handle(false).stream().map(RentalResponse::from).toList();
     }
 
     @GET
     @Path("/active")
-    public List<Rental> listActive() {
-        return listRentals.handle(true);
+    public List<RentalResponse> listActive() {
+        return listRentals.handle(true).stream().map(RentalResponse::from).toList();
     }
 }
