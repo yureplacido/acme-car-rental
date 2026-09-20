@@ -93,7 +93,9 @@ public class GraphQLInventoryResource {
                 input.getSeats(),
                 input.getBranchCode() == null || input.getCity() == null
                         ? null
-                        : new VehicleLocation(input.getBranchCode(), input.getCity()))));
+                        : new VehicleLocation(input.getBranchCode(), input.getCity()),
+                input.getDailyRate(),
+                input.getCurrency() == null || input.getCurrency().isBlank() ? "BRL" : input.getCurrency())));
     }
 
     @Mutation
@@ -177,6 +179,7 @@ public class GraphQLInventoryResource {
                 .seats(vehicle.specifications().seats())
                 .branchCode(vehicle.location() == null ? null : vehicle.location().branchCode())
                 .city(vehicle.location() == null ? null : vehicle.location().city())
+                .dailyRate(vehicle.dailyRate() == null ? null : vehicle.dailyRate().amount())
                 .build();
     }
 
