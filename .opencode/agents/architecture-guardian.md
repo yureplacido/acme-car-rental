@@ -6,7 +6,7 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
-  - action: shell
+  - action: bash
     resource: "*"
     effect: deny
 ---
