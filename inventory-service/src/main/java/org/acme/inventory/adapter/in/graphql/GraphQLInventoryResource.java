@@ -61,7 +61,7 @@ public class GraphQLInventoryResource {
     }
 
     @Query("allCarsPage")
-    public Page carsPage(@Name("offset") int offset,
+    public Page<Car> carsPage(@Name("offset") int offset,
                                 @Name("limit") int limit,
                                 @Name("search") String search,
                                 @Name("filter") CarFilter filter,
@@ -80,7 +80,7 @@ public class GraphQLInventoryResource {
     }
 
     @Mutation
-    public Car register(RegisterVehicleInput input) {
+    public Car register(CarInput input) {
         return toView(registerVehicle.handle(new RegisterVehicle.Command(
                 input.getLicensePlateNumber(),
                 input.getManufacturer(),
