@@ -28,8 +28,8 @@ public class PanacheVehicleRepository implements VehicleRepository, PanacheRepos
     @WithSession
     public Uni<Optional<Vehicle>> findByLicensePlate(LicensePlate licensePlate) {
         return find("licensePlateNumber", licensePlate.value())
-                .firstResultOptional()
-                .map(optional -> optional.map(VehicleMapper::toDomain));
+                .firstResult()
+                .map(entity -> Optional.ofNullable(entity).map(VehicleMapper::toDomain));
     }
 
     @Override
