@@ -21,8 +21,8 @@ class ReservationFacadeTest {
         facade.reserve(99L, LocalDate.of(2035, 3, 20), LocalDate.of(2035, 3, 29));
 
         assertNotNull(gateway.created);
-        assertEquals(99L, gateway.created.getCarId());
-        assertEquals(LocalDate.of(2035, 3, 20), gateway.created.getStartDay());
+        assertEquals(99L, gateway.created.carId());
+        assertEquals(LocalDate.of(2035, 3, 20), gateway.created.startDay());
     }
 
     static class FakeGateway implements ReservationsGateway {
