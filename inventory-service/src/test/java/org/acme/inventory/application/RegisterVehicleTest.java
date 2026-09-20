@@ -4,6 +4,7 @@ import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ class RegisterVehicleTest {
         Vehicle vehicle = useCase.handle(new RegisterVehicle.Command(
                 "abc123", "Ford", "Mustang",
                 VehicleCategory.SUV, null, null,
-                2025, "black", 5, null));
+                2025, "black", 5, null, new BigDecimal("149.90"), "BRL"));
 
         assertEquals("ABC123", vehicle.licensePlate().value());
         assertEquals(1, repository.saved.size());
@@ -41,7 +42,8 @@ class RegisterVehicleTest {
                     vehicle.licensePlate(),
                     vehicle.specifications(),
                     vehicle.location(),
-                    vehicle.status());
+                    vehicle.status(),
+                    vehicle.dailyRate());
             saved.add(persisted);
             return persisted;
         }
