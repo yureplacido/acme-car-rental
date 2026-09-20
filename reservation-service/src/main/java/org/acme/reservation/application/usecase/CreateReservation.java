@@ -1,7 +1,6 @@
 package org.acme.reservation.application.usecase;
 
 import io.smallrye.mutiny.Uni;
-import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.reservation.application.port.out.RentalGateway;
@@ -26,7 +25,6 @@ public class CreateReservation {
         this.rentalGateway = rentalGateway;
     }
 
-    @WithTransaction
     public Uni<Reservation> handle(Command command) {
         Reservation reservation = Reservation.create(
                 new CustomerId(command.customerId()),
