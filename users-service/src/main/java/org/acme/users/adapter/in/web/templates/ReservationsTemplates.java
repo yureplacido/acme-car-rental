@@ -2,8 +2,8 @@ package org.acme.users.adapter.in.web.templates;
 
 import io.quarkus.qute.CheckedTemplate;
 import io.quarkus.qute.TemplateInstance;
-import org.acme.users.adapter.out.reservation.model.Car;
-import org.acme.users.adapter.out.reservation.model.Reservation;
+import org.acme.users.application.model.AvailableCar;
+import org.acme.users.application.model.ReservationView;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -15,9 +15,9 @@ public class ReservationsTemplates {
                                                 LocalDate endDate,
                                                 String name);
 
-    public static native TemplateInstance listofreservations(Collection<Reservation> reservations);
+    public static native TemplateInstance listofreservations(Collection<ReservationView> reservations);
 
-    public static native TemplateInstance availablecars(Collection<Car> cars,
+    public static native TemplateInstance availablecars(Collection<AvailableCar> cars,
                                                         LocalDate startDate,
                                                         LocalDate endDate);
 }
