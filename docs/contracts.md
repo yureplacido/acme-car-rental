@@ -1,6 +1,6 @@
 # Contratos
 
-> **Última atualização:** 2026-09-20 (cap.7 - domínio do inventário: campos aditivos + soft delete + matriz de superfícies) · **Fonte da verdade:** o código.
+> **Fonte da verdade:** código + docs/domain.md + docs/ddd-tdd-standards.md.
 
 Registro de contratos entre serviços e suas regras de evolução. Hoje existe um único
 contrato gRPC (inventory-proto); novos contratos (ex.: mensageria cap.9) entram aqui.
@@ -63,8 +63,7 @@ consome e sobe no seu ritmo. Mude para `-SNAPSHOT`/nova versão ao evoluir.
 
 ## Matriz de superfícies — canais do inventário (ADR 10)
 
-O inventário **não tem REST** (sem resources de domínio). Os dois canais existentes são
-divididos por propósito; o comum entre eles é o façade `domain/CarInventoryService`:
+O inventário não expõe REST de domínio. GraphQL e gRPC são adapters independentes que chamam os casos de uso da aplicação.
 
 | Operação | GraphQL (`/graphql`) | gRPC | Por quê |
 |---|---|---|---|
