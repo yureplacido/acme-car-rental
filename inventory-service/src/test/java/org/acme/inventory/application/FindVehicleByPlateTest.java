@@ -1,5 +1,6 @@
 package org.acme.inventory.application;
 
+import io.smallrye.mutiny.Uni;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.FindVehicleByPlate;
 import org.acme.inventory.domain.model.LicensePlate;
@@ -28,6 +29,7 @@ class FindVehicleByPlateTest {
 
         Vehicle result = new FindVehicleByPlate(repository)
                 .handle(" ABC123 ")
+                .await().indefinitely()
                 .orElseThrow();
 
         assertEquals("ABC123", result.licensePlate().value());
@@ -40,10 +42,11 @@ class FindVehicleByPlateTest {
             this.vehicle = vehicle;
         }
 
-        public List<Vehicle> findAll() { return List.of(vehicle); }
-        public Optional<Vehicle> findByLicensePlate(LicensePlate plate) {
-            return plate.equals(vehicle.licensePlate()) ? Optional.of(vehicle) : Optional.empty();
+        public Uni<List<Vehicle>> all() { return Uni.createFrom().item(List.of(vehicle)); }
+        public Uni<Optional<Vehicle>> findByLicensePlate(LicensePlate plate) {
+            return Uni.createFrom().item(
+                    plate.equals(vehicle.licensePlate()) ? Optional.of(vehicle) : Optional.empty());
         }
-        public Vehicle save(Vehicle value) { return value; }
+        public Uni<Vehicle> save(Vehicle value) { return Uni.createFrom().item(value); }
     }
 }

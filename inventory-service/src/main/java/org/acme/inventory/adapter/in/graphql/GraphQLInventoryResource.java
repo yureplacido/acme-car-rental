@@ -1,6 +1,7 @@
 package org.acme.inventory.adapter.in.graphql;
 
 import io.smallrye.graphql.api.Context;
+import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import org.acme.inventory.adapter.in.graphql.model.Car;
 import org.acme.inventory.adapter.in.graphql.model.CarFilter;
@@ -33,6 +34,7 @@ import org.eclipse.microprofile.graphql.Query;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @GraphQLApi
 @Description("API de inventário e gestão de frota")
@@ -57,18 +59,18 @@ public class GraphQLInventoryResource {
     }
 
     @Query("allCars")
-    public List<Car> cars(@Name("offset") @DefaultValue("0") Integer offset,
+    public Uni<List<Car>> cars(@Name("offset") @DefaultValue("0") Integer offset,
                           @Name("limit") @DefaultValue("100") Integer limit,
                           @Name("search") String search,
                           @Name("filter") CarFilter filter,
                           @Name("sort") @DefaultValue("ID") CarSortField sort,
                           @Name("order") @DefaultValue("ASC") SortOrder order) {
         System.out.println("Campos solicitados no inventário: " + context.getSelectedFields());
-        return toPage(offset, limit, search, filter, sort, order).getItems();
+        return toPage(offset, limit, search, filter, sort, order).map(Page::getItems);
     }
 
     @Query("allCarsPage")
-    public Page<Car> carsPage(@Name("offset") @DefaultValue("0") int offset,
+    public Uni<Page<Car>> carsPage(@Name("offset") @DefaultValue("0") int offset,
                               @Name("limit") @DefaultValue("20") int limit,
                               @Name("search") String search,
                               @Name("filter") CarFilter filter,
@@ -78,62 +80,66 @@ public class GraphQLInventoryResource {
     }
 
     @Query("findCar")
-    public Car findCarByPlate(@Name("plate") String plate) throws GraphQLException {
+    public Uni<Car> findCarByPlate(@Name("plate") String plate) {
         return findVehicleByPlate.handle(plate)
-                .map(this::toView)
-                .orElseThrow(() -> new GraphQLException(
-                        "Carro com a placa " + plate + " não encontrado."));
+                .flatMap(optional -> optional
+                        .map(vehicle -> Uni.createFrom().item(toView(vehicle)))
+                        .orElseGet(() -> Uni.createFrom().failure(
+                                new GraphQLException("Carro com a placa " + plate + " não encontrado."))));
     }
 
     @Mutation
-    public Car register(CarInput input) {
-        return toView(registerVehicle.handle(new RegisterVehicle.Command(
-                input.getLicensePlateNumber(),
-                input.getManufacturer(),
-                input.getModel(),
-                parseEnum(VehicleCategory.class, input.getCategory()),
-                parseEnum(Transmission.class, input.getTransmission()),
-                parseEnum(FuelType.class, input.getFuelType()),
-                input.getYear(),
-                input.getColor(),
-                input.getSeats(),
-                input.getBranchCode() == null || input.getCity() == null
-                        ? null
-                        : new VehicleLocation(input.getBranchCode(), input.getCity()),
-                input.getDailyRate(),
-                input.getCurrency() == null || input.getCurrency().isBlank()
-                        ? "BRL"
-                        : input.getCurrency())));
+    public Uni<Car> register(CarInput input) {
+        return registerVehicle.handle(new RegisterVehicle.Command(
+                        input.getLicensePlateNumber(),
+                        input.getManufacturer(),
+                        input.getModel(),
+                        parseEnum(VehicleCategory.class, input.getCategory()),
+                        parseEnum(Transmission.class, input.getTransmission()),
+                        parseEnum(FuelType.class, input.getFuelType()),
+                        input.getYear(),
+                        input.getColor(),
+                        input.getSeats(),
+                        input.getBranchCode() == null || input.getCity() == null
+                                ? null
+                                : new VehicleLocation(input.getBranchCode(), input.getCity()),
+                        input.getDailyRate(),
+                        input.getCurrency() == null || input.getCurrency().isBlank()
+                                ? "BRL"
+                                : input.getCurrency()))
+                .map(this::toView);
     }
 
     @Mutation
-    public boolean remove(@Name("plate") String plate) {
-        return decommissionVehicle.handle(plate).isPresent();
+    public Uni<Boolean> remove(@Name("plate") String plate) {
+        return decommissionVehicle.handle(plate)
+                .map(Optional::isPresent);
     }
 
-    private Page<Car> toPage(int offset,
-                             int limit,
-                             String search,
-                             CarFilter filter,
-                             CarSortField sort,
-                             SortOrder order) {
-        VehiclePage result = searchVehicles.handle(new VehicleSearch(
+    private Uni<Page<Car>> toPage(int offset,
+                                  int limit,
+                                  String search,
+                                  CarFilter filter,
+                                  CarSortField sort,
+                                  SortOrder order) {
+        return searchVehicles.handle(new VehicleSearch(
                 Math.max(0, offset),
                 Math.max(1, limit),
                 search,
                 toFilter(filter),
                 mapSort(sort),
-                mapDirection(order)));
+                mapDirection(order)))
+                .map(result -> {
+                    List<Car> items = result.items().stream().map(this::toView).toList();
 
-        List<Car> items = result.items().stream().map(this::toView).toList();
-
-        return Page.<Car>builder()
-                .items(items)
-                .total(result.total())
-                .offset(result.offset())
-                .limit(result.limit())
-                .hasNextPage(result.hasNextPage())
-                .build();
+                    return Page.<Car>builder()
+                            .items(items)
+                            .total(result.total())
+                            .offset(result.offset())
+                            .limit(result.limit())
+                            .hasNextPage(result.hasNextPage())
+                            .build();
+                });
     }
 
     private VehicleFilter toFilter(CarFilter filter) {

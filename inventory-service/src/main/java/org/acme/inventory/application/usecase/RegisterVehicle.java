@@ -1,5 +1,6 @@
 package org.acme.inventory.application.usecase;
 
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.inventory.application.port.out.VehicleRepository;
@@ -23,7 +24,7 @@ public class RegisterVehicle {
         this.repository = repository;
     }
 
-    public Vehicle handle(Command command) {
+    public Uni<Vehicle> handle(Command command) {
         Vehicle vehicle = Vehicle.register(
                 new LicensePlate(command.licensePlateNumber()),
                 new VehicleSpecifications(
@@ -36,7 +37,11 @@ public class RegisterVehicle {
                         command.color(),
                         command.seats()),
                 command.location(),
-                command.dailyRate() == null ? null : new VehicleDailyRate(command.dailyRate(), command.currency() == null || command.currency().isBlank() ? "BRL" : command.currency()));
+                command.dailyRate() == null
+                        ? null
+                        : new VehicleDailyRate(
+                        command.dailyRate(),
+                        command.currency() == null || command.currency().isBlank() ? "BRL" : command.currency()));
         return repository.save(vehicle);
     }
 

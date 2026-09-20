@@ -1,5 +1,6 @@
 package org.acme.inventory.application;
 
+import io.smallrye.mutiny.Uni;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.query.SortDirection;
 import org.acme.inventory.application.query.VehicleFilter;
@@ -33,7 +34,7 @@ class SearchVehiclesTest {
         var result = search.handle(new VehicleSearch(
                 0, 100, "ford",
                 new VehicleFilter(null, null, null, null),
-                VehicleSortField.ID, SortDirection.ASC));
+                VehicleSortField.ID, SortDirection.ASC)).await().indefinitely();
 
         assertEquals(List.of("AAA111"), result.items().stream()
                 .map(v -> v.licensePlate().value()).toList());
@@ -49,7 +50,7 @@ class SearchVehiclesTest {
         var result = search.handle(new VehicleSearch(
                 0, 100, null,
                 new VehicleFilter(null, null, null, null),
-                VehicleSortField.ID, SortDirection.ASC));
+                VehicleSortField.ID, SortDirection.ASC)).await().indefinitely();
 
         assertEquals(List.of("AAA111"), result.items().stream()
                 .map(v -> v.licensePlate().value()).toList());
@@ -64,7 +65,7 @@ class SearchVehiclesTest {
         var result = search.handle(new VehicleSearch(
                 1, 1, null,
                 new VehicleFilter("Ford", null, null, null),
-                VehicleSortField.LICENSE_PLATE, SortDirection.ASC));
+                VehicleSortField.LICENSE_PLATE, SortDirection.ASC)).await().indefinitely();
 
         assertEquals(List.of("BBB222"), result.items().stream()
                 .map(v -> v.licensePlate().value()).toList());
@@ -91,10 +92,11 @@ class SearchVehiclesTest {
     static class FakeVehicleRepository implements VehicleRepository {
         final List<Vehicle> items = new ArrayList<>();
 
-        public List<Vehicle> findAll() { return List.copyOf(items); }
-        public Optional<Vehicle> findByLicensePlate(LicensePlate plate) {
-            return items.stream().filter(v -> v.licensePlate().equals(plate)).findFirst();
+        public Uni<List<Vehicle>> all() { return Uni.createFrom().item(List.copyOf(items)); }
+        public Uni<Optional<Vehicle>> findByLicensePlate(LicensePlate plate) {
+            return Uni.createFrom().item(items.stream()
+                    .filter(v -> v.licensePlate().equals(plate)).findFirst());
         }
-        public Vehicle save(Vehicle vehicle) { return vehicle; }
+        public Uni<Vehicle> save(Vehicle vehicle) { return Uni.createFrom().item(vehicle); }
     }
 }

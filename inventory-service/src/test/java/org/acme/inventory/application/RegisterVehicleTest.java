@@ -1,5 +1,6 @@
 package org.acme.inventory.application;
 
+import io.smallrye.mutiny.Uni;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.model.Vehicle;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,7 +24,8 @@ class RegisterVehicleTest {
         Vehicle vehicle = useCase.handle(new RegisterVehicle.Command(
                 "abc123", "Ford", "Mustang",
                 VehicleCategory.SUV, null, null,
-                2025, "black", 5, null, new BigDecimal("149.90"), "BRL"));
+                2025, "black", 5, null, new BigDecimal("149.90"), "BRL"))
+                .await().indefinitely();
 
         assertEquals("ABC123", vehicle.licensePlate().value());
         assertEquals(1, repository.saved.size());
@@ -32,14 +35,16 @@ class RegisterVehicleTest {
     static class FakeVehicleRepository implements VehicleRepository {
         final List<Vehicle> saved = new ArrayList<>();
 
-        public List<Vehicle> findAll() { return List.copyOf(saved); }
+        public Uni<List<Vehicle>> all() { return Uni.createFrom().item(List.copyOf(saved)); }
 
-        public java.util.Optional<Vehicle> findByLicensePlate(
+        public Uni<Optional<Vehicle>> findByLicensePlate(
                 org.acme.inventory.domain.model.LicensePlate plate) {
-            return saved.stream().filter(v -> v.licensePlate().equals(plate)).findFirst();
+            return Uni.createFrom().item(saved.stream()
+                    .filter(v -> v.licensePlate().equals(plate))
+                    .findFirst());
         }
 
-        public Vehicle save(Vehicle vehicle) {
+        public Uni<Vehicle> save(Vehicle vehicle) {
             Vehicle persisted = Vehicle.rehydrate(
                     new org.acme.inventory.domain.model.VehicleId(1L),
                     vehicle.licensePlate(),
@@ -50,7 +55,7 @@ class RegisterVehicleTest {
                     vehicle.odometer(),
                     vehicle.condition());
             saved.add(persisted);
-            return persisted;
+            return Uni.createFrom().item(persisted);
         }
     }
 }
