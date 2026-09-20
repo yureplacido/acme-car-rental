@@ -3,7 +3,6 @@ package org.acme.reservation.application.usecase;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.acme.reservation.application.port.out.InventoryGateway;
 import org.acme.reservation.application.port.out.RentalGateway;
 import org.acme.reservation.application.port.out.ReservationRepository;
 import org.acme.reservation.domain.model.CustomerId;
@@ -17,15 +16,12 @@ import java.time.LocalDate;
 public class CreateReservation {
 
     private final ReservationRepository repository;
-    private final InventoryGateway inventoryGateway;
     private final RentalGateway rentalGateway;
 
     @Inject
     public CreateReservation(ReservationRepository repository,
-                              InventoryGateway inventoryGateway,
                               RentalGateway rentalGateway) {
         this.repository = repository;
-        this.inventoryGateway = inventoryGateway;
         this.rentalGateway = rentalGateway;
     }
 
