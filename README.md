@@ -30,10 +30,11 @@ Outbound Adapter
 ~~~
 
 Bounded contexts atuais:
-- Inventory
+- Inventory / Fleet
 - Reservation
 - Rental
-- Billing
+- Billing / Payment
+- Pricing (futuro)
 
 Módulos especiais:
 - users-service — BFF/UI
@@ -71,11 +72,13 @@ O projeto possui uma camada de governança arquitetural em `.opencode/`:
 - tdd-guardian
 - quarkus-book-guardian
 - architecture-guardian
+- domain-designer
 - feature-implementer
 
 Comandos:
 
 ~~~text
+/domain-design <feature>
 /preflight <feature>
 /ddd-audit <service>
 /tdd-audit <service>
@@ -87,7 +90,7 @@ O agente `feature-implementer` é o agente padrão definido em `opencode.json`.
 
 ## Domínio
 
-O Inventory usa `Vehicle` como aggregate root, com value objects como `LicensePlate`, `VehicleSpecifications`, `VehicleLocation` e `VehicleDailyRate`.
+Inventory usa `Vehicle` e `MaintenanceOrder` como aggregates. Vehicle possui value objects como `LicensePlate`, `VehicleSpecifications`, `VehicleLocation`, `VehicleDailyRate` e `OdometerReading`, além de `VehicleCondition` para o estado operacional.
 
 Reservation usa `Reservation` + `RentalPeriod`.
 
