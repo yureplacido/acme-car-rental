@@ -66,7 +66,7 @@ class DecommissionVehicleTest {
             return Uni.createFrom().item(
                             plate.equals(vehicle.licensePlate())
                                     ? Optional.of(vehicle)
-                                    : Optional.empty())
+                                    : Optional.<Vehicle>empty())
                     .onItem().delayIt().by(Duration.ofMillis(5))
                     .invoke(ignored -> findCalls.incrementAndGet());
         }
