@@ -33,8 +33,8 @@ import org.eclipse.microprofile.graphql.Name;
 import org.eclipse.microprofile.graphql.Query;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Locale;
+import java.util.Optional;
 
 @GraphQLApi
 @Description("API de inventário e gestão de frota")
@@ -90,23 +90,24 @@ public class GraphQLInventoryResource {
 
     @Mutation
     public Uni<Car> register(CarInput input) {
-        return toView(registerVehicle.handle(new RegisterVehicle.Command(
-                input.getLicensePlateNumber(),
-                input.getManufacturer(),
-                input.getModel(),
-                parseEnum(VehicleCategory.class, input.getCategory()),
-                parseEnum(Transmission.class, input.getTransmission()),
-                parseEnum(FuelType.class, input.getFuelType()),
-                input.getYear(),
-                input.getColor(),
-                input.getSeats(),
-                input.getBranchCode() == null || input.getCity() == null
-                        ? null
-                        : new VehicleLocation(input.getBranchCode(), input.getCity()),
-                input.getDailyRate(),
-                input.getCurrency() == null || input.getCurrency().isBlank()
-                        ? "BRL"
-                        : input.getCurrency())));
+        return registerVehicle.handle(new RegisterVehicle.Command(
+                        input.getLicensePlateNumber(),
+                        input.getManufacturer(),
+                        input.getModel(),
+                        parseEnum(VehicleCategory.class, input.getCategory()),
+                        parseEnum(Transmission.class, input.getTransmission()),
+                        parseEnum(FuelType.class, input.getFuelType()),
+                        input.getYear(),
+                        input.getColor(),
+                        input.getSeats(),
+                        input.getBranchCode() == null || input.getCity() == null
+                                ? null
+                                : new VehicleLocation(input.getBranchCode(), input.getCity()),
+                        input.getDailyRate(),
+                        input.getCurrency() == null || input.getCurrency().isBlank()
+                                ? "BRL"
+                                : input.getCurrency()))
+                .map(this::toView);
     }
 
     @Mutation
