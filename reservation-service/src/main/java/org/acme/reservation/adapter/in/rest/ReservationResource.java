@@ -18,6 +18,7 @@ import org.acme.reservation.adapter.in.security.CurrentUser;
 
 import java.time.LocalDate;
 import java.util.List;
+import org.jboss.resteasy.reactive.RestQuery;
 
 @Path("/reservations")
 @Produces(MediaType.APPLICATION_JSON)
@@ -60,7 +61,7 @@ public class ReservationResource {
 
     @GET
     @Path("availability")
-    public Uni<List<AvailableVehicle>> availability(LocalDate startDate, LocalDate endDate) {
+    public Uni<List<AvailableVehicle>> availability(@RestQuery LocalDate startDate, @RestQuery LocalDate endDate) {
         return findAvailableVehicles.handle(startDate, endDate);
     }
 }
