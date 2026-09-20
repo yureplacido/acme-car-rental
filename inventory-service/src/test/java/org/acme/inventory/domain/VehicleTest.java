@@ -51,7 +51,8 @@ class VehicleTest {
                 new VehicleSpecifications("Ford", "Mustang",
                         VehicleCategory.SUV, Transmission.AUTOMATIC,
                         null, 2025, "black", 5),
-                null);
+                null,
+                VehicleDailyRate.brl(new BigDecimal("149.90")));
 
         vehicle.decommission();
 
