@@ -2,6 +2,7 @@
 
 Before changing code, read:
 - `docs/ddd-tdd-standards.md`
+- `docs/domain.md`
 - `docs/architecture.md`
 - `docs/services.md`
 - `docs/testing.md`
