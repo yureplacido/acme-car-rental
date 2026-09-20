@@ -61,6 +61,7 @@ public class GrpcInventoryResource implements InventoryService {
                 request.getYear() == 0 ? null : request.getYear(),
                 emptyToNull(request.getColor()),
                 request.getSeats() == 0 ? null : request.getSeats(),
+                (VehicleLocation) null,
                 request.getDailyRate() == 0 ? null : BigDecimal.valueOf(request.getDailyRate()),
                 "BRL");
     }
