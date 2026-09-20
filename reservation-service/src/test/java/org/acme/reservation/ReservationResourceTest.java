@@ -7,6 +7,7 @@ import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import io.smallrye.mutiny.Uni;
 import org.acme.reservation.api.ReservationResource;
 import org.acme.reservation.client.inventory.Car;
 import org.acme.reservation.client.inventory.GraphQLInventoryClient;
@@ -51,7 +52,7 @@ public class ReservationResourceTest {
         reservation.setStartDay(LocalDate.parse("2035-03-20"));
         reservation.setEndDay(LocalDate.parse("2035-03-29"));
 
-        // POST /reservations: o id é atribuído pelo repositório e devolvido no JSON.
+        // POST /reservations: o id é atribuído pelo Panache e devolvido no JSON.
         RestAssured.given()
                 .contentType(ContentType.JSON)
                 .body(reservation)
@@ -67,11 +68,12 @@ public class ReservationResourceTest {
         // resolva o client GraphQL para o mock (e não faça rede até o Inventory).
         GraphQLInventoryClient mock = Mockito.mock(GraphQLInventoryClient.class);
         Car peugeot = new Car(1L, "ABC123", "Peugeot", "406");
-        Mockito.when(mock.allCars()).thenReturn(Collections.singletonList(peugeot));
+        // Livro 7.44: o allCars agora devolve um Uni (fluxo reativo).
+        Mockito.when(mock.allCars()).thenReturn(Uni.createFrom().item(Collections.singletonList(peugeot)));
         QuarkusMock.installMockForType(mock, GraphQLInventoryClient.class);
 
         // Datas em 2035: nunca são "hoje" (evita o fluxo de Rental em make()) e não
-        // sobrepõem as reservas pré-carregadas pelo repositório in-memory (2026).
+        // sobrepõem as demais reservas do banco.
         String startDate = "2035-01-01";
         String endDate = "2035-01-10";
         Car[] cars = RestAssured.given()

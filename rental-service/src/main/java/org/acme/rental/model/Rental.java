@@ -1,13 +1,29 @@
 package org.acme.rental.model;
 
-import java.time.LocalDate;
-import lombok.Value;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-@Value
+import java.time.LocalDate;
+
+/**
+ * Modelo de domínio do aluguel — POJO puro. É o tipo público do REST
+ * ({@code /rental}); a persistência vive em {@code entity/RentalEntity} (Panache
+ * MongoDB), mapeada por {@code RentalMapper}. Assim o Active Record ou o Repository
+ * pattern podem mudar sem tocar no modelo/API.
+ */
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class Rental {
 
-    Long id;
-    String userId;
-    Long reservationId;
-    LocalDate startDate;
+    /** Id do documento, serializado como hex do ObjectId (formato do livro 7.6.3). */
+    private String id;
+    private String userId;
+    private Long reservationId;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private boolean active;
 }

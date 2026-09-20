@@ -31,12 +31,16 @@ Legenda: **[ ]** pendente · **[x]** feito.
   - [x] Produção: Keycloak+PostgreSQL no compose (realm `car-rental`) + wiring
     `%prod`/`%docker`
   - [x] Atualizado: `services.md` (users/security), `deployment.md`, `testing.md`
-- [ ] **Cap. 7 — Database access** 🔜
-  - [ ] inventory → **MySQL** (datasource + Panache), trocar `app.repository`
-  - [ ] reservation → **PostgreSQL reativo** (Panache reativo)
-  - [ ] rental → ativar **MongoDB** (`MongoRentalRepository` já existe)
-  - [ ] billing → MongoDB Panache (deps já no pom)
-  - [ ] Atualizar: `services.md`, `contracts.md`, `deployment.md`
+- [x] **Cap. 7 — Database access** ✅ (inventory/reservation/rental)
+  - [x] inventory → **MySQL** (Panache repository + `import.sql` seed, `sql-load-script` p/ prod/docker)
+  - [x] reservation → **PostgreSQL reativo** (Panache reativo, `@WithTransaction`/`Uni`) + CRUD REST Data em `/reservations/admin/reservation`
+  - [x] rental → **MongoDB** (Panache active record, `PanacheMongoEntity`)
+  - [x] **Split Model/Entity** nos 3 serviços: `model/*` POJO (Lombok, GraphQL no `Car`)
+    × `entity/*Entity` (Panache, campos públicos), `*Mapper` + `XRepository` (interface
+    + impl `Panache*Repository`) como seam Active Record ↔ Repository; REST Data CRUD
+    admin segue na entidade (reservation)
+  - [ ] billing → MongoDB Panache (deps já no pom) 🔜
+  - [x] Atualizado: `services.md`, `deployment.md` (perfis do compose), `architecture.md` (ADR 9)
 - [ ] **Cap. 8 — Reactive programming** 🔜
   - [ ] Ponto reativo em serviços chave (Mutiny já usado no gRPC); deixar de bloqueante
   - [ ] Atualizar: `architecture.md`, `services.md`
@@ -53,11 +57,14 @@ Legenda: **[ ]** pendente · **[x]** feito.
 
 ## Pendências transversais
 
-- [ ] Alinhar `swagger/index.html` → `/reservations/q/openapi` (hoje singular `/reservation`)
+- [x] Alinhar `swagger/index.html` → `/reservations/q/openapi` (era singular `/reservation`);
+  cada serviço expõe o OpenAPI no prefixo do gateway (reservation/rental/billing via
+  `quarkus.smallrye-openapi.path`, users via `root-path=/users`) — validado E2E no agregador
 - [ ] Testes nos demais serviços (rental, inventory, users, billing)
-- [ ] Subir stack toda via `docker compose up --profile docker` e validar fluxo fim-a-fim
-  no gateway (ver [deployment.md](./deployment.md))
+- [x] Subir stack toda via `docker compose up -d --profile all` (perfis infra/services/
+  databases/identity; `.env` com `COMPOSE_PROFILES=infra`) e validar fluxo fim-a-fim no
+  gateway (ver [deployment.md](./deployment.md))
 
 ---
 
-_Próximo: **cap.7 — Database access** (p.171 do livro)._
+_Próximo: **cap.7 — billing (MongoDB Panache)**, depois **cap.8 — Reactive programming** (p.171 do livro)._

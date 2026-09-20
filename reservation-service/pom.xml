@@ -40,6 +40,20 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-client-jackson</artifactId>
         </dependency>
+        <!-- Cap.7.1/7.7 - Hibernate Reactive (Panache) + driver PostgreSQL reativo. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-reactive-panache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-reactive-pg-client</artifactId>
+        </dependency>
+        <!-- Cap.7.4 - REST Data (versão reativa, seção 7.7): CRUD gerado em /admin/reservation. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-reactive-rest-data-panache</artifactId>
+        </dependency>
         <!-- Cap.6.2.1: validação de tokens Bearer (OIDC) recebidos do users-service -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -75,6 +89,12 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit-mockito</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Cap.7.7 - suporte a teste reativo (TransactionalUniAsserter + @RunOnVertxContext). -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-hibernate-reactive-panache</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

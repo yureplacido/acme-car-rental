@@ -2,6 +2,7 @@ package org.acme.inventory.api;
 
 import io.smallrye.graphql.api.Context;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import org.acme.inventory.model.Car;
 import org.acme.inventory.model.CarFilter;
 import org.acme.inventory.model.CarSortField;
@@ -49,7 +50,7 @@ public class GraphQLInventoryService {
         // Exemplo prático de telemetria de campos selecionados pelo cliente no Dev UI
         System.out.println("Campos solicitados no inventário de carros: " + context.getSelectedFields());
 
-        List<Car> all = carRepository.findAll();
+        List<Car> all = carRepository.all();
         if (offset == null && limit == null && search == null && filter == null) {
             return all;
         }
@@ -65,7 +66,7 @@ public class GraphQLInventoryService {
                               @Name("filter") CarFilter filter,
                               @Name("sort") @DefaultValue("ID") CarSortField sort,
                               @Name("order") @DefaultValue("ASC") SortOrder order) {
-        return Page.of(carRepository.findAll(), offset, limit, matching(search, filter), sortedBy(sort, order));
+        return Page.of(carRepository.all(), offset, limit, matching(search, filter), sortedBy(sort, order));
     }
 
     private Predicate<Car> matching(String search, CarFilter filter) {
@@ -102,20 +103,22 @@ public class GraphQLInventoryService {
     @Query("findCar")
     @Description("Busca um veículo específico no inventário utilizando o número da placa")
     public Car findCarByPlate(@Name("plate") String licensePlateNumber) throws GraphQLException {
-        return carRepository.findByPlate(licensePlateNumber)
+        return carRepository.findByLicensePlateNumberOptional(licensePlateNumber)
                 .orElseThrow(() -> new GraphQLException("Carro com a placa " + licensePlateNumber + " não encontrado."));
     }
 
     @Mutation
     @Description("Cadastra um novo veículo no inventário. O ID é atribuído pelo repositório.")
+    @Transactional
     public Car register(Car car) {
         return carRepository.save(car);
     }
 
     @Mutation
     @Description("Remove um veículo do inventário com base na placa informada")
+    @Transactional
     public boolean remove(@Name("plate") String licensePlateNumber) {
-        return carRepository.deleteByPlate(licensePlateNumber).isPresent();
+        return carRepository.deleteByLicensePlateNumber(licensePlateNumber);
     }
 
     // --- FIELD RESOLVER DINÂMICO (@Source) ---

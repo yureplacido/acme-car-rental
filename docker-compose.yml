@@ -1,10 +1,30 @@
 name: acme-car-rental
 
+# ──────────────────────────────────────────────────────────────────────────
+# Perfis do compose — cada serviço participa do seu grupo E do perfil "all":
+#
+#   infra:      traefik + swagger   → subir so o agregador:
+#   services:   aplicacoes          → docker compose up -d --profile infra
+#   databases:  bancos (ch.7)       → apps + bancos:
+#   identity:   keycloak + postgres    docker compose up -d --profile services
+#   all:        tudo                → so bancos: docker compose up -d --profile databases
+#                                   → tudo: docker compose up -d --profile all
+#
+# Bancos pertencem a `services` E `databases`: --profile services sobe apps com
+# seus bancos (respeitando o depends_on); --profile databases sobe so os bancos.
+#
+# com portas de traefik/swagger e keycloak fixas, os servicos podem rodar no
+# host (IntelliJ/dev mode) e o agregador continua enxergando via
+# host.docker.internal:<porta>.
+# ──────────────────────────────────────────────────────────────────────────
+
 services:
+
   traefik:
     image: traefik:v3.3
     container_name: acme-traefik
     restart: unless-stopped
+    profiles: ["infra", "all"]
     env_file:
       - .env
     command:
@@ -28,11 +48,14 @@ services:
     image: nginx:1.27-alpine
     container_name: acme-swagger
     restart: unless-stopped
+    profiles: ["infra", "all"]
     volumes:
       - ./swagger:/usr/share/nginx/html:ro
 
+  # ---------------- services ----------------
+
   users-service:
-    profiles: ["docker"]
+    profiles: ["services", "all"]
     build:
       context: ./users-service
       dockerfile: Dockerfile
@@ -45,7 +68,7 @@ services:
       - "${USER_SERVICE_PORT:-8080}:${USER_SERVICE_PORT:-8080}"
 
   reservation-service:
-    profiles: ["docker"]
+    profiles: ["services", "all"]
     build:
       context: ./reservation-service
       dockerfile: Dockerfile
@@ -56,9 +79,12 @@ services:
       QUARKUS_PROFILE: docker
     ports:
       - "${RESERVATION_PORT:-8081}:${RESERVATION_PORT:-8081}"
+    depends_on:
+      reservation-postgres:
+        condition: service_healthy
 
   rental-service:
-    profiles: ["docker"]
+    profiles: ["services", "all"]
     build:
       context: ./rental-service
       dockerfile: Dockerfile
@@ -69,12 +95,17 @@ services:
       QUARKUS_PROFILE: docker
     ports:
       - "${RENTAL_PORT:-8082}:${RENTAL_PORT:-8082}"
+    depends_on:
+      rental-mongo:
+        condition: service_healthy
 
   inventory-service:
-    profiles: ["docker"]
+    profiles: ["services", "all"]
     build:
-      context: ./inventory-service
-      dockerfile: Dockerfile
+      # Contexto RAIZ: o Dockerfile multi-modulo compila o contrato
+      # inventory-proto (schema-first) antes do servico.
+      context: .
+      dockerfile: inventory-service/Dockerfile
     container_name: inventory-service
     env_file:
       - .env
@@ -82,9 +113,12 @@ services:
       QUARKUS_PROFILE: docker
     ports:
       - "${INVENTORY_PORT:-8083}:${INVENTORY_PORT:-8083}"
+    depends_on:
+      inventory-mysql:
+        condition: service_healthy
 
   billing-service:
-    profiles: ["docker"]
+    profiles: ["services", "all"]
     build:
       context: ./billing-service
       dockerfile: Dockerfile
@@ -96,24 +130,78 @@ services:
     ports:
       - "${BILLING_PORT:-8084}:${BILLING_PORT:-8084}"
 
-  # Cap.6.4 - Keycloak + PostgreSQL para o modo produção (realm importado no boot).
+  # ---------------- databases ----------------
+
+  # Cap.7 - bancos dos servicos (perfil databases). Na rede default do compose,
+  # alcancaveis pelos servicos pelo nome do container (connection-string %docker).
+
+  reservation-postgres:
+    container_name: acme-reservation-postgres
+    image: docker.io/library/postgres:14
+    restart: always
+    profiles: ["databases", "services", "all"]
+    environment:
+      POSTGRES_DB: reservation
+      POSTGRES_USER: reservation
+      POSTGRES_PASSWORD: reservation
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reservation -d reservation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  inventory-mysql:
+    container_name: acme-inventory-mysql
+    image: docker.io/library/mysql:8.4
+    restart: always
+    profiles: ["databases", "services", "all"]
+    environment:
+      MYSQL_DATABASE: inventory
+      MYSQL_USER: user
+      MYSQL_PASSWORD: pass
+      MYSQL_ROOT_PASSWORD: rootpass
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -prootpass --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rental-mongo:
+    container_name: acme-rental-mongo
+    image: docker.io/library/mongo:7
+    restart: always
+    profiles: ["databases", "services", "all"]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" | grep 1 >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------- identity ----------------
+
+  # Cap.6.4 - Keycloak + PostgreSQL (perfil identity). Na rede default para que
+  # os servicos resolvam `keycloak` pelo nome (auth-server-url %docker).
+
   postgres:
     container_name: acme-postgres
     image: docker.io/library/postgres:14
     restart: always
-    profiles: ["docker"]
+    profiles: ["identity", "all"]
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
       POSTGRES_PASSWORD: keycloak
-    networks:
-      - keycloak_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   keycloak:
     container_name: acme-keycloak
     image: quay.io/keycloak/keycloak:25.0.6
     restart: always
-    profiles: ["docker"]
+    profiles: ["identity", "all"]
     volumes:
       - "./keycloak/car-rental-realm.json:/opt/keycloak/data/import/car-rental-realm.json:ro"
     command:
@@ -129,10 +217,5 @@ services:
     ports:
       - "${KEYCLOAK_PORT:-7777}:8080"
     depends_on:
-      - postgres
-    networks:
-      - keycloak_network
-
-networks:
-  keycloak_network:
-    driver: bridge
+      postgres:
+        condition: service_healthy

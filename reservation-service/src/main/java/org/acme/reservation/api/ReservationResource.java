@@ -1,7 +1,9 @@
 package org.acme.reservation.api;
 
+import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.quarkus.logging.Log;
 import io.smallrye.graphql.client.GraphQLClient;
+import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
@@ -19,10 +21,9 @@ import org.acme.reservation.client.inventory.DynamicInventoryClient;
 import org.acme.reservation.client.inventory.GraphQLInventoryClient;
 import org.acme.reservation.client.inventory.InventoryQuery;
 import org.acme.reservation.client.inventory.SortOrder;
-import org.acme.reservation.client.rental.Rental;
 import org.acme.reservation.client.rental.RentalClient;
 import org.acme.reservation.model.Reservation;
-import org.acme.reservation.repository.ReservationsRepository;
+import org.acme.reservation.repository.ReservationRepository;
 import org.acme.reservation.security.CurrentUser;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.RestQuery;
@@ -30,13 +31,18 @@ import org.jboss.resteasy.reactive.RestQuery;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * Livro 7.1 ampliado: entidade Panache ativa (7.1/7.4) com acesso reativo (7.7).
+ * Métodos que tocam o banco retornam {@link Uni} e usam {@link WithTransaction};
+ * os endpoints de consulta ao inventário (sem banco) seguem imperativos, o que é
+ * permitido pelo Quarkus misturar no mesmo resource.
+ */
 @Path("/reservations") // Alterado para um path mais semântico e RESTful
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -51,23 +57,23 @@ public class ReservationResource {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_LIMIT = 100;
 
-    private final ReservationsRepository reservationsRepository;
     private final GraphQLInventoryClient inventoryClient;
     private final DynamicInventoryClient dynamicInventoryClient;
     private final RentalClient rentalClient;
+    private final ReservationRepository reservationRepository;
 
     // Injeção mista: CurrentUser por campo + construtor para os demais
     @Inject
     CurrentUser currentUser;
 
-    public ReservationResource(ReservationsRepository reservations,
-                               @GraphQLClient("inventory") GraphQLInventoryClient inventoryClient,
+    public ReservationResource(@GraphQLClient("inventory") GraphQLInventoryClient inventoryClient,
                                DynamicInventoryClient dynamicInventoryClient,
-                               @RestClient RentalClient rentalClient) {
-        this.reservationsRepository = reservations;
+                               @RestClient RentalClient rentalClient,
+                               ReservationRepository reservationRepository) {
         this.inventoryClient = inventoryClient;
         this.dynamicInventoryClient = dynamicInventoryClient;
         this.rentalClient = rentalClient;
+        this.reservationRepository = reservationRepository;
     }
 
     /**
@@ -76,11 +82,12 @@ public class ReservationResource {
      */
     @GET
     @Path("all")
-    public Collection<Reservation> allReservations() {
+    public Uni<List<Reservation>> allReservations() {
         String userId = userId();
-        return reservationsRepository.findAll().stream()
-                .filter(reservation -> userId == null || userId.equals(reservation.getUserId()))
-                .collect(Collectors.toList());
+        return reservationRepository.all()
+                .onItem().transform(reservations -> reservations.stream()
+                        .filter(reservation -> userId == null || userId.equals(reservation.getUserId()))
+                        .collect(Collectors.toList()));
     }
 
     private String userId() {
@@ -89,18 +96,42 @@ public class ReservationResource {
 
     @GET
     @Path("availability")
-    public Collection<Car> availability(@RestQuery LocalDate startDate,
-                                        @RestQuery LocalDate endDate) {
-        return availableCars(inventoryClient::allCars, startDate, endDate);
+    public Uni<Collection<Car>> availability(@RestQuery LocalDate startDate,
+                                             @RestQuery LocalDate endDate) {
+        Log.debugf("Verificando disponibilidade de veículos de %s até %s", startDate, endDate);
+        return availableCars(inventoryClient.allCars(), startDate, endDate);
     }
 
     @GET
     @Path("availability/dynamic")
-    public Collection<Car> availabilityDynamic(@RestQuery LocalDate startDate,
-                                               @RestQuery LocalDate endDate,
-                                               @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields) {
+    public Uni<Collection<Car>> availabilityDynamic(@RestQuery LocalDate startDate,
+                                                    @RestQuery LocalDate endDate,
+                                                    @RestQuery @DefaultValue("id,plateNumber,manufacturer,model") String fields) {
         List<String> projected = parseFields(fields);
-        return availableCars(() -> dynamicInventoryClient.all(projected), startDate, endDate);
+        return availableCars(dynamicInventoryClient.allAsync(projected), startDate, endDate);
+    }
+
+    /**
+     * Livro 7.41: executa as duas fontes (inventário GraphQL + reservas do banco)
+     * em paralelo e combina os {@link Uni} para filtrar os carros disponíveis.
+     */
+    private Uni<Collection<Car>> availableCars(Uni<List<Car>> carsUni,
+                                               LocalDate startDate,
+                                               LocalDate endDate) {
+        Uni<List<Reservation>> reservationsUni = reservationRepository.all();
+        return Uni.combine().all().unis(carsUni, reservationsUni)
+                .with((availableCars, reservations) -> {
+                    Map<Long, Car> carsById = new HashMap<>();
+                    for (Car car : availableCars) {
+                        carsById.put(car.getId(), car);
+                    }
+                    for (Reservation reservation : reservations) {
+                        if (reservation.isReserved(startDate, endDate)) {
+                            carsById.remove(reservation.getCarId());
+                        }
+                    }
+                    return carsById.values();
+                });
     }
 
     @GET
@@ -203,51 +234,29 @@ public class ReservationResource {
         return value.trim();
     }
 
-    private Collection<Car> availableCars(Supplier<List<Car>> carsSupplier,
-                                          LocalDate startDate,
-                                          LocalDate endDate) {
-        Log.debugf("Verificando disponibilidade de veículos de %s até %s", startDate, endDate);
-
-        // Transforma a lista de carros do cliente GraphQL em um mapa indexado por ID de forma funcional
-        Map<Long, Car> carsById = carsSupplier.get().stream()
-                .collect(Collectors.toMap(Car::getId, Function.identity()));
-
-        // Filtra e remove os carros que já possuem reservas sobrepostas no período selecionado
-        reservationsRepository.findAll().stream()
-                .filter(reservation -> reservation.isReserved(startDate, endDate))
-                .forEach(reservation -> carsById.remove(reservation.getCarId()));
-
-        return carsById.values();
-    }
-
+    /**
+     * Livro 7.38: persiste a reserva reativamente; se ela começa hoje, dispara o
+     * aluguel imediato chamando o RentalClient (também reativo) e devolve a reserva.
+     */
     @POST
-    public Reservation make(Reservation reservation) {
+    @WithTransaction
+    public Uni<Reservation> make(Reservation reservation) {
         Log.infof("Processando nova reserva para o veículo ID: %d", reservation.getCarId());
 
         // Cap.6.2.1: registra quem fez a reserva (livro 6.4). Sem login, "anonymous".
-        reservation.setUserId(currentUser.getUserId() != null
-                ? currentUser.getUserId() : "anonymous");
+        reservation.setUserId(currentUser.getUserId() != null ? currentUser.getUserId() : "anonymous");
 
-        Reservation result = reservationsRepository.save(reservation);
-
-        // Se a reserva inicia hoje, engatilha o fluxo assíncrono/REST com o serviço de aluguel (Rental)
-        if (reservation.getStartDay().equals(LocalDate.now())) {
-            triggerImmediateRental(result);
-        }
-
-        return result;
-    }
-
-    // Encapsulamento da lógica de negócio periférica para manter o método principal limpo
-    private void triggerImmediateRental(Reservation reservation) {
-        // O dono da reserva agora vem do principal autenticado (setado em make)
-        String defaultUserId = reservation.getUserId();
-        try {
-            Log.infof("Reserva iniciando hoje. Solicitando ativação de aluguel imediato para o usuário: %s", defaultUserId);
-            Rental rental = rentalClient.start(defaultUserId, reservation.getId());
-            Log.infof("Aluguel iniciado com sucesso! Detalhes do registro: %s", rental);
-        } catch (Exception e) {
-            Log.errorf(e, "Falha ao iniciar o aluguel imediatamente para a reserva ID: %d. O fluxo principal continuará.", reservation.getId());
-        }
+        return reservationRepository.save(reservation).onItem()
+                .call(persistedReservation -> {
+                    Log.infof("Successfully reserved reservation %s", persistedReservation);
+                    if (persistedReservation.getStartDay().equals(LocalDate.now())) {
+                        // Chama o rental em paralelo e substitui o resultado pela reserva persistida.
+                        return rentalClient.start(persistedReservation.getUserId(), persistedReservation.getId())
+                                .onItem().invoke(rental ->
+                                        Log.infof("Successfully started rental %s", rental))
+                                .replaceWith(persistedReservation);
+                    }
+                    return Uni.createFrom().item(persistedReservation);
+                });
     }
 }

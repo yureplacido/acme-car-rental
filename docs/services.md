@@ -1,9 +1,16 @@
 # Serviços — Detalhamento
 
-> **Última atualização:** 2026-09-19 (base cap.1-6) · **Fonte da verdade:** o código.
+> **Última atualização:** 2026-09-20 (cap.7 - Database access; split Model/Entity) · **Fonte da verdade:** o código.
 >
-> Padrão comum a todos: `org.acme.<serviço>.{api, client, model, repository}`,
-> porta por env `${NOME:default}` e repositório in-memory via `app.repository=memory`.
+> Padrão comum a todos: `org.acme.<serviço>.{api, client, model, entity, repository}`,
+> porta por env `${NOME:default}` e persistência Panache (Hibernate ORM ou MongoDB) —
+> em dev/test os bancos são **Dev Services** (zerados).
+>
+> **Model/Entity (padrão novo):** `model/*` são POJOs de domínio usados por REST/GraphQL/
+> gRPC (Lombok `@Data/@Builder`); `entity/*Entity` são apenas persistência Panache
+> (campos públicos, sem Lombok). Cada serviço tem um **`Mapper`** e um **`Repository`**
+> (interface falando no model + impl Panache `Panache*Repository`) — a troca entre
+> Active Record e Repository pattern não toca no modelo/API.
 
 ---
 
@@ -28,7 +35,8 @@ Central do catálogo. Oferece GraphQL (server, code-first) e gRPC (servidor). Se
 | `fullDescription` | FieldResolver (`@Source`) | Campo virtual `manufacturer + " " + model` |
 
 Modelo `Car`: `id` (ID!), `manufacturer`, `model`, `licensePlateNumber` → exposto como
-`plateNumber`. `Person` existe no model (não usado ainda).
+`plateNumber`. É POJO puro (`model/Car`, Lombok) **com as anotações GraphQL** — o
+GraphQL fica acoplado ao modelo, nunca à entidade de persistência.
 
 ### gRPC (`grpc/GrpcInventoryService.java`) — contrato em `inventory-proto`
 
@@ -39,13 +47,19 @@ Modelo `Car`: `id` (ID!), `manufacturer`, `model`, `licensePlateNumber` → expo
 
 Reflection de serviço **sempre ligada** (`quarkus.grpc.server.enable-reflection-service=true`).
 
-### Repositório
+### Repositório (cap.7.2, split Model/Entity)
 
-- Porta: `CarRepository` (`findAll`, `findByPlate`, `save`, `deleteByPlate`).
-- Adapter default: `InMemoryCarRepository` (`app.repository=memory`) — seed de **108
-  carros** (8 fixos + 100 gerados `GEN0001..0100`).
-- 🔜 Migração ch.7: datasource **MySQL** + adapter Panache (comentário no
-  `application.properties`).
+- `model/Car` = **POJO de domínio** (Lombok + anotações GraphQL, sem JPA);
+  `entity/CarEntity` (`@Entity @Table(name="car")`) = **só persistência** sobre MySQL
+  (`quarkus-jdbc-mysql` + `quarkus-hibernate-orm-panache`), campos públicos.
+- `CarMapper` (estático) converte `Car ↔ CarEntity` com o builder do Lombok.
+- **Seam do repositório:** `repository/CarRepository` é uma **interface** falando no
+  model (`all`, `findByLicensePlateNumberOptional`, `save`, `deleteByLicensePlateNumber`);
+  a implementação default é `PanacheCarRepository` (`implements CarRepository,
+  PanacheRepository<CarEntity>`). Trocando a impl (Active Record ↔ Repository),
+  GraphQL/gRPC não mudam.
+- Dev/test: Dev Services (MySQL zerado); `%prod`/`%docker` apontam para `inventory-mysql`
+  no compose. `import.sql` pré-popula (`drop-and-create` no boot).
 
 ---
 
@@ -89,12 +103,25 @@ Lombok. Teste: `quarkus-junit`, `rest-assured`, `quarkus-junit-mockito`.
 | `DynamicInventoryClient` | `DynamicGraphQLClient`, monta `document`/`field`/`inputObject` | availability/dynamic, inventory, inventory/pages |
 | `RentalClient` | `@RestClient` `POST /rental/start/{userId}/{reservationId}` | aluguel imediato |
 
-### Repositório
+### Persistência (cap.7.1/7.7, split Model/Entity)
 
-- Porta: `ReservationsRepository` (`findAll`, `save`).
-- Adapter default: `InMemoryReservationRepository` — reservas seed (carId 1 e 2) + id
-  gerado por `AtomicLong`.
-- 🔜 Migração ch.7: **PostgreSQL reativo** (Panache reativo).
+- `model/Reservation` = **POJO de domínio** (Lombok `@Data/@Builder`; `isReserved` fica
+  no modelo); `entity/ReservationEntity extends PanacheEntity` = **só persistência**
+  (campos públicos, sem Lombok) sobre **Hibernate Reactive + PostgreSQL**
+  (`quarkus-hibernate-reactive-panache`/`reactive-pg-client`).
+- `ReservationMapper` (estático) converte `Reservation ↔ ReservationEntity`.
+- **Seam do repositório:** `repository/ReservationRepository` (interface reativa:
+  `all`, `save`) + `PanacheReservationRepository` (`implements ReservationRepository,
+  PanacheRepository<ReservationEntity>` com `@WithSession` para o session reativo —
+  os statics da entidade abrem sessão on demand; os métodos do repositório não).
+- Endpoints que tocam o banco retornam `Uni` + `@WithTransaction`
+  (`make` persiste reativamente; `availability` combina inventário + reservas com `Uni.combine`).
+- **REST Data reativo** (cap.7.4/7.7): `rest/ReservationCrudResource extends
+  PanacheEntityResource<ReservationEntity, Long>` gera CRUD em
+  **`/reservations/admin/reservation`** (prefixo no path, pois o gateway encaminha sem
+  strip) **sobre a entidade** — endpoint interno de admin; a API pública expõe só o model.
+- Dev/test: Dev Services (Postgres zerado); `%prod`/`%docker` → `reservation-postgres`
+  no compose. `ReservationPersistenceTest` cobre CRUD + sobreposição (white-box na entidade).
 
 ### Config relevantes
 
@@ -124,13 +151,18 @@ Locação iniciada quando a reserva começa no mesmo dia (chamado pelo reservati
 |---|---|---|
 | POST | `/rental/start/{userId}/{reservationId}` | Cria `Rental(userId, reservationId, LocalDate.now())` |
 
-### Persistência
+### Persistência (cap.7.6, split Model/Entity)
 
-- Porta: `RentalRepository` (`findAll`, `save`).
-- Adapter default: `InMemoryRentalRepository`.
-- `MongoRentalRepository` — adapter **Mongo/Panache presente** (✅ já usa entidade), mas
-  exige MongoDB configurado; hoje comentado/desligado por `app.repository=memory`.
-- `persistence/RentalEntity.java` — entidade Panache para quando o Mongo estiver ativo.
+- `model/Rental` = **POJO de domínio** (Lombok; `id` serializado como **hex do
+  ObjectId** — compatível com o DTO do reservation); `entity/RentalEntity extends
+  PanacheMongoEntity` = **só persistência** (**MongoDB** via `quarkus-mongodb-panache`).
+- `RentalMapper` (estático) converte `Rental ↔ RentalEntity` (ObjectId ↔ hex).
+- **Seam do repositório:** `repository/RentalRepository` (interface: `start`, `end`,
+  `list`, `listActive`, `findByUserAndReservationIdsOptional`) + `PanacheRentalRepository`
+  (`implements RentalRepository, PanacheMongoRepository<RentalEntity>`). As consultas
+  (`findByUserAndReservationIdsOptional`, `listActive`) **saíram da entidade** para o
+  repositório.
+- Dev/test: Dev Services (Mongo zerado); `%prod`/`%docker` → `rental-mongo` no compose.
 
 > ⚠️ Estado parcial: só o fluxo de "start" existe; fluxos de devolução/pagamento etc.
 > virão nos caps. 7-9.

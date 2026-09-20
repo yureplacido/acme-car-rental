@@ -1,38 +1,53 @@
 # Deploy / Ambiente
 
-> **Última atualização:** 2026-09-19 (cap.1-6) · **Fonte da verdade:** o código.
+> **Última atualização:** 2026-09-20 (cap.7 - perfis do compose) · **Fonte da verdade:** o código.
 
 Três modos de execução:
 
 1. **Dev local** — cada serviço pelo `./mvnw quarkus:dev` (JVM no host), portas diretas.
    Com `quarkus-oidc`, o **Dev Services keycloak** sobe sozinho (usuários `alice`/`bob`).
-2. **Docker (compose)** — subir a stack com o perfil `docker` (services isolados) + edge
-   (Traefik/Swagger).
+   Bancos são **Dev Services** (Postgres/MySQL/Mongo zerados em container) — ver cap.7.
+2. **Docker (compose)** — subir a stack (ou partes dela) via **perfis**; edge
+   (Traefik/Swagger) sobe por padrão via `COMPOSE_PROFILES=infra` no `.env`.
 3. **Produção manual (cap.6.4)** — Keycloak + PostgreSQL no compose e os serviços
    empacotados rodando via `java -jar` no host (ou containers com `QUARKUS_PROFILE=docker`).
 
 ## Docker (docker-compose.yml)
 
 Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-service`,
-`rental-service`, `inventory-service`, `billing-service` + **`keycloak`**, **`postgres`**
+`rental-service`, `inventory-service`, `billing-service` + bancos do cap.7
+(`reservation-postgres`, `inventory-mysql`, `rental-mongo`) + **`keycloak`**, **`postgres`**
 (cap.6.4).
 
-- Os **serviços Quarkus** ficam sob `profiles: ["docker"]` — só sobem com
-  `--profile docker` (evita consumir recursos no uso só do edge).
+### Perfis
+
+Cada serviço pertence ao seu grupo **e** ao perfil `all`. Definido em `.env`:
+`COMPOSE_PROFILES=infra` torna o `docker compose up` **sem flags** = só o agregador.
+
+| Perfil | Serviços | Comando |
+|---|---|---|
+| `infra` | traefik + swagger | `docker compose up -d` |
+| `services` | 5 aplicações + seus 3 bancos | `docker compose up -d --profile services` |
+| `databases` | só os 3 bancos dos serviços | `docker compose up -d --profile databases` |
+| `identity` | keycloak + postgres | `docker compose up -d --profile identity` |
+| `all` | tudo | `docker compose up -d --profile all` |
+
 - Cada serviço recebe `QUARKUS_PROFILE=docker`, ativando os overrides `%docker.` no
   `application.properties` (ex.: reservation aponta para `http://rental-service:8082`
   e `http://inventory-service:8083/graphql` — **nomes de container**, não `localhost`).
 - `extra_hosts: host.docker.internal:host-gateway` permite o **Traefik** alcançar
-  serviços que rodam no host (dev sem Docker).
+  serviços que rodam no host (dev sem Docker) — por isso dá para subir **só o agregador**
+  no compose e as aplicações no **IntelliJ** (dev mode), desde que as portas batam com o `.env`.
+- Bancos têm `healthcheck`; aplicações usam `depends_on: condition: service_healthy`.
 - Portas publicadas via env do `.env`.
 
 **Subir tudo:**
 
 ```
-docker compose up -d --profile docker
+docker compose up -d --profile all
 ```
 
-**Só a edge (navegação/doc):**
+**Só a edge / agregador (aplicações via IntelliJ, por exemplo):**
 
 ```
 docker compose up -d
@@ -41,10 +56,10 @@ docker compose up -d
 ## Keycloak + PostgreSQL (produção — cap.6.4)
 
 Serviços `keycloak` (quay.io/keycloak/keycloak:25.0.6) e `postgres` (postgres:14) sob o
-perfil `docker`, com **realm importado no boot**:
+perfil `identity`, com **realm importado no boot**:
 
 ```bash
-docker compose up -d --profile docker postgres keycloak
+docker compose up -d --profile identity
 ```
 
 - Realm **`car-rental`** (`keycloak/car-rental-realm.json`) com clients
@@ -89,16 +104,26 @@ Config dinâmica em `traefik/dynamic.yml`.
 | `/graphql` | `host.docker.internal:${INVENTORY_PORT}` (8083) | 100 |
 
 **Swagger agregado** — container `nginx:alpine` servindo `swagger/index.html` (Swagger UI
-bundled) que consolida os OpenAPI dos serviços (`/q/openapi`).
+bundled) que consolida os OpenAPI dos serviços. Como o traefik encaminha **sem strip**,
+cada serviço expõe o documento no próprio prefixo do gateway (`swagger/index.html` e
+`application.properties` batem):
+
+- users/openapi → `/users/q/openapi` (derivado de `quarkus.http.root-path=/users`)
+- reservation → `/reservations/q/openapi` (`quarkus.smallrye-openapi.path`)
+- rental → `/rental/q/openapi` (`quarkus.smallrye-openapi.path`)
+- billing → `/billing/q/openapi` (`quarkus.smallrye-openapi.path`)
 
 ### Observações / limitações conhecidas
 
-- ⚠️ O `swagger/index.html` referencia `/reservation/q/openapi` (singular), mas a rota e o
-  path da aplicação são `/reservations` (plural) → o botão "Try it" do reservation no
-  agregador **ficaria 404**; falta alinhar o entry para `/reservations/q/openapi`.
+- ✅ O entry do aggregator agora é `/reservations/q/openapi` (plural), alinhado com a rota
+  do traefik e com o path do serviço.
+- ✅ O CRUD REST Data do cap.7 (reativo) fica em **`/reservations/admin/reservation`**
+  (path com prefixo no `@ResourceProperties`), visível no OpenAPI do reservation.
 - ⚠️ **inventory não tem REST** → não aparece no agregador (GraphQL/gRPC only).
 - ⚠️ **gRPC não passa pelo gateway** — o CLI conecta direto em `localhost:9000`.
 - A rota `/graphql` só cobre o **GraphQL UI/endpoint** do inventory, não um proxy geral.
+- ⚠️ **users-service exige login** nas rotas da UI (`302 → keycloak`); só o `/users/q/openapi`
+  está liberado (permission `permit` específica).
 
 ## Variáveis de ambiente (`.env`)
 
@@ -112,6 +137,7 @@ bundled) que consolida os OpenAPI dos serviços (`/q/openapi`).
 | `GATEWAY_PORT` | 8090 | Porta web do Traefik |
 | `DASHBOARD_PORT` | 8095 | Porta do dashboard do Traefik |
 | `KEYCLOAK_PORT` | 7777 | Porta do Keycloak (produção, realm car-rental) |
+| `COMPOSE_PROFILES` | `infra` | Perfil ativo por padrão no `docker compose up` |
 
 Serviços também leem os mesmos `${NOME}` nos `application.properties` (overrides i.e.
 `RENTAL_SERVICE_URL`, `INVENTORY_SERVICE_URL`).
@@ -122,6 +148,11 @@ Cada serviço tem `Dockerfile` (multi-stage):
 
 1. `maven:3.9-eclipse-temurin-21` compila (`mvn package -DskipTests`);
 2. `eclipse-temurin:21-jre` roda `quarkus-run.jar`.
+
+⚠️ O **inventory-service** usa contexto de build = **raiz do repositório**
+(`context: .` + `dockerfile: inventory-service/Dockerfile` no compose), pois seu
+Dockerfile compila o contrato standalone `inventory-proto` antes do serviço
+(`.dockerignore` na raiz restringe o contexto a `inventory-proto/` + `inventory-service/`).
 
 ---
 

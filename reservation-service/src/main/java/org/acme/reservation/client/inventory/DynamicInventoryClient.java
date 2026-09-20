@@ -7,6 +7,7 @@ import io.smallrye.graphql.client.core.InputObject;
 import io.smallrye.graphql.client.core.InputObjectField;
 import io.smallrye.graphql.client.core.Argument;
 import io.smallrye.graphql.client.dynamic.api.DynamicGraphQLClient;
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -44,6 +45,20 @@ public class DynamicInventoryClient implements InventoryClient<Car> {
         );
         Response response = execute(client, cars);
         return response.getList(Car.class, "allCars");
+    }
+
+    /**
+     * Livro 7.7: variante não-bloqueante do {@link #all(Collection)} usada pelo
+     * {@code availability/dynamic} no fluxo reativo do ReservationResource.
+     */
+    public Uni<List<Car>> allAsync(Collection<String> fields) {
+        Document cars = document(
+                operation(
+                        field("allCars", fields(project(fields)))
+                )
+        );
+        return client.executeAsync(cars)
+                .map(response -> response.getList(Car.class, "allCars"));
     }
 
     @Override

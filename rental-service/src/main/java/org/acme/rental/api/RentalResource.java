@@ -2,15 +2,21 @@ package org.acme.rental.api;
 
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
 import org.acme.rental.model.Rental;
 import org.acme.rental.repository.RentalRepository;
 
-import java.time.LocalDate;
+import java.util.List;
 
+/**
+ * Livro 7.6.2 - API REST de aluguel persistindo em MongoDB via repositório Panache;
+ * expõe o {@code model.Rental} (POJO). Sem anotações {@code @Produces}/@Consumes
+ * explícitas, pois o JSON (Jackson) é o content type default do Quarkus REST.
+ */
 @Path("/rental")
 public class RentalResource {
 
@@ -19,9 +25,27 @@ public class RentalResource {
 
     @Path("/start/{userId}/{reservationId}")
     @POST
-    @Produces(MediaType.APPLICATION_JSON)
     public Rental start(String userId, Long reservationId) {
         Log.infof("Starting rental for %s with reservation %s", userId, reservationId);
-        return rentalRepository.save(new Rental(null, userId, reservationId, LocalDate.now()));
+        return rentalRepository.start(userId, reservationId);
+    }
+
+    @PUT
+    @Path("/end/{userId}/{reservationId}")
+    public Rental end(String userId, Long reservationId) {
+        Log.infof("Ending rental for %s with reservation %s", userId, reservationId);
+        return rentalRepository.end(userId, reservationId)
+                .orElseThrow(() -> new NotFoundException("Rental not found"));
+    }
+
+    @GET
+    public List<Rental> list() {
+        return rentalRepository.list();
+    }
+
+    @GET
+    @Path("/active")
+    public List<Rental> listActive() {
+        return rentalRepository.listActive();
     }
 }

@@ -9,6 +9,12 @@ import org.eclipse.microprofile.graphql.Id;
 import org.eclipse.microprofile.graphql.Name;
 import org.eclipse.microprofile.graphql.NonNull;
 
+/**
+ * Modelo de domínio do veículo — POJO puro (sem JPA). É o tipo público do GraphQL
+ * e do gRPC; a persistência vive em {@code CarEntity} (Panache), mapeado por
+ * {@code CarMapper}. Assim o Active Record ou o Repository pattern podem mudar
+ * sem tocar no modelo e no contrato GraphQL.
+ */
 @Data
 @Builder
 @AllArgsConstructor
@@ -16,8 +22,8 @@ import org.eclipse.microprofile.graphql.NonNull;
 @Description("Representa um veículo cadastrado no inventário da frota")
 public class Car {
 
-    @Id // Define explicitamente como o tipo escalar 'ID' do GraphQL
-    @NonNull // Torna o campo obrigatório no output do Schema (ID!)
+    @Id
+    @NonNull
     @Description("Identificador único e incremental do veículo")
     private Long id;
 

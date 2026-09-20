@@ -107,16 +107,16 @@ sequenceDiagram
 
 ## Padrões adotados
 
-- **Port & Adapter (persistência)** — cada serviço tem `XRepository` (porta) e adapters
-  em `repository/memory` (default via `app.repository=memory` + `@IfBuildProperty`) e,
-  quando preparado, adapters reais (ex.: `MongoRentalRepository`). Bancos entram no
-  cap.7.
+- **Port & Adapter (persistência)** — cada serviço expõe um `XRepository` (**interface**
+  falando no model de domínio) com uma implementação Panache (`Panache*Repository`).
+  A porta é o seam que permite trocar **Active Record ↔ Repository pattern** sem tocar
+  no modelo/API. Adapters in-memory do cap.5 foram aposentados no cap.7 (bancos reais).
 - **Schema-first / contrato externo (gRPC)** — `inventory-proto` é um artefato standalone;
   servidor e cliente geram stubs da mesma fonte (evita divergência).
 - **Code-first (GraphQL)** — schema gerado das anotações MicroProfile GraphQL.
 - **Config por env com default local e override Docker** — `quarkus.http.port=${VAR:default}`
   e perfil `%docker.` apontando para nomes de container.
-- **Convenção de nomes/pacotes padronizada** — `org.acme.<serviço>.{api,client,model,repository}`.
+- **Convenção de nomes/pacotes padronizada** — `org.acme.<serviço>.{api,client,model,entity,repository}`.
 
 ## Decisões (ADR-lite)
 
@@ -130,6 +130,7 @@ sequenceDiagram
 | 6 | Testes de mock só com Mockito (`QuarkusMock`) | Cap.5: `@Mock` CDI (5.3.1) conflita com Mockito (5.3.2) |
 | 7 | CLI de inventário como app Quarkus Main | Ferramenta administrativa executável via `java -jar` |
 | 8 | Keycloak via Dev Services em dev; realm manual (`car-rental`) em produção | Cap.6: segurança OIDC compartilhada entre users (web_app) e reservation (service) |
+| 9 | **Model (POJO) ↔ Entity (Panache) separados** | `model/*` = domínio exposto por REST/GraphQL/gRPC (Lombok, com anotações GraphQL no caso do `Car`); `entity/*Entity` = só persistência (campos públicos). `Mapper` converte e `XRepository` (interface + impl `Panache*Repository`) é o seam p/ trocar Active Record ↔ Repository sem tocar no modelo. REST Data CRUD admin fica **na entidade** (reservation) |
 
 ## Estado por serviço (resumo)
 

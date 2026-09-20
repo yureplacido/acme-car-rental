@@ -1,0 +1,14 @@
+# Usado no build com contexto raiz (inventory-service/Dockerfile).
+# Exclui tudo que nao e preciso; so inventory-proto/ e inventory-service/ entram.
+**
+!.dockerignore
+!inventory-proto/
+!inventory-service/
+
+inventory-service/target
+inventory-proto/target
+**/.git
+**/target
+**/node_modules
+**/.idea
+**/*.log
