@@ -1,6 +1,7 @@
 package org.acme.inventory.application;
 
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.helpers.test.UniAssertSubscriber;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.model.LicensePlate;
@@ -17,7 +18,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class RegisterVehicleRetryTest {
 
@@ -42,13 +42,16 @@ class RegisterVehicleRetryTest {
         FlakyVehicleRepository repository = new FlakyVehicleRepository(Integer.MAX_VALUE);
         RegisterVehicle registerVehicle = new RegisterVehicle(repository);
 
-        assertThrows(IOException.class, () ->
-                registerVehicle.handle(command())
-                        .onFailure(IOException.class)
-                        .retry()
-                        .atMost(2)
-                        .await()
-                        .indefinitely());
+        UniAssertSubscriber<Vehicle> subscriber = registerVehicle.handle(command())
+                .onFailure(IOException.class)
+                .retry()
+                .atMost(2)
+                .subscribe()
+                .withSubscriber(UniAssertSubscriber.create());
+
+        subscriber
+                .awaitFailure()
+                .assertFailedWith(IOException.class);
 
         // Initial attempt + 2 retries = 3 subscriptions.
         assertEquals(3, repository.attempts.get());
