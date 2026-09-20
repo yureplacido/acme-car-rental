@@ -5,6 +5,7 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import org.acme.inventory.application.usecase.DecommissionVehicle;
+import org.acme.inventory.application.usecase.BulkRegisterVehicles;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.model.FuelType;
 import org.acme.inventory.domain.model.Transmission;
@@ -22,21 +23,20 @@ import java.util.Optional;
 @GrpcService
 public class GrpcInventoryResource implements InventoryService {
 
-    private final RegisterVehicle registerVehicle;
+    private final BulkRegisterVehicles bulkRegisterVehicles;
     private final DecommissionVehicle decommissionVehicle;
 
     @Inject
-    public GrpcInventoryResource(RegisterVehicle registerVehicle,
+    public GrpcInventoryResource(BulkRegisterVehicles bulkRegisterVehicles,
                                  DecommissionVehicle decommissionVehicle) {
-        this.registerVehicle = registerVehicle;
+        this.bulkRegisterVehicles = bulkRegisterVehicles;
         this.decommissionVehicle = decommissionVehicle;
     }
 
     @Override
     public Multi<CarResponse> add(Multi<InsertCarRequest> requests) {
-        return requests
-                .map(this::toCommand)
-                .onItem().transformToUniAndConcatenate(registerVehicle::handle)
+        return bulkRegisterVehicles
+                .handle(requests.map(this::toCommand))
                 .map(this::toResponse);
     }
 
