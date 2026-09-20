@@ -31,20 +31,23 @@ flowchart LR
     Reservation[Reservation]
     Inventory[Inventory]
     Rental[Rental]
-    Billing[Billing]
+    Billing[Billing / Payment]
+    Pricing[Pricing]
     Identity[Keycloak]
 
     Users --> Reservation
     Reservation --> Inventory
     Reservation --> Rental
     Rental --> Billing
+    Reservation --> Pricing
     Users --> Identity
     Reservation --> Identity
 ~~~
 
-### Inventory
-Dono da frota e ciclo de vida dos veículos.
-Aggregate root: Vehicle.
+### Inventory / Fleet
+Dono da frota, dos veículos e de seu estado operacional.
+Aggregates: Vehicle e MaintenanceOrder.
+Vehicle também mantém condition e odometer; MaintenanceOrder modela o workflow de manutenção.
 O inventário não possui reservas e não decide disponibilidade temporal.
 
 ### Reservation
@@ -86,6 +89,12 @@ inventory-service/src/main/java/org/acme/inventory/
 │   ├── VehicleSpecifications.java
 │   ├── VehicleLocation.java
 │   ├── VehicleStatus.java
+│   ├── VehicleCondition.java
+│   ├── OdometerReading.java
+│   ├── MaintenanceOrder.java
+│   ├── MaintenanceOrderId.java
+│   ├── MaintenanceType.java
+│   ├── MaintenanceStatus.java
 │   ├── VehicleCategory.java
 │   ├── Transmission.java
 │   └── FuelType.java
@@ -222,6 +231,9 @@ Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; 
 | 8 | Users como BFF | não criar falso bounded context |
 | 9 | Pricing fora do Inventory | evitar acoplamento semântico |
 | 10 | Billing começa com Invoice/Money | preparar domínio sem inventar workflow |
+| 11 | Inventory separa Vehicle de MaintenanceOrder | lifecycle da frota e workflow de manutenção têm limites distintos |
+| 12 | Consultas de seleção ficam na Application | adapters traduzem protocolo, não acumulam regra de consulta |
+| 13 | OpenCode funciona como architecture gate | impedir divergência entre futuras implementações |
 
 ## Estratégia de evolução
 
