@@ -19,7 +19,7 @@ public class ListReservations {
     }
 
     public Uni<List<Reservation>> handle(String customerId) {
-        return repository.findAll()
+        return repository.all()
                 .map(items -> items.stream()
                         .filter(r -> customerId == null || customerId.equals(r.customerId().value()))
                         .toList());
