@@ -44,7 +44,7 @@ public class PanacheVehicleRepository implements VehicleRepository, PanacheRepos
                 .onItem().ifNull().failWith(
                         () -> new IllegalStateException("Vehicle " + entity.id + " not found"))
                 .invoke(existing -> VehicleMapper.copy(entity, existing))
-                .call(VehicleEntity::flush)
+                .call(ignored -> flush())
                 .map(VehicleMapper::toDomain);
     }
 }
