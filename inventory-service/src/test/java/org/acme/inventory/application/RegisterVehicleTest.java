@@ -33,9 +33,12 @@ class RegisterVehicleTest {
         final List<Vehicle> saved = new ArrayList<>();
 
         public List<Vehicle> findAll() { return List.copyOf(saved); }
-        public java.util.Optional<Vehicle> findByLicensePlate(org.acme.inventory.domain.model.LicensePlate plate) {
+
+        public java.util.Optional<Vehicle> findByLicensePlate(
+                org.acme.inventory.domain.model.LicensePlate plate) {
             return saved.stream().filter(v -> v.licensePlate().equals(plate)).findFirst();
         }
+
         public Vehicle save(Vehicle vehicle) {
             Vehicle persisted = Vehicle.rehydrate(
                     new org.acme.inventory.domain.model.VehicleId(1L),
@@ -43,7 +46,9 @@ class RegisterVehicleTest {
                     vehicle.specifications(),
                     vehicle.location(),
                     vehicle.status(),
-                    vehicle.dailyRate());
+                    vehicle.dailyRate(),
+                    vehicle.odometer(),
+                    vehicle.condition());
             saved.add(persisted);
             return persisted;
         }
