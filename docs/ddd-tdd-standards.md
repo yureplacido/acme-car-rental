@@ -7,28 +7,23 @@
 
 ## 1. Architectural intent
 
-This repository is a learning laboratory for:
+This repository is a learning laboratory for Domain-Driven Design, Test-Driven Development, Quarkus, reactive programming, distributed systems, persistence, security and messaging.
 
-- Domain-Driven Design
-- Test-Driven Development
-- Quarkus development
-- reactive programming with Mutiny/Vert.x
-- distributed systems and service communication
-- persistence, security, messaging and native execution
+The architecture must emerge from behavior and boundaries, not from a cosmetic package rearrangement.
 
-The architecture must emerge from behavior and boundaries.
+Target dependency direction:
 
-We do **not** want a cosmetic transformation from:
-
-`model / service / repository / api`
-
-to another set of folders that merely has different names.
-
-The target is:
-
-`Domain -> Application -> Ports -> Adapters`
-
-with DDD boundaries defined by business meaning.
+```
+Adapter In
+   ↓
+Application
+   ↓
+Domain
+   ↑
+Application Ports Out
+   ↑
+Adapter Out
+```
 
 ## 2. Bounded contexts and module profiles
 
@@ -37,26 +32,24 @@ with DDD boundaries defined by business meaning.
 | `inventory-service` | owns vehicle/fleet inventory | full business service |
 | `reservation-service` | owns reservations | full business service |
 | `rental-service` | owns rental lifecycle | full business service |
-| `billing-service` | owns future billing/payment concepts | full business service when activated |
+| `billing-service` | owns billing/payment foundation | full business service |
 | `users-service` | authenticated web UI/BFF | application + adapters; domain only when real business rules exist |
 | `inventory-cli` | administrative client | inbound CLI adapter + outbound gRPC adapter |
-| `inventory-proto` | wire contract | contract-only module; no DDD layers |
+| `inventory-proto` | wire contract | contract-only module |
 
 ### Business-service blueprint
 
-A business service should converge toward:
-
 ```
-src/main/java/org/acme/<context>/
+org.acme.<context>/
 ├── domain/
 │   ├── model/
-│   ├── service/          # only real domain services
-│   ├── event/            # domain events, when needed
+│   ├── service/
+│   ├── event/
 │   └── exception/
 ├── application/
 │   ├── usecase/
-│   └── port/
-│       └── out/
+│   ├── query/
+│   └── port/out/
 └── adapter/
     ├── in/
     │   ├── rest/
@@ -70,94 +63,65 @@ src/main/java/org/acme/<context>/
         └── messaging/
 ```
 
-Only create the subpackages actually used by the bounded context. Do not create empty layers for symmetry.
+Only create packages that have a real responsibility. Do not create empty layers for symmetry.
 
-### BFF blueprint — users-service
+### Special profiles
 
-```
-src/main/java/org/acme/users/
-├── application/
-│   ├── usecase/
-│   └── port/out/
-└── adapter/
-    ├── in/web/
-    ├── out/reservation/
-    ├── security/
-    └── templates/
-```
+**users-service** is a BFF. It owns browser/application concerns, not copies of other bounded contexts.
 
-The BFF must not contain a second copy of the reservation or inventory domain. Wire models belong to the relevant adapter.
+**inventory-cli** is a client, not a bounded context.
 
-### CLI blueprint
+**inventory-proto** is a contract module and contains no domain.
 
-```
-src/main/java/org/acme/inventory/client/
-├── adapter/in/cli/
-└── adapter/out/grpc/
-```
+## 3. Domain design rules
 
-The CLI is not a bounded context. It should remain a thin delivery client unless command-specific business behavior actually appears.
+### 3.1 Aggregates
 
-### Contract module
+An aggregate is a consistency boundary, not a synonym for database entity.
 
-`inventory-proto` contains only protocol/schema artifacts and their build configuration. Generated classes are consumer artifacts, not hand-written domain models.
+Current aggregate roots:
 
-## 3. DDD tactical rules
-
-### 3.1 Aggregate roots
-
-Use an aggregate root when a consistency boundary exists. Current candidates:
-
-- Inventory: `Vehicle`
+- Inventory: `Vehicle`, `MaintenanceOrder`
 - Reservation: `Reservation`
 - Rental: `Rental`
-- Billing: define only when billing behavior is implemented
+- Billing: `Invoice`
 
-Do not create an aggregate merely because a class is called an Entity.
+New aggregates require a domain reason: identity, lifecycle or invariant boundary.
 
 ### 3.2 Entities
 
 Entities own identity and behavior relevant to their lifecycle.
 
-Avoid public setters on domain entities.
-
-Prefer intent-revealing operations such as:
+Avoid public setters in domain entities. Prefer intention-revealing commands such as:
 
 ```java
 reservation.confirm();
 reservation.cancel();
 vehicle.decommission();
-rental.start();
-rental.finish();
+vehicle.recordOdometer(reading);
+maintenance.complete();
+rental.finish(date);
+invoice.markPaid();
 ```
-
-The exact method names must follow the ubiquitous language selected for the context.
 
 ### 3.3 Value objects
 
-Use value objects for concepts with their own invariants, for example:
+Use immutable value objects when a concept has identity semantics or invariants of its own.
 
-- `RentalPeriod`
-- `LicensePlate`
-- `Money`
-- `CustomerId`
-- `VehicleId`
+Current examples:
 
-A value object should be immutable and validated at construction.
+- Inventory: `VehicleId`, `LicensePlate`, `VehicleSpecifications`, `VehicleLocation`, `VehicleDailyRate`, `OdometerReading`
+- Reservation: `ReservationId`, `CustomerId`, `VehicleId`, `RentalPeriod`
+- Rental: `RentalId`, `ReservationId`, `CustomerId`
+- Billing: `InvoiceId`, `Money`
 
-Do not introduce value objects for primitives that have no meaningful invariant.
+Do not wrap primitives without a domain reason.
 
-### 3.4 Domain services
+### 3.4 Domain purity
 
-Use a domain service only when behavior is genuinely domain logic and does not naturally belong to one aggregate/value object.
+Domain code must not import framework, transport or persistence types:
 
-Do not use a domain service as a dumping ground for orchestration.
-
-### 3.5 Domain purity
-
-The domain must not import:
-
-- `jakarta.*` framework annotations
+- `jakarta.*`
 - `io.quarkus.*`
 - `io.smallrye.mutiny.*`
 - REST/GraphQL/gRPC types
@@ -165,39 +129,61 @@ The domain must not import:
 - HTTP exceptions
 - transport DTOs
 
-Time-sensitive rules should receive a clock/time value from the outside rather than calling `LocalDate.now()` deep inside domain logic.
+Time-sensitive domain rules receive the relevant date/time from the application layer rather than calling `now()` directly.
 
-## 4. Application layer
+### 3.5 Domain services
 
-The application layer expresses use cases.
+Use a domain service only for real domain behavior that does not belong naturally to one aggregate/value object.
+
+A domain service is not an application service with a different name.
+
+## 4. Application rules
+
+The application layer expresses use cases and coordinates domain objects and output ports.
 
 Examples:
 
+- `RegisterVehicle`
+- `SearchVehicles`
 - `CreateReservation`
 - `FindAvailableVehicles`
-- `DecommissionVehicle`
 - `StartRental`
 - `EndRental`
+- `CreateInvoice`
 
-Application code:
+Application commands/queries should use domain concepts rather than transport DTOs.
 
-- coordinates aggregates;
-- invokes output ports;
-- translates domain failures into application outcomes;
-- manages transaction/use-case boundaries;
-- composes asynchronous calls when required.
+`Uni`/`Multi` are allowed here only when asynchronous I/O or streaming is part of the actual use case.
 
-Application code must not contain transport-specific concerns.
+### Query responsibility
 
-`Uni` and `Multi` are allowed here when the use case genuinely performs asynchronous I/O.
+Filtering, sorting, pagination and application-level selection belong in application query use cases, not transport adapters, unless the logic is purely protocol syntax mapping.
+
+For example:
+
+```
+GraphQL input
+   ↓
+adapter maps input
+   ↓
+VehicleSearch
+   ↓
+SearchVehicles
+   ↓
+VehiclePage
+   ↓
+adapter maps output
+```
+
+This keeps GraphQL/REST/gRPC differences at the edge.
 
 ## 5. Ports and adapters
 
-### Inbound ports
+### Inbound adapters
 
-Use cases may be exposed through REST, GraphQL, gRPC or CLI.
+REST, GraphQL, gRPC and CLI adapters translate external protocols into application commands/queries.
 
-Transport DTOs stay in the inbound adapter.
+Transport DTOs remain inside adapters.
 
 ### Outbound ports
 
@@ -207,178 +193,159 @@ Example:
 
 ```java
 public interface RentalGateway {
-    Uni<RentalResult> start(RentalStartRequest request);
+    Uni<Void> start(String customerId, Long reservationId);
 }
 ```
 
-The MicroProfile REST client, HTTP details and serialization types belong to the adapter implementation.
+HTTP client annotations, serialization types and provider-specific behavior stay in the outbound adapter.
 
 ### Persistence
 
-Persistence entities are infrastructure objects:
-
 ```
-domain aggregate
+Domain Aggregate
       ↓
-application output port
+Application Repository Port
       ↓
-persistence adapter
+Persistence Adapter
       ↓
-Panache/JPA/Mongo
+Panache / JPA / MongoDB
 ```
 
-Never move Panache/JPA annotations into the domain just to make persistence easier.
+Persistence entities must never become domain entities by convenience.
 
-## 5.1 Quarkus REST Data exception
+### Quarkus REST Data exception
 
-O `quarkus-hibernate-reactive-rest-data-panache` pode expor diretamente uma `PanacheEntityResource` em um endpoint administrativo/interno. Essa é uma exceção deliberada para demonstrar o recurso do capítulo de Database access; ela não autoriza transportar entidades de persistência pela API pública.
+The reactive REST Data endpoint in Reservation is an explicit framework exercise for the Database access chapter. It remains an administrative boundary and does not change the domain rule above.
 
 ## 6. Context boundaries
 
-No bounded context may import another context's:
+A bounded context must not import another context's:
 
 - domain entity;
 - persistence entity;
 - repository implementation;
 - internal package.
 
-Cross-context communication uses:
+Cross-context communication uses explicit contracts and adapters:
 
-- REST;
-- GraphQL;
-- gRPC;
-- messaging;
+- REST
+- GraphQL
+- gRPC
+- messaging
 
-through an explicit adapter and contract.
+Do not create a shared domain model merely to avoid mapping.
 
-A shared library is allowed only for truly technical infrastructure or immutable protocol contracts. It must not become a shared domain model.
-
-## 7. TDD standard
+## 7. TDD
 
 Every behavior follows:
 
 ```
 Specification
-   ↓
+    ↓
 RED — failing test
-   ↓
-GREEN — minimum implementation
-   ↓
-REFACTOR — improve design while tests stay green
+    ↓
+GREEN — minimum behavior
+    ↓
+REFACTOR — design improvement
+    ↓
+Adapter / integration evidence when needed
 ```
 
-### Test levels
+### Domain tests
 
-**Domain tests**
-- pure JUnit;
-- no Quarkus startup;
-- no database;
-- fast;
-- focus on invariants and behavior.
+Pure JUnit. No Quarkus, database, transport or Mutiny.
 
-**Application tests**
-- pure JVM tests;
-- mocks/fakes for output ports;
-- focus on orchestration and use-case outcomes.
+### Application tests
 
-**Adapter tests**
-- `@QuarkusTest` only when the framework/container is part of the behavior;
-- REST: RestAssured;
-- GraphQL/gRPC: protocol-level tests/contracts;
-- security: authenticated/anonymous behavior;
-- persistence: Dev Services/integration tests.
+Pure JVM. Use fakes/mocks at output ports. Verify orchestration and outcomes.
 
-**Integration/native**
-- `@QuarkusIntegrationTest` for artifact/runtime verification;
-- only for behavior that benefits from running the packaged artifact.
+### Adapter tests
 
-Do not use `@QuarkusTest` for a rule that can be proved by a plain unit test.
+Use `@QuarkusTest` when the framework/protocol is part of the behavior.
 
-### Test naming
+### Integration/native
 
-Test names describe behavior:
+Use `@QuarkusIntegrationTest` for packaged artifact/runtime verification.
+
+A test written only after implementation is not enough to claim TDD.
+
+Test names describe behavior, for example:
 
 `shouldRejectReservationWhenVehicleIsAlreadyReserved`
 
-rather than implementation:
-
-`testReservationServiceMethodX`
-
-### Test smell rules
-
-Avoid:
-- tests coupled to private implementation details;
-- giant end-to-end tests for simple domain rules;
-- mocks everywhere;
-- testing framework wiring through domain tests;
-- duplicated test fixtures with no shared meaning.
-
 ## 8. Reactive standard
 
-Reactive programming is an execution model, not a return-type decoration.
+Reactive code must explicitly account for:
 
-Rules:
+- event-loop safety;
+- blocking isolation;
+- concurrency;
+- backpressure;
+- failure propagation;
+- cancellation;
+- timeout;
+- retries;
+- idempotency;
+- downstream capacity.
 
-- non-blocking I/O remains on the reactive path;
-- blocking operations must be isolated explicitly;
-- `Uni` means asynchronous completion of one result, not automatically a new thread;
-- `Multi` models streams;
-- concurrency limits and backpressure are separate concerns;
-- downstream capacity, timeouts, retries, cancellation and idempotency must be considered;
-- do not add `@Blocking` blindly; understand why the operation blocks;
-- never hide a blocking database/client call behind a `Uni`.
+`Uni` does not create a thread automatically. `Multi` models a stream. Concurrency limiting and backpressure are different controls.
 
-The domain remains synchronous/pure even when the application and adapters are reactive.
+The domain remains synchronous and framework-free even when adapters/application orchestration are reactive.
 
-## 9. Quarkus/book alignment
+## 9. Quarkus book alignment
 
-The project must retain executable evidence for the concepts already studied and add later chapters deliberately.
+The lab should provide executable evidence for:
 
-| Book area | Repository evidence |
+| Area | Evidence |
 |---|---|
-| Dev mode/productivity | continuous testing and dev tooling |
-| Communications | REST, GraphQL, gRPC |
-| Testing | unit/Quarkus/integration/profile testing |
+| Dev mode/productivity | dev mode + continuous testing |
+| Communications | REST + GraphQL + gRPC |
+| Testing | unit + Quarkus + integration/profile testing |
 | Security | OIDC + Keycloak + token propagation |
-| Database | relational, reactive and Mongo persistence |
-| Reactive | Mutiny, reactive clients/persistence, event-loop-safe code |
+| Database | JPA/Panache + Hibernate Reactive + Mongo |
+| Reactive | Mutiny + reactive clients/persistence + event-loop safety |
 | Messaging | Reactive Messaging + explicit event contracts |
+| Native | packaged/native integration tests |
 
-For version-sensitive Quarkus APIs/configuration, verify against the pinned `3.39.3` version and official docs before coding.
+Version-sensitive Quarkus APIs/configuration must be verified against the pinned `3.39.3` version before coding.
 
-## 10. Documentation requirements
+## 10. Documentation
 
-A meaningful architectural change updates the relevant source of truth:
+Architectural changes update:
 
-- `docs/architecture.md` — boundaries/decisions
-- `docs/services.md` — service responsibilities
-- `docs/testing.md` — testing strategy
-- `docs/contracts.md` — wire/event contracts
-- `docs/roadmap.md` — book/chapter progress
+- `docs/domain.md`
+- `docs/architecture.md`
+- `docs/services.md`
+- `docs/testing.md`
+- `docs/contracts.md`
+- `docs/roadmap.md`
 
-Every ADR must explain context, decision, consequences and alternatives considered.
+## 11. OpenCode governance
 
-## 11. Cross-service consistency checklist
+Every feature should pass this sequence:
 
-Before merging a new pattern into one service, ask:
+```
+Domain Designer
+      ↓
+Architecture Guardian
+      ↓
+DDD Guardian
+      ↓
+TDD Guardian
+      ↓
+Quarkus Book Guardian
+      ↓
+Feature implementation
+      ↓
+Guardians re-run
+```
 
-1. Is this a domain concept or an infrastructure concern?
-2. Would the same feature be implemented differently in another business service?
-3. Does the difference come from the bounded context, or from personal preference?
-4. Does the pattern preserve the domain/application/adapter dependency direction?
-5. Is there a test proving the behavior?
-6. Does the pattern preserve the Quarkus book learning objective?
+A new architectural pattern becomes repository standard only after it is documented here.
 
-A local exception must be documented with a reason.
+A context-specific exception is valid only when its reason is documented.
 
-## 12. Target evolution
+## 12. Migration/evolution
 
-The first migration targets are:
+Migration remains incremental at behavior level, but the repository must converge on the same architectural language across all business services.
 
-1. reservation-service
-2. inventory-service
-3. rental-service
-4. users-service BFF
-5. billing-service as it becomes real
-
-The goal is not a large-bang rewrite. Migrate behavior-by-behavior using TDD, preserving working functionality and making the Git history show the design evolution.
+The special-purpose modules follow their own documented profile.
