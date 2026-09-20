@@ -1,5 +1,6 @@
 package org.acme.inventory.domain.model;
 
+import java.math.BigDecimal;
 import java.util.Objects;
 
 public final class Vehicle {
@@ -9,6 +10,7 @@ public final class Vehicle {
     private final VehicleSpecifications specifications;
     private VehicleLocation location;
     private VehicleStatus status;
+    private VehicleDailyRate dailyRate;
 
     private Vehicle(VehicleId id,
                     LicensePlate licensePlate,
@@ -24,17 +26,20 @@ public final class Vehicle {
 
     public static Vehicle register(LicensePlate licensePlate,
                                    VehicleSpecifications specifications,
-                                   VehicleLocation location) {
-        return new Vehicle(null, licensePlate, specifications, location, VehicleStatus.AVAILABLE);
+                                   VehicleLocation location,
+                                   VehicleDailyRate dailyRate) {
+        return new Vehicle(null, licensePlate, specifications, location, VehicleStatus.AVAILABLE, dailyRate);
     }
 
     public static Vehicle rehydrate(VehicleId id,
                                     LicensePlate licensePlate,
                                     VehicleSpecifications specifications,
                                     VehicleLocation location,
-                                    VehicleStatus status) {
+                                    VehicleStatus status,
+                                    VehicleDailyRate dailyRate) {
         return new Vehicle(id, licensePlate, specifications, location,
-                status == null ? VehicleStatus.AVAILABLE : status);
+                status == null ? VehicleStatus.AVAILABLE : status,
+                dailyRate);
     }
 
     public Vehicle decommission() {
@@ -70,6 +75,7 @@ public final class Vehicle {
         return status == VehicleStatus.AVAILABLE;
     }
 
+    public VehicleDailyRate dailyRate() { return dailyRate; }
     public VehicleId id() { return id; }
     public LicensePlate licensePlate() { return licensePlate; }
     public VehicleSpecifications specifications() { return specifications; }
