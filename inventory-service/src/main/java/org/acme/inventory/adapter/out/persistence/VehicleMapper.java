@@ -44,6 +44,25 @@ public final class VehicleMapper {
                 entity.condition);
     }
 
+    public static void copy(VehicleEntity source, VehicleEntity target) {
+        target.licensePlateNumber = source.licensePlateNumber;
+        target.manufacturer = source.manufacturer;
+        target.model = source.model;
+        target.category = source.category;
+        target.transmission = source.transmission;
+        target.fuelType = source.fuelType;
+        target.year = source.year;
+        target.color = source.color;
+        target.seats = source.seats;
+        target.status = source.status;
+        target.condition = source.condition;
+        target.odometerKm = source.odometerKm;
+        target.dailyRate = source.dailyRate;
+        target.dailyRateCurrency = source.dailyRateCurrency;
+        target.branchCode = source.branchCode;
+        target.city = source.city;
+    }
+
     public static VehicleEntity toEntity(Vehicle vehicle) {
         VehicleEntity entity = new VehicleEntity();
         entity.id = vehicle.id() == null ? null : vehicle.id().value();
