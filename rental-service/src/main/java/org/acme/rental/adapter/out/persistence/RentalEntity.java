@@ -5,7 +5,8 @@ import io.quarkus.mongodb.panache.PanacheMongoEntity;
 import java.time.LocalDate;
 
 public class RentalEntity extends PanacheMongoEntity {
-    public String customerId;
+    // Keep the existing Mongo field name for compatibility; the domain calls it CustomerId.
+    public String userId;
     public Long reservationId;
     public LocalDate startDate;
     public LocalDate endDate;
