@@ -9,5 +9,5 @@ import java.util.List;
 public interface ReservationRepository {
     Uni<List<Reservation>> findAll();
     Uni<Reservation> save(Reservation reservation);
-    Uni<Boolean> hasOverlap(VehicleId vehicleId, Reservation reservation);
+    Uni<List<Reservation>> findByVehicle(VehicleId vehicleId);
 }
