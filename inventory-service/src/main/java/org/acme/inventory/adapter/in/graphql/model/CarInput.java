@@ -2,10 +2,12 @@ package org.acme.inventory.adapter.in.graphql.model;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.eclipse.microprofile.graphql.Name;
 
 @Data
 @NoArgsConstructor
 public class CarInput {
+    @Name("plateNumber")
     private String licensePlateNumber;
     private String manufacturer;
     private String model;
