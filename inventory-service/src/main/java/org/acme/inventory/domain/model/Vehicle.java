@@ -9,7 +9,7 @@ public final class Vehicle {
     private final VehicleSpecifications specifications;
     private VehicleLocation location;
     private VehicleStatus status;
-    private VehicleDailyRate dailyRate;
+    private final VehicleDailyRate dailyRate;
 
     private Vehicle(VehicleId id,
                     LicensePlate licensePlate,
