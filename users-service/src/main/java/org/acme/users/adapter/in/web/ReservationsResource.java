@@ -8,6 +8,8 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import org.acme.users.adapter.in.security.CurrentUser;
 import org.acme.users.adapter.in.web.templates.ReservationsTemplates;
+import org.acme.users.application.model.AvailableCar;
+import org.acme.users.application.model.ReservationView;
 import org.acme.users.application.usecase.ReservationFacade;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.RestQuery;
