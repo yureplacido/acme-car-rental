@@ -1,0 +1,24 @@
+package org.acme.inventory.application.usecase;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.acme.inventory.application.port.out.VehicleRepository;
+import org.acme.inventory.domain.model.LicensePlate;
+import org.acme.inventory.domain.model.Vehicle;
+
+import java.util.Optional;
+
+@ApplicationScoped
+public class FindVehicleByPlate {
+
+    private final VehicleRepository repository;
+
+    @Inject
+    public FindVehicleByPlate(VehicleRepository repository) {
+        this.repository = repository;
+    }
+
+    public Optional<Vehicle> handle(String plate) {
+        return repository.findByLicensePlate(new LicensePlate(plate));
+    }
+}
