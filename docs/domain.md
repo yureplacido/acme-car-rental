@@ -29,43 +29,82 @@ The arrows represent information/contract relationships, not shared object model
 
 ### Responsibility
 
-Own the fleet and the lifecycle of vehicles.
+Own the fleet, vehicle lifecycle and operational state of the fleet.
 
-### Aggregate root
+### Aggregate roots
 
-`Vehicle`
+- `Vehicle`
+- `MaintenanceOrder`
 
-### Value objects
+`Vehicle` owns the identity and lifecycle of a fleet vehicle. `MaintenanceOrder` owns a maintenance work lifecycle for a vehicle. They are separate aggregates so maintenance can later evolve into its own persistence, events and workflows without turning Vehicle into a large aggregate.
+
+### Vehicle value objects
 
 - `VehicleId`
 - `LicensePlate`
 - `VehicleSpecifications`
 - `VehicleLocation`
-- `VehicleDailyRate` (tarifa-base de referência; pricing dinâmico pertence a outro contexto)
+- `VehicleDailyRate`
+- `OdometerReading`
 
-### Enumerations / domain concepts
+### Vehicle domain concepts
 
 - `VehicleStatus`: AVAILABLE, IN_MAINTENANCE, DECOMMISSIONED
+- `VehicleCondition`: GOOD, NEEDS_INSPECTION, DAMAGED
 - `VehicleCategory`
 - `Transmission`
 - `FuelType`
 
+### Maintenance concepts
+
+- `MaintenanceOrderId`
+- `MaintenanceType`: PREVENTIVE, CORRECTIVE, INSPECTION
+- `MaintenanceStatus`: OPEN, IN_PROGRESS, COMPLETED, CANCELLED
+- `MaintenanceOrder`
+
+### Current behavior
+
+Vehicle already supports:
+
+- registration with default AVAILABLE status;
+- decommissioning as a soft-delete lifecycle transition;
+- entering/leaving maintenance;
+- relocation;
+- monotonically increasing odometer readings;
+- explicit condition changes;
+- immutable base daily rate.
+
+MaintenanceOrder already models:
+
+- opening;
+- starting;
+- completion;
+- cancellation rules;
+- rehydration from persistence.
+
 ### Useful future concepts
 
-- Maintenance work orders
-- Fleet location / branch
-- Vehicle odometer
-- Vehicle condition
-- vehicle inspection history
+- maintenance work-order persistence;
+- scheduled maintenance;
+- inspection history;
+- damage assessment;
+- fleet branch aggregate;
+- vehicle availability windows;
+- odometer-based maintenance policies.
 
-Availability for a rental period is **not owned by Inventory**. It is a derived concept involving reservations. Inventory owns whether the vehicle exists, is in service, is available to be offered, or is decommissioned.
+Availability for a rental period is **not owned by Inventory**. It is a derived concept involving reservations. Inventory owns whether the vehicle exists, is in service, its operational state and whether it can be offered.
 
 ### Invariants
 
 - a license plate identifies one vehicle in the fleet;
 - a decommissioned vehicle cannot return to AVAILABLE;
-- a vehicle in maintenance cannot be offered as AVAILABLE;
-- required vehicle specification data must be valid.
+- a vehicle in maintenance cannot be offered;
+- odometer readings cannot move backwards;
+- a vehicle condition is explicit;
+- required vehicle specification data must be valid;
+- only OPEN maintenance orders can become IN_PROGRESS;
+- only IN_PROGRESS maintenance orders can become COMPLETED;
+- completed maintenance orders cannot be cancelled.
 
 ## 2. Reservation Context
 
@@ -91,9 +130,9 @@ PENDING, CONFIRMED, CANCELLED, REJECTED, COMPLETED.
 ### Invariants
 
 - end date cannot precede start date;
-- a cancelled/rejected reservation cannot be confirmed again;
+- a cancelled/completed reservation cannot return to an invalid state;
 - reservation state transitions must be explicit;
-- overlapping reservations for the same vehicle must be rejected by the application/domain policy.
+- overlapping active reservations for the same vehicle must be rejected.
 
 The domain does not own the customer or vehicle aggregate. Their identities cross the context boundary as values.
 
@@ -112,27 +151,27 @@ Own the physical rental lifecycle after a reservation is fulfilled.
 - `RentalId`
 - `ReservationId`
 - `CustomerId`
-- `VehicleId`
-- `RentalPeriod`
 
 ### Lifecycle
 
 PENDING -> ACTIVE -> COMPLETED
 
-and failure/cancellation paths should be explicit rather than represented by boolean flags.
+Cancellation/failure paths should be explicit rather than represented by booleans.
 
 Future concepts:
 
+- VehicleId reference;
 - pickup/return branch;
-- odometer;
+- odometer at pickup and return;
 - fuel level;
 - inspection;
 - damage report;
-- late-return policy.
+- late-return policy;
+- extensions.
 
 ## 4. Pricing Context
 
-Pricing is intentionally modeled as a future bounded context rather than putting rates into Reservation or Inventory.
+Pricing is intentionally modeled as a future bounded context rather than putting pricing rules inside Reservation or Inventory.
 
 Potential concepts:
 
@@ -142,84 +181,101 @@ Potential concepts:
 - `PricingRule`
 - `RentalDuration`
 - `OptionalExtra`
+- `Promotion`
 
-Inventory may expose category/specification information that Pricing consumes, but Inventory does not own pricing rules.
+Inventory may expose vehicle category/specification information that Pricing consumes, but Inventory does not own dynamic pricing rules.
 
 ## 5. Billing / Payment Context
 
-The current `billing-service` is a placeholder, so the initial domain structure should express ownership without inventing a complete payment workflow.
+The billing service now has the first domain foundation but not the final distributed workflow.
 
-Potential aggregate:
+### Aggregate root
 
 `Invoice`
 
-Supporting concepts:
+### Supporting concepts
 
 - `InvoiceId`
 - `CustomerId`
 - `ReservationId`
 - `Money`
 - `InvoiceLine`
-- `BillingStatus`
+- `InvoiceStatus`
 - `PaymentMethod`
 - `PaymentStatus`
-- `PaymentReference`
 
 Future concerns:
 
 - payment authorization;
+- payment reference;
 - idempotency;
 - retries;
-- invoice state;
-- compensation/refund;
-- asynchronous events.
+- refunds/compensation;
+- invoice events;
+- asynchronous billing.
 
 ## 6. Users Service
 
-`users-service` is a BFF/web adapter, not a duplicate Customer domain.
+`users-service` is a BFF/web adapter, not a duplicate Customer, Reservation or Inventory domain.
 
-It may own presentation concerns:
+It may own:
 
 - authenticated session representation;
 - HTML/Qute models;
-- orchestration of browser-facing calls.
+- browser-oriented orchestration.
 
-Identity ownership remains with Keycloak / the external identity provider. Business customer concepts should only be introduced if real customer behavior is added.
+Identity ownership remains with Keycloak/external identity infrastructure.
 
 ## 7. What is deliberately NOT shared
 
-Never create a common `Car`, `Reservation`, `Rental`, `Customer`, or `Money` object under a generic `shared` package merely to avoid mapping.
+Never create a common `Car`, `Reservation`, `Rental`, `Customer` or `Money` object under a generic `shared` package merely to avoid mapping.
 
 For example:
 
 ```
-Inventory.domain.Vehicle
-Reservation.application.port.out.VehicleAvailability
-Rental.application.port.out.ReservationSnapshot
-Billing.application.port.out.ReservationBillingData
+Inventory.domain.model.Vehicle
+Reservation.domain.model.Reservation
+Rental.domain.model.Rental
+Billing.domain.model.Invoice
+```
+
+And at context boundaries:
+
+```
+Reservation.application.port.out.InventoryGateway
+Reservation.application.query.AvailableVehicle
+Users.application.model.ReservationView
 ```
 
 These are intentionally different representations.
 
 ## 8. Domain maturity
 
-The target is evolutionary.
+### Phase 1 — baseline
 
-Phase 1:
+- establish bounded contexts;
 - establish aggregates and value objects;
 - move invariants from resources/repositories into domain;
-- establish use cases and ports;
-- introduce TDD at the domain/application levels.
+- establish application use cases and ports;
+- introduce TDD at domain/application levels.
 
-Phase 2:
-- introduce richer lifecycle rules;
+### Phase 2 — richer domain
+
+- maintenance workflow;
+- pricing;
+- billing/payment;
 - domain events;
-- messaging;
-- pricing and billing behaviors.
+- messaging.
 
-Phase 3:
-- resilience/idempotency/observability;
-- reactive pipelines and backpressure;
-- distributed consistency patterns.
+### Phase 3 — distributed behavior
+
+- idempotency;
+- retries/timeouts;
+- cancellation;
+- observability;
+- reactive composition;
+- concurrency control;
+- backpressure;
+- consistency/compensation patterns.
 
 The domain should become richer because the use cases require it, not because every DDD tactical pattern must appear in every class.
