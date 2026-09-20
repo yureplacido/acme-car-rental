@@ -2,12 +2,12 @@ package org.acme.inventory.adapter.in.graphql;
 
 import io.smallrye.graphql.api.Context;
 import jakarta.inject.Inject;
-import org.acme.inventory.adapter.in.graphql.model.RegisterVehicleInput;
+import org.acme.inventory.adapter.in.graphql.model.CarInput;
 import org.acme.inventory.adapter.in.graphql.model.SortOrder;
-import org.acme.inventory.adapter.in.graphql.model.VehicleFilter;
-import org.acme.inventory.adapter.in.graphql.model.VehiclePage;
-import org.acme.inventory.adapter.in.graphql.model.VehicleSortField;
-import org.acme.inventory.adapter.in.graphql.model.VehicleView;
+import org.acme.inventory.adapter.in.graphql.model.CarFilter;
+import org.acme.inventory.adapter.in.graphql.model.Page;
+import org.acme.inventory.adapter.in.graphql.model.CarSortField;
+import org.acme.inventory.adapter.in.graphql.model.Car;
 import org.acme.inventory.application.usecase.DecommissionVehicle;
 import org.acme.inventory.application.usecase.ListVehicles;
 import org.acme.inventory.application.usecase.RegisterVehicle;
@@ -102,7 +102,7 @@ public class GraphQLInventoryResource {
         return decommissionVehicle.handle(plate).isPresent();
     }
 
-    private VehiclePage page(int offset, int limit, String search,
+    private Page page(int offset, int limit, String search,
                              VehicleFilter filter, VehicleSortField sort, SortOrder order) {
         List<Vehicle> all = listVehicles.handle();
         List<Vehicle> matching = all.stream()
@@ -139,10 +139,10 @@ public class GraphQLInventoryResource {
                     || blankOrEquals(filter.getManufacturer(), vehicle.specifications().manufacturer())
                     && blankOrEquals(filter.getModel(), vehicle.specifications().model())
                     && blankOrEquals(filter.getPlate(), vehicle.licensePlate().value())
-                    && (filter.getStatus() == null || filter.getStatus().isBlank()
+                    && (filter.getStatus() == null
                     || vehicle.status().name().equalsIgnoreCase(filter.getStatus()));
 
-            boolean offered = filter != null && filter.getStatus() != null && !filter.getStatus().isBlank()
+            boolean offered = filter != null && filter.getStatus() != null && !false
                     || vehicle.canBeOffered();
 
             return text && filters && offered;
