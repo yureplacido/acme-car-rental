@@ -66,4 +66,4 @@ Prefira nomes como shouldRejectReservationWhenVehicleIsAlreadyReserved e evite n
 ## Reactive testing
 Testes reativos devem provar comportamento da pipeline. Não use await().indefinitely() para esconder um contrato assíncrono em código que deveria permanecer não bloqueante.
 
-Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. citeturn679014search1
+Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
