@@ -29,8 +29,7 @@ public class ReservationsRestGateway implements ReservationsGateway {
 
     @Override
     public ReservationView create(ReservationView reservation) {
-        return toView(client.create(new Reservation()
-                .builder()
+        return toView(client.create(Reservation.builder()
                 .id(reservation.id())
                 .userId(reservation.userId())
                 .carId(reservation.carId())
