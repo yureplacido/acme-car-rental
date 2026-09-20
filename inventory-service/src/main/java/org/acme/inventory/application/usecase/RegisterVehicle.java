@@ -36,7 +36,7 @@ public class RegisterVehicle {
                         command.color(),
                         command.seats()),
                 command.location(),
-                command.dailyRate() == null ? null : new VehicleDailyRate(command.dailyRate(), command.currency()));
+                command.dailyRate() == null ? null : new VehicleDailyRate(command.dailyRate(), command.currency() == null || command.currency().isBlank() ? "BRL" : command.currency()));
         return repository.save(vehicle);
     }
 
