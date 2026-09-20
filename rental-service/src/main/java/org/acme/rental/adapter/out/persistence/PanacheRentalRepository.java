@@ -25,7 +25,7 @@ public class PanacheRentalRepository implements RentalRepository, PanacheMongoRe
 
     @Override
     public Optional<Rental> findByCustomerAndReservation(String customerId, Long reservationId) {
-        return find("customerId = ?1 and reservationId = ?2", customerId, reservationId)
+        return find("userId = ?1 and reservationId = ?2", customerId, reservationId)
                 .firstResultOptional()
                 .map(RentalMapper::toDomain);
     }
