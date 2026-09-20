@@ -1,13 +1,13 @@
 package org.acme.users.application.port.out;
 
-import org.acme.users.adapter.out.reservation.model.Car;
-import org.acme.users.adapter.out.reservation.model.Reservation;
+import org.acme.users.application.model.AvailableCar;
+import org.acme.users.application.model.ReservationView;
 
 import java.time.LocalDate;
 import java.util.Collection;
 
 public interface ReservationsGateway {
-    Collection<Reservation> allReservations();
-    Reservation create(Reservation reservation);
-    Collection<Car> availability(LocalDate startDate, LocalDate endDate);
+    Collection<ReservationView> allReservations();
+    ReservationView create(org.acme.users.application.model.ReservationView reservation);
+    Collection<AvailableCar> availability(LocalDate startDate, LocalDate endDate);
 }
