@@ -21,7 +21,7 @@ import org.acme.reservation.client.inventory.DynamicInventoryClient;
 import org.acme.reservation.client.inventory.GraphQLInventoryClient;
 import org.acme.reservation.client.inventory.InventoryQuery;
 import org.acme.reservation.client.inventory.SortOrder;
-import org.acme.reservation.client.rental.RentalClient;
+import org.acme.reservation.application.ReservationApplicationService;
 import org.acme.reservation.model.Reservation;
 import org.acme.reservation.repository.ReservationRepository;
 import org.acme.reservation.security.CurrentUser;
@@ -59,7 +59,7 @@ public class ReservationResource {
 
     private final GraphQLInventoryClient inventoryClient;
     private final DynamicInventoryClient dynamicInventoryClient;
-    private final RentalClient rentalClient;
+    private final ReservationApplicationService reservationApplicationService;
     private final ReservationRepository reservationRepository;
 
     // Injeção mista: CurrentUser por campo + construtor para os demais
@@ -68,12 +68,14 @@ public class ReservationResource {
 
     public ReservationResource(@GraphQLClient("inventory") GraphQLInventoryClient inventoryClient,
                                DynamicInventoryClient dynamicInventoryClient,
-                               @RestClient RentalClient rentalClient,
-                               ReservationRepository reservationRepository) {
+                               @RestClient org.acme.reservation.client.rental.RentalClient rentalClient,
+                               ReservationRepository reservationRepository,
+                               ReservationApplicationService reservationApplicationService) {
         this.inventoryClient = inventoryClient;
         this.dynamicInventoryClient = dynamicInventoryClient;
         this.rentalClient = rentalClient;
         this.reservationRepository = reservationRepository;
+        this.reservationApplicationService = reservationApplicationService;
     }
 
     /**
@@ -241,22 +243,9 @@ public class ReservationResource {
     @POST
     @WithTransaction
     public Uni<Reservation> make(Reservation reservation) {
-        Log.infof("Processando nova reserva para o veículo ID: %d", reservation.getCarId());
-
-        // Cap.6.2.1: registra quem fez a reserva (livro 6.4). Sem login, "anonymous".
-        reservation.setUserId(currentUser.getUserId() != null ? currentUser.getUserId() : "anonymous");
-
-        return reservationRepository.save(reservation).onItem()
-                .call(persistedReservation -> {
-                    Log.infof("Successfully reserved reservation %s", persistedReservation);
-                    if (persistedReservation.getStartDay().equals(LocalDate.now())) {
-                        // Chama o rental em paralelo e substitui o resultado pela reserva persistida.
-                        return rentalClient.start(persistedReservation.getUserId(), persistedReservation.getId())
-                                .onItem().invoke(rental ->
-                                        Log.infof("Successfully started rental %s", rental))
-                                .replaceWith(persistedReservation);
-                    }
-                    return Uni.createFrom().item(persistedReservation);
-                });
+        Log.infof("Delegando criação da reserva para a camada de aplicação. veículo ID: %d", reservation.getCarId());
+        return reservationApplicationService.create(reservation, currentUser.getUserId())
+                .onItem().invoke(persistedReservation ->
+                        Log.infof("Successfully reserved reservation %s", persistedReservation));
     }
 }
