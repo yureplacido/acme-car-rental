@@ -1,6 +1,7 @@
 package org.acme.inventory.adapter.in.grpc;
 
 import io.quarkus.grpc.GrpcService;
+import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
@@ -32,6 +33,7 @@ public class GrpcInventoryResource implements InventoryService {
         this.decommissionVehicle = decommissionVehicle;
     }
 
+    @Blocking
     @Override
     public Multi<CarResponse> add(Multi<InsertCarRequest> requests) {
         return requests
@@ -40,6 +42,7 @@ public class GrpcInventoryResource implements InventoryService {
                 .map(this::toResponse);
     }
 
+    @Blocking
     @Override
     public Uni<CarResponse> remove(RemoveCarRequest request) {
         Optional<Vehicle> vehicle = decommissionVehicle.handle(request.getLicensePlateNumber());
