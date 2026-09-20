@@ -26,7 +26,7 @@ class ReservationFacadeTest {
     }
 
     static class FakeGateway implements ReservationsGateway {
-        Reservation created;
+        ReservationView created;
         public java.util.Collection<ReservationView> allReservations() { return List.of(); }
         public ReservationView create(ReservationView reservation) { created = reservation; return reservation; }
         public java.util.Collection<AvailableCar> availability(LocalDate startDate, LocalDate endDate) { return List.of(); }
