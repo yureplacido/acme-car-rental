@@ -1,6 +1,6 @@
 ---
 description: Run the four architecture guardians before implementing a feature
-agent: build
+agent: feature-implementer
 ---
 
 For the requested change `$ARGUMENTS`, run the repository review sequence before making implementation changes:
@@ -12,4 +12,4 @@ For the requested change `$ARGUMENTS`, run the repository review sequence before
 
 Only after the four reviews are consistent, implement the smallest TDD slice. Preserve the repository standards in `AGENTS.md` and `docs/ddd-tdd-standards.md`.
 
-Before finishing, run the relevant tests and report which architectural rules were verified.
+After implementation, run the relevant tests and invoke the four guardians again on the changed scope. Do not finish with unresolved architectural findings.
