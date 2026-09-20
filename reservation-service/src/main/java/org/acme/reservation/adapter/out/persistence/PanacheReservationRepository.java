@@ -16,7 +16,7 @@ public class PanacheReservationRepository implements ReservationRepository, Pana
 
     @Override
     @WithSession
-    public Uni<List<Reservation>> findAll() {
+    public Uni<List<Reservation>> all() {
         return listAll().map(items -> items.stream()
                 .map(ReservationMapper::toDomain)
                 .toList());
