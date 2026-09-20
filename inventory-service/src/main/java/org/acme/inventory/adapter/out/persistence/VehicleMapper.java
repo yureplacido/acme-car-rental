@@ -1,15 +1,17 @@
 package org.acme.inventory.adapter.out.persistence;
 
+import org.acme.inventory.domain.model.FuelType;
 import org.acme.inventory.domain.model.LicensePlate;
+import org.acme.inventory.domain.model.OdometerReading;
+import org.acme.inventory.domain.model.Transmission;
 import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
+import org.acme.inventory.domain.model.VehicleCondition;
+import org.acme.inventory.domain.model.VehicleDailyRate;
 import org.acme.inventory.domain.model.VehicleId;
 import org.acme.inventory.domain.model.VehicleLocation;
 import org.acme.inventory.domain.model.VehicleSpecifications;
 import org.acme.inventory.domain.model.VehicleStatus;
-import org.acme.inventory.domain.model.VehicleDailyRate;
-import org.acme.inventory.domain.model.FuelType;
-import org.acme.inventory.domain.model.Transmission;
 
 public final class VehicleMapper {
 
@@ -33,7 +35,13 @@ public final class VehicleMapper {
                         ? null
                         : new VehicleLocation(entity.branchCode, entity.city),
                 entity.status,
-                entity.dailyRate == null ? null : new VehicleDailyRate(entity.dailyRate, entity.dailyRateCurrency == null ? "BRL" : entity.dailyRateCurrency));
+                entity.dailyRate == null
+                        ? null
+                        : new VehicleDailyRate(
+                                entity.dailyRate,
+                                entity.dailyRateCurrency == null ? "BRL" : entity.dailyRateCurrency),
+                entity.odometerKm == null ? new OdometerReading(0L) : new OdometerReading(entity.odometerKm),
+                entity.condition);
     }
 
     public static VehicleEntity toEntity(Vehicle vehicle) {
@@ -49,6 +57,8 @@ public final class VehicleMapper {
         entity.color = vehicle.specifications().color();
         entity.seats = vehicle.specifications().seats();
         entity.status = vehicle.status();
+        entity.condition = vehicle.condition();
+        entity.odometerKm = vehicle.odometer().kilometers();
         if (vehicle.dailyRate() != null) {
             entity.dailyRate = vehicle.dailyRate().amount();
             entity.dailyRateCurrency = vehicle.dailyRate().currency();
