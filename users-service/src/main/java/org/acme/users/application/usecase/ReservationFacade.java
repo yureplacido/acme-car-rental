@@ -2,8 +2,8 @@ package org.acme.users.application.usecase;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.acme.users.adapter.out.reservation.model.Car;
-import org.acme.users.adapter.out.reservation.model.Reservation;
+import org.acme.users.application.model.AvailableCar;
+import org.acme.users.application.model.ReservationView;
 import org.acme.users.application.port.out.ReservationsGateway;
 
 import java.time.LocalDate;
@@ -19,19 +19,15 @@ public class ReservationFacade {
         this.gateway = gateway;
     }
 
-    public Collection<Reservation> listReservations() {
+    public Collection<ReservationView> listReservations() {
         return gateway.allReservations();
     }
 
-    public Collection<Car> availableCars(LocalDate startDate, LocalDate endDate) {
+    public Collection<AvailableCar> availableCars(LocalDate startDate, LocalDate endDate) {
         return gateway.availability(startDate, endDate);
     }
 
-    public Reservation reserve(Long carId, LocalDate startDate, LocalDate endDate) {
-        return gateway.create(Reservation.builder()
-                .carId(carId)
-                .startDay(startDate)
-                .endDay(endDate)
-                .build());
+    public ReservationView reserve(Long carId, LocalDate startDate, LocalDate endDate) {
+        return gateway.create(new ReservationView(null, null, carId, startDate, endDate, null));
     }
 }
