@@ -67,11 +67,11 @@ public class ReservationsResource {
     public RestResponse<TemplateInstance> create(@RestForm LocalDate startDate,
                                                  @RestForm LocalDate endDate,
                                                  @RestForm Long carId) {
-        Reservation reservation = new Reservation();
-        reservation.startDay = startDate;
-        reservation.endDay = endDate;
-        reservation.carId = carId;
-        client.make(reservation);
+        client.make(Reservation.builder()
+                .startDay(startDate)
+                .endDay(endDate)
+                .carId(carId)
+                .build());
         return RestResponse.ResponseBuilder
                 .ok(getReservations())
                 .header("HX-Trigger-After-Swap", "update-available-cars-list")
