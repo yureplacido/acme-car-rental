@@ -4,6 +4,7 @@ import io.quarkus.mongodb.panache.PanacheMongoRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.rental.application.port.out.RentalRepository;
 import org.acme.rental.domain.model.Rental;
+import org.acme.rental.domain.model.RentalStatus;
 
 import java.util.List;
 import java.util.Optional;
