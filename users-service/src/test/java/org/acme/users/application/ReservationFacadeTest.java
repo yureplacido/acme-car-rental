@@ -1,7 +1,7 @@
 package org.acme.users.application;
 
-import org.acme.users.adapter.out.reservation.model.Car;
-import org.acme.users.adapter.out.reservation.model.Reservation;
+import org.acme.users.application.model.AvailableCar;
+import org.acme.users.application.model.ReservationView;
 import org.acme.users.application.port.out.ReservationsGateway;
 import org.acme.users.application.usecase.ReservationFacade;
 import org.junit.jupiter.api.Test;
@@ -27,8 +27,8 @@ class ReservationFacadeTest {
 
     static class FakeGateway implements ReservationsGateway {
         Reservation created;
-        public java.util.Collection<Reservation> allReservations() { return List.of(); }
-        public Reservation create(Reservation reservation) { created = reservation; return reservation; }
-        public java.util.Collection<Car> availability(LocalDate startDate, LocalDate endDate) { return List.of(); }
+        public java.util.Collection<ReservationView> allReservations() { return List.of(); }
+        public ReservationView create(ReservationView reservation) { created = reservation; return reservation; }
+        public java.util.Collection<AvailableCar> availability(LocalDate startDate, LocalDate endDate) { return List.of(); }
     }
 }
