@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Who am I</title>
-    <link rel="stylesheet" href="/webjars/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{rootPath}/webjars/bootstrap/css/bootstrap.min.css">
 </head>
 <body class="bg-light">
 <main class="container vh-100 d-flex align-items-center justify-content-center">
     <div class="alert alert-success d-flex align-items-center gap-3 mb-0">
         <span>Hello <strong>{name ?: 'anonymous'}</strong>!</span>
-        <a class="btn btn-sm btn-outline-success" href="/logout">Log out</a>
+        <a class="btn btn-sm btn-outline-success" href="{rootPath}/logout">Log out</a>
     </div>
 </main>
 </body>

@@ -1,7 +1,7 @@
 package org.acme.inventory.repository;
 
 import org.acme.inventory.entity.CarEntity;
-import org.acme.inventory.model.Car;
+import org.acme.inventory.model.graphql.Car;
 
 /**
  * Mapeia {@link Car} (modelo/domínio) ↔ {@link CarEntity} (persistência Panache).
@@ -18,6 +18,14 @@ public final class CarMapper {
         entity.manufacturer = car.getManufacturer();
         entity.model = car.getModel();
         entity.licensePlateNumber = car.getLicensePlateNumber();
+        entity.status = car.getStatus();
+        entity.category = car.getCategory();
+        entity.transmission = car.getTransmission();
+        entity.fuelType = car.getFuelType();
+        entity.year = car.getYear();
+        entity.color = car.getColor();
+        entity.seats = car.getSeats();
+        entity.dailyRate = car.getDailyRate();
         return entity;
     }
 
@@ -27,6 +35,14 @@ public final class CarMapper {
                 .manufacturer(entity.manufacturer)
                 .model(entity.model)
                 .licensePlateNumber(entity.licensePlateNumber)
+                .status(entity.status)
+                .category(entity.category)
+                .transmission(entity.transmission)
+                .fuelType(entity.fuelType)
+                .year(entity.year)
+                .color(entity.color)
+                .seats(entity.seats)
+                .dailyRate(entity.dailyRate)
                 .build();
     }
 }

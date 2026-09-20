@@ -1,2 +1,2 @@
-INSERT INTO car (manufacturer, model, licensePlateNumber) VALUES ('Mazda', '6', 'ABC123');
-INSERT INTO car (manufacturer, model, licensePlateNumber) VALUES ('Ford', 'Mustang', 'XYZ987');
+INSERT INTO cars (manufacturer, model, licensePlateNumber, status, category, transmission, fuelType, year, color, seats, dailyRate) VALUES ('Mazda', '6', 'ABC123', 'AVAILABLE', 'COMPACT', 'AUTOMATIC', 'GASOLINE', 2022, 'Red', 5, 150.00);
+INSERT INTO cars (manufacturer, model, licensePlateNumber, status, category, transmission, fuelType, year, color, seats, dailyRate) VALUES ('Ford', 'Mustang', 'XYZ987', 'AVAILABLE', 'LUXURY', 'MANUAL', 'GASOLINE', 2023, 'Blue', 4, 220.00);

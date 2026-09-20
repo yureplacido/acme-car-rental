@@ -1,4 +1,4 @@
-package org.acme.inventory.model;
+package org.acme.inventory.model.graphql;
 
 import org.eclipse.microprofile.graphql.Description;
 

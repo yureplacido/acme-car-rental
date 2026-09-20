@@ -1,14 +1,14 @@
-package org.acme.inventory.api;
+package org.acme.inventory.graphql;
 
 import io.smallrye.graphql.api.Context;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
-import org.acme.inventory.model.Car;
-import org.acme.inventory.model.CarFilter;
-import org.acme.inventory.model.CarSortField;
-import org.acme.inventory.model.Page;
-import org.acme.inventory.model.SortOrder;
-import org.acme.inventory.repository.CarRepository;
+import org.acme.inventory.domain.CarInventoryService;
+import org.acme.inventory.model.graphql.Car;
+import org.acme.inventory.model.graphql.CarFilter;
+import org.acme.inventory.model.graphql.CarSortField;
+import org.acme.inventory.model.graphql.CarStatus;
+import org.acme.inventory.model.graphql.Page;
+import org.acme.inventory.model.graphql.SortOrder;
 import org.eclipse.microprofile.graphql.DefaultValue;
 import org.eclipse.microprofile.graphql.Description;
 import org.eclipse.microprofile.graphql.GraphQLApi;
@@ -26,7 +26,7 @@ import java.util.function.Predicate;
 @Description("API de exemplo para controle e monitoramento de frotas e inventário de veículos")
 public class GraphQLInventoryService {
 
-    private final CarRepository carRepository;
+    private final CarInventoryService carInventory;
 
     // Injeção do contexto para rastrear metadados da requisição
 
@@ -34,8 +34,8 @@ public class GraphQLInventoryService {
     private final Context context;
 
     // Injeção por construtor recomendada pelo Quarkus
-    public GraphQLInventoryService(CarRepository carRepository, Context context) {
-        this.carRepository = carRepository;
+    public GraphQLInventoryService(CarInventoryService carInventory, Context context) {
+        this.carInventory = carInventory;
         this.context = context;
     }
 
@@ -50,10 +50,7 @@ public class GraphQLInventoryService {
         // Exemplo prático de telemetria de campos selecionados pelo cliente no Dev UI
         System.out.println("Campos solicitados no inventário de carros: " + context.getSelectedFields());
 
-        List<Car> all = carRepository.all();
-        if (offset == null && limit == null && search == null && filter == null) {
-            return all;
-        }
+        List<Car> all = carInventory.all();
         return Page.of(all, offset == null ? 0 : offset, limit == null ? Page.MAX_LIMIT : limit,
                 matching(search, filter), sortedBy(sort, order)).getItems();
     }
@@ -66,7 +63,7 @@ public class GraphQLInventoryService {
                               @Name("filter") CarFilter filter,
                               @Name("sort") @DefaultValue("ID") CarSortField sort,
                               @Name("order") @DefaultValue("ASC") SortOrder order) {
-        return Page.of(carRepository.all(), offset, limit, matching(search, filter), sortedBy(sort, order));
+        return Page.of(carInventory.all(), offset, limit, matching(search, filter), sortedBy(sort, order));
     }
 
     private Predicate<Car> matching(String search, CarFilter filter) {
@@ -86,7 +83,10 @@ public class GraphQLInventoryService {
                     && (filter.getPlate() == null
                     || filter.getPlate().isBlank()
                     || car.getLicensePlateNumber().equalsIgnoreCase(filter.getPlate().trim()));
-            return termMatches && filterMatches;
+            boolean statusMatches = (filter == null || filter.getStatus() == null)
+                    ? car.getStatus() != CarStatus.DECOMMISSIONED
+                    : car.getStatus() == filter.getStatus();
+            return termMatches && filterMatches && statusMatches;
         };
     }
 
@@ -101,24 +101,22 @@ public class GraphQLInventoryService {
     }
 
     @Query("findCar")
-    @Description("Busca um veículo específico no inventário utilizando o número da placa")
+    @Description("Busca um veículo específico no inventário utilizando o número da placa (inclui veículos baixados)")
     public Car findCarByPlate(@Name("plate") String licensePlateNumber) throws GraphQLException {
-        return carRepository.findByLicensePlateNumberOptional(licensePlateNumber)
+        return carInventory.findByPlate(licensePlateNumber)
                 .orElseThrow(() -> new GraphQLException("Carro com a placa " + licensePlateNumber + " não encontrado."));
     }
 
     @Mutation
-    @Description("Cadastra um novo veículo no inventário. O ID é atribuído pelo repositório.")
-    @Transactional
+    @Description("Cadastra um novo veículo no inventário. O ID é atribuído pelo repositório e o status vira AVAILABLE se não for informado.")
     public Car register(Car car) {
-        return carRepository.save(car);
+        return carInventory.register(car);
     }
 
     @Mutation
-    @Description("Remove um veículo do inventário com base na placa informada")
-    @Transactional
+    @Description("Baixa (descomissiona) um veículo com base na placa; o veículo sai da oferta de disponibilidade e a linha não é apagada")
     public boolean remove(@Name("plate") String licensePlateNumber) {
-        return carRepository.deleteByLicensePlateNumber(licensePlateNumber);
+        return carInventory.decommission(licensePlateNumber).isPresent();
     }
 
     // --- FIELD RESOLVER DINÂMICO (@Source) ---

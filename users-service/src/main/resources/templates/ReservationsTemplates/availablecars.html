@@ -22,7 +22,7 @@
     <td>{car.model}</td>
     <td>
       <form class="m-0" hx-target="#reservations"
-            hx-post="/reserve">
+            hx-post="{rootPath}/reserve">
         <input type="hidden" name="startDate" value="{startDate}"/>
         <input type="hidden" name="endDate" value="{endDate}"/>
         <input type="hidden" name="carId" value="{car.id}"/>

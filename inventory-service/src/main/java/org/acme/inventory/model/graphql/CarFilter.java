@@ -1,4 +1,4 @@
-package org.acme.inventory.model;
+package org.acme.inventory.model.graphql;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,4 +21,7 @@ public class CarFilter {
 
     @Description("Filtra por placa (ex.: XYZ987)")
     private String plate;
+
+    @Description("Filtra por status do ciclo de vida. Sem filtro, veículos baixados (DECOMMISSIONED) ficam fora da resposta")
+    private CarStatus status;
 }

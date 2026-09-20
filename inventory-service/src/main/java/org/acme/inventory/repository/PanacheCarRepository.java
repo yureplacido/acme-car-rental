@@ -3,7 +3,7 @@ package org.acme.inventory.repository;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.inventory.entity.CarEntity;
-import org.acme.inventory.model.Car;
+import org.acme.inventory.model.graphql.Car;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,12 +35,13 @@ public class PanacheCarRepository implements CarRepository, PanacheRepository<Ca
     @Override
     public Car save(Car car) {
         CarEntity entity = CarMapper.toEntity(car);
-        persist(entity);
-        return CarMapper.toModel(entity);
-    }
-
-    @Override
-    public boolean deleteByLicensePlateNumber(String licensePlateNumber) {
-        return delete("licensePlateNumber", licensePlateNumber) > 0;
+        if (entity.id == null) {
+            // Insert: o id é atribuído pelo banco (IDENTITY) e volta no model.
+            persist(entity);
+            return CarMapper.toModel(entity);
+        }
+        // Update: o carro veio de outra requisição (ex.: descomissionamento),
+        // então é uma entidade detached — merge reconcilia com o contexto atual.
+        return CarMapper.toModel(getEntityManager().merge(entity));
     }
 }

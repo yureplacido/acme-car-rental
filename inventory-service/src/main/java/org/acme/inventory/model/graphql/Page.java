@@ -1,4 +1,4 @@
-package org.acme.inventory.model;
+package org.acme.inventory.model.graphql;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

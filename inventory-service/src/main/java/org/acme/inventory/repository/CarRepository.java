@@ -1,6 +1,6 @@
 package org.acme.inventory.repository;
 
-import org.acme.inventory.model.Car;
+import org.acme.inventory.model.graphql.Car;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +16,6 @@ public interface CarRepository {
 
     Optional<Car> findByLicensePlateNumberOptional(String licensePlateNumber);
 
+    /** Insere (id nulo) ou atualiza (id presente) o veículo; devolve o modelo persistido. */
     Car save(Car car);
-
-    boolean deleteByLicensePlateNumber(String licensePlateNumber);
 }

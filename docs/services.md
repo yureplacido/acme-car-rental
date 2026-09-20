@@ -27,39 +27,55 @@ Central do catálogo. Oferece GraphQL (server, code-first) e gRPC (servidor). Se
 
 | Operação | Tipo | Descrição |
 |---|---|---|
-| `allCars` | Query | Lista com busca (`search`), filtro (`filter{manufacturer,model,plate}`), sort (`ID/PLATE_NUMBER/MANUFACTURER/MODEL`), order (`ASC/DESC`), paginação offset/limit |
+| `allCars` | Query | Lista com busca (`search`), filtro (`filter{manufacturer,model,plate,status}`), sort (`ID/PLATE_NUMBER/MANUFACTURER/MODEL`), order (`ASC/DESC`), paginação offset/limit |
 | `allCarsPage` | Query | Paginado com metadados: `items`, `total`, `offset`, `limit`, `hasNextPage` |
-| `findCar(plate)` | Query | Busca por placa; erro GraphQL se não existir |
-| `register(car)` | Mutation | Cadastra; id atribuído pelo repositório |
-| `remove(plate)` | Mutation | Remove por placa; retorna `boolean` |
+| `findCar(plate)` | Query | Busca por placa (inclui baixados); erro GraphQL se não existir |
+| `register(car)` | Mutation | Cadastra; id atribuído pelo repositório; status vira `AVAILABLE` se omitido |
+| `remove(plate)` | Mutation | **Baixa (descomissiona)** por placa; retorna `boolean` |
 | `fullDescription` | FieldResolver (`@Source`) | Campo virtual `manufacturer + " " + model` |
 
 Modelo `Car`: `id` (ID!), `manufacturer`, `model`, `licensePlateNumber` → exposto como
-`plateNumber`. É POJO puro (`model/Car`, Lombok) **com as anotações GraphQL** — o
-GraphQL fica acoplado ao modelo, nunca à entidade de persistência.
+`plateNumber`; e atributos do domínio **opcionais**: `status` (enum `CarStatus`), categoria
+(`Category`), câmbio (`Transmission`), combustível (`FuelType`), `year`, `color`, `seats`,
+`dailyRate`. É POJO puro (`model/Car`, Lombok) **com as anotações GraphQL** — o GraphQL fica
+acoplado ao modelo, nunca à entidade de persistência.
+
+> **Oferta:** `allCars`/`allCarsPage` **excluem `DECOMMISSIONED` por padrão**; informe
+> `filter.status` para consulta explícita. `findCar` é inclusivo (admin).
+>
+> ⚠️ **Quirk pré-existente do `register`:** o input reusa o próprio `Car` (model) e o
+> `id` (e `year`/`seats`) viram obrigatórios no schema GraphQL (`NonNull`/primitivo) —
+> mas o banco é `IDENTITY` e rejeita `id` explícito → "System error". Corrigir com um
+> **`CarInput` dedicado** (sem `id`) é candidato a cap.8.
 
 ### gRPC (`grpc/GrpcInventoryService.java`) — contrato em `inventory-proto`
 
 | Método | Kind | Descrição |
 |---|---|---|
-| `add` | **Bidirecional stream** | Recebe `InsertCarRequest`→ persiste → responde `CarResponse` |
-| `remove` | Unary | Remove por placa; `CarResponse` vazio se não achar |
+| `add` | **Bidirecional stream** | Recebe `InsertCarRequest` (campos novos opcionais: color/year/category/transmission/fuel_type/seats/daily_rate) → persiste → responde `CarResponse` (com `status` e os demais campos) |
+| `remove` | Unary | **Descomissiona** (soft delete) por placa; `CarResponse` vazio se não achar |
 
 Reflection de serviço **sempre ligada** (`quarkus.grpc.server.enable-reflection-service=true`).
 
-### Repositório (cap.7.2, split Model/Entity)
+### Camada de domínio e repositório (cap.7.2, split Model/Entity)
 
+- **Façade de domínio `domain/CarInventoryService`** (`@ApplicationScoped`): o **único
+  core** compartilhado entre GraphQL e gRPC. Regras: `register` normaliza `status`
+  para `AVAILABLE`; `decommission` faz **soft delete** (marca `DECOMMISSIONED`, nunca
+  apaga a linha — reservas de outro serviço referenciam o id, consistência eventual).
+  Transações ficam no façade (`@Transactional`), não nos adapters.
 - `model/Car` = **POJO de domínio** (Lombok + anotações GraphQL, sem JPA);
   `entity/CarEntity` (`@Entity @Table(name="car")`) = **só persistência** sobre MySQL
-  (`quarkus-jdbc-mysql` + `quarkus-hibernate-orm-panache`), campos públicos.
+  (`quarkus-jdbc-mysql` + `quarkus-hibernate-orm-panache`), campos públicos,
+  enums via `@Enumerated(STRING)`.
 - `CarMapper` (estático) converte `Car ↔ CarEntity` com o builder do Lombok.
 - **Seam do repositório:** `repository/CarRepository` é uma **interface** falando no
-  model (`all`, `findByLicensePlateNumberOptional`, `save`, `deleteByLicensePlateNumber`);
-  a implementação default é `PanacheCarRepository` (`implements CarRepository,
+  model (`all`, `findByLicensePlateNumberOptional`, `save` — insert **e** update via
+  `merge`); a implementação default é `PanacheCarRepository` (`implements CarRepository,
   PanacheRepository<CarEntity>`). Trocando a impl (Active Record ↔ Repository),
-  GraphQL/gRPC não mudam.
+  GraphQL/gRPC não mudam. (**não existe mais hard delete** no contrato).
 - Dev/test: Dev Services (MySQL zerado); `%prod`/`%docker` apontam para `inventory-mysql`
-  no compose. `import.sql` pré-popula (`drop-and-create` no boot).
+  no compose. `import.sql` pré-popula veículos com os atributos novos (`drop-and-create` no boot).
 
 ---
 

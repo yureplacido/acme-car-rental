@@ -10,6 +10,14 @@ message InsertCarRequest {
     string license_plate_number = 1;
     string manufacturer = 2;
     string model = 3;
+    // Campos aditivos (cap.7 refinamento): opcionais — clientes antigos seguem funcionando.
+    string color = 4;
+    int32 year = 5;
+    string category = 6;
+    string transmission = 7;
+    string fuel_type = 8;
+    int32 seats = 9;
+    double daily_rate = 10;
 }
 
 message RemoveCarRequest {
@@ -21,6 +29,14 @@ message CarResponse {
     string manufacturer = 2;
     string model = 3;
     int64 id = 4;
+    string status = 5;
+    string color = 6;
+    int32 year = 7;
+    string category = 8;
+    string transmission = 9;
+    string fuel_type = 10;
+    int32 seats = 11;
+    double daily_rate = 12;
 }
 
 service InventoryService {

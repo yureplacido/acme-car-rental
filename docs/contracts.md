@@ -1,6 +1,6 @@
 # Contratos
 
-> **Última atualização:** 2026-09-19 (cap.4) · **Fonte da verdade:** o código.
+> **Última atualização:** 2026-09-20 (cap.7 - domínio do inventário: campos aditivos + soft delete + matriz de superfícies) · **Fonte da verdade:** o código.
 
 Registro de contratos entre serviços e suas regras de evolução. Hoje existe um único
 contrato gRPC (inventory-proto); novos contratos (ex.: mensageria cap.9) entram aqui.
@@ -39,6 +39,17 @@ service InventoryService {
 }
 ```
 
+Campos aditivos (cap.7, refinamento do domínio) — números novos, sem quebra de wire:
+
+- `InsertCarRequest`: `color=4`, `year=5`, `category=6`, `transmission=7`,
+  `fuel_type=8`, `seats=9`, `daily_rate=10` (todos opcionais).
+- `CarResponse`: `status=5`, `color=6`, `year=7`, `category=8`, `transmission=9`,
+  `fuel_type=10`, `seats=11`, `daily_rate=12`.
+
+> ⚠️ **Semântica do `remove`:** baixa (descomissiona) o veículo — **soft delete** por
+> `status`, a linha nunca é apagada (reservas podem referenciar o id). Resposta vazia
+> quando a placa não existe. (Antes o método era read-only; desde o cap.7 é efetivo.)
+
 Consumidores hoje: `inventory-service` (server) e `inventory-cli` (client).
 
 **Instalação** (não há reactor — instale antes de compilar consumidores):
@@ -49,6 +60,23 @@ cd inventory-proto && ./mvnw install -DskipTests
 
 **Versionamento:** versão publicada é **imutável**. Cada serviço pinna a versão que
 consome e sobe no seu ritmo. Mude para `-SNAPSHOT`/nova versão ao evoluir.
+
+## Matriz de superfícies — canais do inventário (ADR 10)
+
+O inventário **não tem REST** (sem resources de domínio). Os dois canais existentes são
+divididos por propósito; o comum entre eles é o façade `domain/CarInventoryService`:
+
+| Operação | GraphQL (`/graphql`) | gRPC | Por quê |
+|---|---|---|---|
+| Consultar/listar/paginar carros (filter, sort, projeção) | ✅ | — | UI e inter-service (reservation) precisam de consulta rica |
+| `findCar(plate)` (inclui baixados) | ✅ | — | Admin via UI |
+| `register(car)` / `add(stream)` | ✅ | ✅ | Inserção pontual (UI) e ingestão em lote (CLI) |
+| `decommission(plate)` (`remove`) | ✅ | ✅ | Governança e admin via máquina-a-máquina |
+| Streaming/ingestão em lote | — | ✅ | GraphQL não suporta streaming; gRPC sim |
+
+> Consistência entre serviços é **eventual**: inventário (dono do catálogo), reservation
+> (reservas) e rental (aluguéis) têm bancos próprios e conversam por API; o inventário
+> nunca apaga veículos referenciáveis (soft delete).
 
 ## Regras de compatibilidade (evolução sem quebrar sistemas em execução)
 

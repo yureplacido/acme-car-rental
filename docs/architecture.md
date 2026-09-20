@@ -131,6 +131,8 @@ sequenceDiagram
 | 7 | CLI de inventário como app Quarkus Main | Ferramenta administrativa executável via `java -jar` |
 | 8 | Keycloak via Dev Services em dev; realm manual (`car-rental`) em produção | Cap.6: segurança OIDC compartilhada entre users (web_app) e reservation (service) |
 | 9 | **Model (POJO) ↔ Entity (Panache) separados** | `model/*` = domínio exposto por REST/GraphQL/gRPC (Lombok, com anotações GraphQL no caso do `Car`); `entity/*Entity` = só persistência (campos públicos). `Mapper` converte e `XRepository` (interface + impl `Panache*Repository`) é o seam p/ trocar Active Record ↔ Repository sem tocar no modelo. REST Data CRUD admin fica **na entidade** (reservation) |
+| 10 | **Inventário sem REST — dois ports focados** | No inventário não há recursos para o modelo de REST; os canais são divididos por propósito: **GraphQL** (`/graphql`) = leitura/consultas/projeção para UI e inter-service (reservation) + mutações de governança; **gRPC** = máquina-a-máquina/admin/bulk. O comum entre eles é o **façade de domínio** `domain/CarInventoryService` — cada adapter traduz só o próprio wire; NÃO há interface de transporte compartilhada (forçaria o menor denominador comum). Eventual REST só se surgir consumidor resource-orientado real |
+| 11 | **Ciclo de vida do veículo com soft delete por status** | `CarStatus {AVAILABLE, IN_MAINTENANCE, DECOMMISSIONED}` é dono do inventário. Baixar um veículo **nunca apaga a linha** (`decommission()`), pois reservas de outro serviço referenciam o `id` — consistência eventual entre serviços; cada serviço tem seu banco. `save` do repositório vira insert **e** update (via `merge`). A oferta padrão do GraphQL exclui `DECOMMISSIONED` |
 
 ## Estado por serviço (resumo)
 
@@ -138,7 +140,7 @@ sequenceDiagram
 |---|---|---|
 | inventory-service | ✅ | GraphQL + gRPC completos (cap.4) |
 | reservation-service | ✅ | REST + clientes + testes + OIDC service (cap.4-6) |
-| rental-service | ⚠️ | REST básico; Mongo preparado, sem banco |
+| rental-service | ⚠️ | REST básico (start); Mongo em uso (cap.7) |
 | users-service | ✅ | UI Qute/HTMX + OIDC (cap.6) |
 | billing-service | 🚧 | Placeholder (deps messaging/mongo p/ caps. futuros) |
 | inventory-cli | ✅ | gRPC add (stream) / remove |
