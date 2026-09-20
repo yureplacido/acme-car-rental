@@ -73,6 +73,13 @@ public final class Reservation {
         return status == ReservationStatus.PENDING || status == ReservationStatus.CONFIRMED;
     }
 
+    public boolean conflictsWith(Reservation other) {
+        return active()
+                && other.active()
+                && vehicleId.equals(other.vehicleId)
+                && period.overlaps(other.period);
+    }
+
     public ReservationId id() { return id; }
     public CustomerId customerId() { return customerId; }
     public VehicleId vehicleId() { return vehicleId; }
