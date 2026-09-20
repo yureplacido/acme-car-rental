@@ -4,8 +4,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.reservation.application.port.out.RentalGateway;
-
-import org.acme.reservation.adapter.out.rental.RentalClient;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 @ApplicationScoped
 public class RentalRestGateway implements RentalGateway {
@@ -13,7 +12,7 @@ public class RentalRestGateway implements RentalGateway {
     private final RentalClient client;
 
     @Inject
-    public RentalRestGateway(RentalClient client) {
+    public RentalRestGateway(@RestClient RentalClient client) {
         this.client = client;
     }
 
