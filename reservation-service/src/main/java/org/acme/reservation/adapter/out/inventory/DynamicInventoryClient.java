@@ -60,7 +60,7 @@ public class DynamicInventoryClient implements InventoryClient<Car> {
         Document document = document(operation(
                 field("allCarsPage", carArgs(query),
                         field("items", fields(project(query.fields()))),
-                        field("total"), field("offset"), field("limit"), field("hasNextPage")))));
+                        field("total"), field("offset"), field("limit"), field("hasNextPage"))));
         return execute(client, document).getObject(CarPage.class, "allCarsPage");
     }
 
