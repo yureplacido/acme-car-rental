@@ -1,6 +1,5 @@
 package org.acme.inventory.domain.model;
 
-import java.math.BigDecimal;
 import java.util.Objects;
 
 public final class Vehicle {
@@ -16,12 +15,14 @@ public final class Vehicle {
                     LicensePlate licensePlate,
                     VehicleSpecifications specifications,
                     VehicleLocation location,
-                    VehicleStatus status) {
+                    VehicleStatus status,
+                    VehicleDailyRate dailyRate) {
         this.id = id;
         this.licensePlate = Objects.requireNonNull(licensePlate);
         this.specifications = Objects.requireNonNull(specifications);
         this.location = location;
         this.status = Objects.requireNonNull(status);
+        this.dailyRate = dailyRate;
     }
 
     public static Vehicle register(LicensePlate licensePlate,
