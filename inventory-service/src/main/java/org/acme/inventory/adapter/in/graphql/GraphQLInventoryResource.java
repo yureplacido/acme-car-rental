@@ -2,20 +2,27 @@ package org.acme.inventory.adapter.in.graphql;
 
 import io.smallrye.graphql.api.Context;
 import jakarta.inject.Inject;
-import org.acme.inventory.adapter.in.graphql.model.CarInput;
-import org.acme.inventory.adapter.in.graphql.model.SortOrder;
-import org.acme.inventory.adapter.in.graphql.model.CarFilter;
-import org.acme.inventory.adapter.in.graphql.model.Page;
-import org.acme.inventory.adapter.in.graphql.model.CarSortField;
 import org.acme.inventory.adapter.in.graphql.model.Car;
+import org.acme.inventory.adapter.in.graphql.model.CarFilter;
+import org.acme.inventory.adapter.in.graphql.model.CarInput;
+import org.acme.inventory.adapter.in.graphql.model.CarSortField;
+import org.acme.inventory.adapter.in.graphql.model.Page;
+import org.acme.inventory.adapter.in.graphql.model.SortOrder;
+import org.acme.inventory.application.query.SortDirection;
+import org.acme.inventory.application.query.VehicleFilter;
+import org.acme.inventory.application.query.VehiclePage;
+import org.acme.inventory.application.query.VehicleSearch;
+import org.acme.inventory.application.query.VehicleSortField;
 import org.acme.inventory.application.usecase.DecommissionVehicle;
-import org.acme.inventory.application.usecase.ListVehicles;
+import org.acme.inventory.application.usecase.FindVehicleByPlate;
 import org.acme.inventory.application.usecase.RegisterVehicle;
+import org.acme.inventory.application.usecase.SearchVehicles;
 import org.acme.inventory.domain.model.FuelType;
 import org.acme.inventory.domain.model.Transmission;
 import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
 import org.acme.inventory.domain.model.VehicleLocation;
+import org.acme.inventory.domain.model.VehicleStatus;
 import org.eclipse.microprofile.graphql.DefaultValue;
 import org.eclipse.microprofile.graphql.Description;
 import org.eclipse.microprofile.graphql.GraphQLApi;
@@ -24,60 +31,58 @@ import org.eclipse.microprofile.graphql.Mutation;
 import org.eclipse.microprofile.graphql.Name;
 import org.eclipse.microprofile.graphql.Query;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Predicate;
 
 @GraphQLApi
 @Description("API de inventário e gestão de frota")
 public class GraphQLInventoryResource {
 
-    private final ListVehicles listVehicles;
+    private final SearchVehicles searchVehicles;
+    private final FindVehicleByPlate findVehicleByPlate;
     private final RegisterVehicle registerVehicle;
     private final DecommissionVehicle decommissionVehicle;
 
     @Inject
     Context context;
 
-    public GraphQLInventoryResource(ListVehicles listVehicles,
+    public GraphQLInventoryResource(SearchVehicles searchVehicles,
+                                    FindVehicleByPlate findVehicleByPlate,
                                     RegisterVehicle registerVehicle,
                                     DecommissionVehicle decommissionVehicle) {
-        this.listVehicles = listVehicles;
+        this.searchVehicles = searchVehicles;
+        this.findVehicleByPlate = findVehicleByPlate;
         this.registerVehicle = registerVehicle;
         this.decommissionVehicle = decommissionVehicle;
     }
 
     @Query("allCars")
     public List<Car> cars(@Name("offset") @DefaultValue("0") Integer offset,
-                                  @Name("limit") @DefaultValue("100") Integer limit,
-                                  @Name("search") String search,
-                                  @Name("filter") CarFilter filter,
-                                  @Name("sort") @DefaultValue("ID") CarSortField sort,
-                                  @Name("order") @DefaultValue("ASC") SortOrder order) {
+                          @Name("limit") @DefaultValue("100") Integer limit,
+                          @Name("search") String search,
+                          @Name("filter") CarFilter filter,
+                          @Name("sort") @DefaultValue("ID") CarSortField sort,
+                          @Name("order") @DefaultValue("ASC") SortOrder order) {
         System.out.println("Campos solicitados no inventário: " + context.getSelectedFields());
-        return page(offset == null ? 0 : offset,
-                limit == null ? Page.MAX_LIMIT : limit,
-                search, filter, sort, order).getItems();
+        return toPage(offset, limit, search, filter, sort, order).getItems();
     }
 
     @Query("allCarsPage")
     public Page<Car> carsPage(@Name("offset") @DefaultValue("0") int offset,
-                                @Name("limit") @DefaultValue("20") int limit,
-                                @Name("search") String search,
-                                @Name("filter") CarFilter filter,
-                                @Name("sort") @DefaultValue("ID") CarSortField sort,
-                                @Name("order") @DefaultValue("ASC") SortOrder order) {
-        return page(offset, limit, search, filter, sort, order);
+                              @Name("limit") @DefaultValue("20") int limit,
+                              @Name("search") String search,
+                              @Name("filter") CarFilter filter,
+                              @Name("sort") @DefaultValue("ID") CarSortField sort,
+                              @Name("order") @DefaultValue("ASC") SortOrder order) {
+        return toPage(offset, limit, search, filter, sort, order);
     }
 
     @Query("findCar")
     public Car findCarByPlate(@Name("plate") String plate) {
-        return listVehicles.handle().stream()
-                .filter(v -> v.licensePlate().value().equalsIgnoreCase(plate))
-                .findFirst()
+        return findVehicleByPlate.handle(plate)
                 .map(this::toView)
-                .orElseThrow(() -> new GraphQLException("Carro com a placa " + plate + " não encontrado."));
+                .orElseThrow(() -> new GraphQLException(
+                        "Carro com a placa " + plate + " não encontrado."));
     }
 
     @Mutation
@@ -96,7 +101,9 @@ public class GraphQLInventoryResource {
                         ? null
                         : new VehicleLocation(input.getBranchCode(), input.getCity()),
                 input.getDailyRate(),
-                input.getCurrency() == null || input.getCurrency().isBlank() ? "BRL" : input.getCurrency())));
+                input.getCurrency() == null || input.getCurrency().isBlank()
+                        ? "BRL"
+                        : input.getCurrency())));
     }
 
     @Mutation
@@ -104,65 +111,60 @@ public class GraphQLInventoryResource {
         return decommissionVehicle.handle(plate).isPresent();
     }
 
-    private Page<Car> page(int offset, int limit, String search,
-                             CarFilter filter, CarSortField sort, SortOrder order) {
-        List<Vehicle> all = listVehicles.handle();
-        List<Vehicle> matching = all.stream()
-                .filter(matching(search, filter))
-                .sorted(sortedBy(sort, order))
-                .toList();
+    private Page<Car> toPage(int offset,
+                             int limit,
+                             String search,
+                             CarFilter filter,
+                             CarSortField sort,
+                             SortOrder order) {
+        VehiclePage result = searchVehicles.handle(new VehicleSearch(
+                Math.max(0, offset),
+                Math.max(1, limit),
+                search,
+                toFilter(filter),
+                mapSort(sort),
+                mapDirection(order)));
 
-        int from = Math.max(0, offset);
-        int size = Math.clamp(limit, 0, Page.MAX_LIMIT);
-        List<Car> items = matching.stream()
-                .skip(from)
-                .limit(size)
-                .map(this::toView)
-                .toList();
+        List<Car> items = result.items().stream().map(this::toView).toList();
 
         return Page.<Car>builder()
                 .items(items)
-                .total(matching.size())
-                .offset(from)
-                .limit(size)
-                .hasNextPage(from + size < matching.size())
+                .total(result.total())
+                .offset(result.offset())
+                .limit(result.limit())
+                .hasNextPage(result.hasNextPage())
                 .build();
     }
 
-    private Predicate<Vehicle> matching(String search, CarFilter filter) {
-        String term = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
-        return vehicle -> {
-            boolean text = term.isEmpty()
-                    || vehicle.licensePlate().value().toLowerCase(Locale.ROOT).contains(term)
-                    || vehicle.specifications().manufacturer().toLowerCase(Locale.ROOT).contains(term)
-                    || vehicle.specifications().model().toLowerCase(Locale.ROOT).contains(term);
+    private VehicleFilter toFilter(CarFilter filter) {
+        if (filter == null) {
+            return null;
+        }
 
-            boolean filters = filter == null
-                    || blankOrEquals(filter.getManufacturer(), vehicle.specifications().manufacturer())
-                    && blankOrEquals(filter.getModel(), vehicle.specifications().model())
-                    && blankOrEquals(filter.getPlate(), vehicle.licensePlate().value())
-                    && (filter.getStatus() == null
-                    || vehicle.status().name().equalsIgnoreCase(filter.getStatus().name()));
+        return new VehicleFilter(
+                normalize(filter.getManufacturer()),
+                normalize(filter.getModel()),
+                normalize(filter.getPlate()),
+                filter.getStatus() == null
+                        ? null
+                        : VehicleStatus.valueOf(filter.getStatus().name()));
+    }
 
-            boolean offered = filter != null && filter.getStatus() != null
-                    || vehicle.canBeOffered();
-
-            return text && filters && offered;
+    private VehicleSortField mapSort(CarSortField sort) {
+        return switch (sort == null ? CarSortField.ID : sort) {
+            case PLATE_NUMBER -> VehicleSortField.LICENSE_PLATE;
+            case MANUFACTURER -> VehicleSortField.MANUFACTURER;
+            case MODEL -> VehicleSortField.MODEL;
+            case ID -> VehicleSortField.ID;
         };
     }
 
-    private boolean blankOrEquals(String expected, String actual) {
-        return expected == null || expected.isBlank() || actual.equalsIgnoreCase(expected.trim());
+    private SortDirection mapDirection(SortOrder order) {
+        return order == SortOrder.DESC ? SortDirection.DESC : SortDirection.ASC;
     }
 
-    private Comparator<Vehicle> sortedBy(CarSortField sort, SortOrder order) {
-        Comparator<Vehicle> comparator = switch (sort == null ? CarSortField.ID : sort) {
-            case PLATE_NUMBER -> Comparator.comparing(v -> v.licensePlate().value());
-            case MANUFACTURER -> Comparator.comparing(v -> v.specifications().manufacturer());
-            case MODEL -> Comparator.comparing(v -> v.specifications().model());
-            case ID -> Comparator.comparing(v -> v.id().value());
-        };
-        return order == SortOrder.DESC ? comparator.reversed() : comparator;
+    private String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private Car toView(Vehicle vehicle) {
@@ -171,21 +173,29 @@ public class GraphQLInventoryResource {
                 .manufacturer(vehicle.specifications().manufacturer())
                 .model(vehicle.specifications().model())
                 .licensePlateNumber(vehicle.licensePlate().value())
-                .status(mapStatus(vehicle.status()))
-                .category(vehicle.specifications().category() == null ? null : org.acme.inventory.adapter.in.graphql.model.Category.valueOf(vehicle.specifications().category().name()))
-                .transmission(vehicle.specifications().transmission() == null ? null : org.acme.inventory.adapter.in.graphql.model.Transmission.valueOf(vehicle.specifications().transmission().name()))
-                .fuelType(vehicle.specifications().fuelType() == null ? null : org.acme.inventory.adapter.in.graphql.model.FuelType.valueOf(vehicle.specifications().fuelType().name()))
+                .status(org.acme.inventory.adapter.in.graphql.model.CarStatus.valueOf(vehicle.status().name()))
+                .category(vehicle.specifications().category() == null
+                        ? null
+                        : org.acme.inventory.adapter.in.graphql.model.Category.valueOf(
+                                vehicle.specifications().category().name()))
+                .transmission(vehicle.specifications().transmission() == null
+                        ? null
+                        : org.acme.inventory.adapter.in.graphql.model.Transmission.valueOf(
+                                vehicle.specifications().transmission().name()))
+                .fuelType(vehicle.specifications().fuelType() == null
+                        ? null
+                        : org.acme.inventory.adapter.in.graphql.model.FuelType.valueOf(
+                                vehicle.specifications().fuelType().name()))
                 .year(vehicle.specifications().year())
                 .color(vehicle.specifications().color())
                 .seats(vehicle.specifications().seats())
                 .branchCode(vehicle.location() == null ? null : vehicle.location().branchCode())
                 .city(vehicle.location() == null ? null : vehicle.location().city())
                 .dailyRate(vehicle.dailyRate() == null ? null : vehicle.dailyRate().amount())
+                .odometerKm(vehicle.odometer().kilometers())
+                .condition(org.acme.inventory.adapter.in.graphql.model.VehicleCondition.valueOf(
+                        vehicle.condition().name()))
                 .build();
-    }
-
-    private org.acme.inventory.adapter.in.graphql.model.CarStatus mapStatus(org.acme.inventory.domain.model.VehicleStatus status) {
-        return org.acme.inventory.adapter.in.graphql.model.CarStatus.valueOf(status.name());
     }
 
     private static <T extends Enum<T>> T parseEnum(Class<T> type, String value) {
