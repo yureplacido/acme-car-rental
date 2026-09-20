@@ -14,7 +14,6 @@ import org.acme.reservation.adapter.out.inventory.model.Car;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import static io.smallrye.graphql.client.core.Argument.arg;
 import static io.smallrye.graphql.client.core.Document.document;
@@ -99,16 +98,5 @@ public class DynamicInventoryClient implements InventoryClient<Car> {
 
     private boolean isNotBlank(String value) {
         return value != null && !value.isBlank();
-    }
-
-    private Response execute(DynamicGraphQLClient client, Document document) {
-        try {
-            return client.executeSync(document);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("GraphQL inventory query failed", e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("GraphQL inventory query interrupted", e);
-        }
     }
 }
