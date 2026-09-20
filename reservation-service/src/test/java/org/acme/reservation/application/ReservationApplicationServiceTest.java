@@ -1,62 +1,73 @@
 package org.acme.reservation.application;
 
 import io.smallrye.mutiny.Uni;
-import org.acme.reservation.client.rental.RentalClient;
-import org.acme.reservation.model.Reservation;
-import org.acme.reservation.repository.ReservationRepository;
+import org.acme.reservation.application.port.out.RentalGateway;
+import org.acme.reservation.application.port.out.ReservationRepository;
+import org.acme.reservation.application.usecase.CreateReservation;
+import org.acme.reservation.domain.model.CustomerId;
+import org.acme.reservation.domain.model.RentalPeriod;
+import org.acme.reservation.domain.model.Reservation;
+import org.acme.reservation.domain.model.ReservationStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class ReservationApplicationServiceTest {
 
     private final ReservationRepository repository = mock(ReservationRepository.class);
-    private final RentalClient rentalClient = mock(RentalClient.class);
-
-    private final ReservationApplicationService service =
-            new ReservationApplicationService(repository, rentalClient);
+    private final RentalGateway rentalGateway = mock(RentalGateway.class);
+    private final CreateReservation service = new CreateReservation(repository, rentalGateway);
 
     @Test
-    void shouldCreateReservationForAuthenticatedUser() {
-        Reservation requested = reservation(10L, LocalDate.now().plusDays(2));
-        Reservation persisted = reservation(10L, requested.getStartDay());
-        persisted.setId(42L);
-        persisted.setUserId("alice");
+    void shouldCreatePendingReservationForCustomer() {
+        Reservation requested = Reservation.create(
+                new CustomerId("alice"),
+                new org.acme.reservation.domain.model.VehicleId(10L),
+                new RentalPeriod(LocalDate.of(2035, 3, 20), LocalDate.of(2035, 3, 29)));
 
-        when(repository.save(any(Reservation.class))).thenReturn(Uni.createFrom().item(persisted));
+        Reservation persisted = Reservation.rehydrate(
+                new org.acme.reservation.domain.model.ReservationId(42L),
+                requested.customerId(),
+                requested.vehicleId(),
+                requested.period(),
+                ReservationStatus.PENDING);
 
-        Reservation result = service.create(requested, "alice").await().indefinitely();
+        when(repository.hasOverlap(any(), any())).thenReturn(Uni.createFrom().item(false));
+        when(repository.save(any())).thenReturn(Uni.createFrom().item(persisted));
 
-        assertEquals(42L, result.getId());
-        assertEquals("alice", result.getUserId());
-        verify(repository).save(argThat(r -> "alice".equals(r.getUserId())));
-        verifyNoInteractions(rentalClient);
+        Reservation result = service.handle(new CreateReservation.Command(
+                "alice", 10L,
+                LocalDate.of(2035, 3, 20),
+                LocalDate.of(2035, 3, 29),
+                LocalDate.of(2035, 3, 1))).await().indefinitely();
+
+        assertEquals(42L, result.id().value());
+        assertEquals("alice", result.customerId().value());
+        assertEquals(ReservationStatus.PENDING, result.status());
+        verify(repository).save(any(Reservation.class));
+        verifyNoInteractions(rentalGateway);
     }
 
     @Test
-    void shouldUseAnonymousWhenThereIsNoAuthenticatedUser() {
-        Reservation requested = reservation(10L, LocalDate.now().plusDays(2));
-        Reservation persisted = reservation(10L, requested.getStartDay());
-        persisted.setId(43L);
-        persisted.setUserId("anonymous");
+    void shouldRejectOverlappingVehicleReservation() {
+        when(repository.hasOverlap(any(), any())).thenReturn(Uni.createFrom().item(true));
 
-        when(repository.save(any(Reservation.class))).thenReturn(Uni.createFrom().item(persisted));
+        var result = service.handle(new CreateReservation.Command(
+                "alice", 10L,
+                LocalDate.of(2035, 3, 20),
+                LocalDate.of(2035, 3, 29),
+                LocalDate.of(2035, 3, 1)));
 
-        Reservation result = service.create(requested, null).await().indefinitely();
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> result.await().indefinitely());
 
-        assertEquals("anonymous", result.getUserId());
-        verify(repository).save(argThat(r -> "anonymous".equals(r.getUserId())));
-        verifyNoInteractions(rentalClient);
-    }
-
-    private Reservation reservation(Long carId, LocalDate startDay) {
-        return Reservation.builder()
-                .carId(carId)
-                .startDay(startDay)
-                .endDay(startDay.plusDays(5))
-                .build();
+        verify(repository, never()).save(any());
+        verifyNoInteractions(rentalGateway);
     }
 }
