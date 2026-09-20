@@ -41,6 +41,7 @@ Own the fleet and the lifecycle of vehicles.
 - `LicensePlate`
 - `VehicleSpecifications`
 - `VehicleLocation`
+- `VehicleDailyRate` (tarifa-base de referência; pricing dinâmico pertence a outro contexto)
 
 ### Enumerations / domain concepts
 
