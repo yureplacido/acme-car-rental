@@ -1,0 +1,45 @@
+name: Maven CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'refactor/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - inventory-service
+          - reservation-service
+          - rental-service
+          - users-service
+          - billing-service
+          - inventory-cli
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Install inventory contract
+        if: matrix.module == 'inventory-service' || matrix.module == 'inventory-cli'
+        working-directory: inventory-proto
+        run: ./mvnw install -DskipTests
+
+      - name: Test module
+        working-directory: ${{ matrix.module }}
+        run: ./mvnw test
