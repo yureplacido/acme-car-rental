@@ -7,7 +7,7 @@ import org.acme.reservation.domain.model.VehicleId;
 import java.util.List;
 
 public interface ReservationRepository {
-    Uni<List<Reservation>> findAll();
+    Uni<List<Reservation>> all();
     Uni<Reservation> save(Reservation reservation);
     Uni<List<Reservation>> findByVehicle(VehicleId vehicleId);
 }
