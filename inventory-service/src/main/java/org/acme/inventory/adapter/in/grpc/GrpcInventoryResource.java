@@ -61,7 +61,8 @@ public class GrpcInventoryResource implements InventoryService {
                 request.getYear() == 0 ? null : request.getYear(),
                 emptyToNull(request.getColor()),
                 request.getSeats() == 0 ? null : request.getSeats(),
-                null);
+                request.getDailyRate() == 0 ? null : BigDecimal.valueOf(request.getDailyRate()),
+                "BRL");
     }
 
     private CarResponse toResponse(Vehicle vehicle) {
@@ -77,6 +78,9 @@ public class GrpcInventoryResource implements InventoryService {
                 .setTransmission(valueOrEmpty(vehicle.specifications().transmission()))
                 .setFuelType(valueOrEmpty(vehicle.specifications().fuelType()))
                 .setSeats(vehicle.specifications().seats() == null ? 0 : vehicle.specifications().seats());
+        if (vehicle.dailyRate() != null) {
+            builder.setDailyRate(vehicle.dailyRate().amount().doubleValue());
+        }
         return builder.build();
     }
 
