@@ -1,6 +1,5 @@
 package org.acme.reservation.adapter.in.rest;
 
-import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -15,7 +14,7 @@ import org.acme.reservation.application.usecase.CreateReservation;
 import org.acme.reservation.application.usecase.ListReservations;
 import org.acme.reservation.application.usecase.FindAvailableVehicles;
 import org.acme.reservation.application.query.AvailableVehicle;
-import org.acme.reservation.security.CurrentUser;
+import org.acme.reservation.adapter.in.security.CurrentUser;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -42,7 +41,6 @@ public class ReservationResource {
     }
 
     @POST
-    @WithTransaction
     public Uni<ReservationResponse> create(ReservationRequest request) {
         return createReservation.handle(new CreateReservation.Command(
                         currentUser.getUserId() == null ? "anonymous" : currentUser.getUserId(),
