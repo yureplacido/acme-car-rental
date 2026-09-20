@@ -17,4 +17,6 @@ public class CarInput {
     private Integer seats;
     private String branchCode;
     private String city;
+    private java.math.BigDecimal dailyRate;
+    private String currency;
 }
