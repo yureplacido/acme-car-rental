@@ -50,6 +50,30 @@ class ReservationTest {
         assertTrue(first.overlaps(second));
     }
 
+    @Test
+    void shouldDetectConflictBetweenActiveReservationsForSameVehicle() {
+        Reservation first = reservation();
+        Reservation second = Reservation.create(
+                new CustomerId("bob"),
+                new VehicleId(10L),
+                new RentalPeriod(
+                        LocalDate.of(2035, 3, 5),
+                        LocalDate.of(2035, 3, 8)));
+
+        assertTrue(first.conflictsWith(second));
+    }
+
+    @Test
+    void shouldNotDetectConflictForDifferentVehicles() {
+        Reservation first = reservation();
+        Reservation second = Reservation.create(
+                new CustomerId("bob"),
+                new VehicleId(11L),
+                first.period());
+
+        assertFalse(first.conflictsWith(second));
+    }
+
     private Reservation reservation() {
         return Reservation.create(
                 new CustomerId("alice"),
