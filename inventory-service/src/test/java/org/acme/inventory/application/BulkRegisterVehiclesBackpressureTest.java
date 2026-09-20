@@ -27,8 +27,9 @@ class BulkRegisterVehiclesBackpressureTest {
     @Test
     void shouldNotRequestFromUpstreamUntilDownstreamDemandsItems() {
         AtomicLong upstreamRequests = new AtomicLong();
+        RegisterVehicle registerVehicle = new RegisterVehicle(new ImmediateVehicleRepository());
         BulkRegisterVehicles useCase = new BulkRegisterVehicles(
-                new ImmediateVehicleRepository(),
+                registerVehicle,
                 2);
 
         Multi<RegisterVehicle.Command> commands = Multi.createFrom()
