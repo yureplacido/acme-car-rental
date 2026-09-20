@@ -31,7 +31,7 @@ public class FindAvailableVehicles {
         RentalPeriod requested = new RentalPeriod(startDate, endDate);
         return Uni.combine().all().unis(
                         inventoryGateway.findVehicles(),
-                        reservationRepository.findAll())
+                        reservationRepository.all())
                 .asTuple()
                 .map(tuple -> {
                     Set<Long> reservedVehicleIds = tuple.getItem2().stream()
