@@ -57,8 +57,8 @@ class ReservationTest {
                 new CustomerId("bob"),
                 new VehicleId(10L),
                 new RentalPeriod(
-                        LocalDate.of(2035, 3, 5),
-                        LocalDate.of(2035, 3, 8)));
+                        LocalDate.of(2035, 3, 22),
+                        LocalDate.of(2035, 3, 28)));
 
         assertTrue(first.conflictsWith(second));
     }
