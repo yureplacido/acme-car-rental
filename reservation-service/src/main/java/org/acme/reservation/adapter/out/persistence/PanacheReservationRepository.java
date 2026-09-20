@@ -1,11 +1,11 @@
 package org.acme.reservation.adapter.out.persistence;
 
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.reservation.application.port.out.ReservationRepository;
-import org.acme.reservation.domain.model.RentalPeriod;
 import org.acme.reservation.domain.model.Reservation;
 import org.acme.reservation.domain.model.VehicleId;
 
