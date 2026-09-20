@@ -1,151 +1,254 @@
-# Arquitetura — Visão Geral
+# Arquitetura — ACME Car Rental
 
-> **Última atualização:** 2026-09-19 (base cap.1-5) · **Fonte da verdade:** o código.
+> Fonte da verdade: código + docs/ddd-tdd-standards.md + docs/domain.md.
+> Java 21 · Quarkus 3.39.3.
 
-## Resumo
+## Visão
 
-Sistema **acme-car-rental**: um ecossistema de serviços independentes (cada um em seu
-módulo Maven, **sem reactor/aggregator**) que se comunicam por REST, GraphQL e gRPC,
-atrás de um gateway Traefik com um Swagger UI agregado. Persistência é **in-memory por
-default** (port & adapter) — bancos reais entram a partir do cap.7 do livro.
+O projeto é um laboratório de engenharia para aplicar progressivamente os conceitos do Quarkus in Action junto com DDD, TDD e arquitetura distribuída.
 
-## Diagrama de componentes
+Os serviços de negócio usam o mesmo sentido arquitetural:
 
-```mermaid
+~~~text
+Inbound Adapter
+      ↓
+Application Use Case
+      ↓
+Domain
+      ↑
+Output Port
+      ↑
+Outbound Adapter
+~~~
+
+A infraestrutura conhece o domínio. O domínio não conhece a infraestrutura.
+
+## Bounded contexts
+
+~~~mermaid
 flowchart LR
-    subgraph Edge["Edge / Dev"]
-        CLI["inventory-cli<br/>(Quarkus Main CLI)"]
-        T["Traefik gateway<br/>:8090 web | :8095 dashboard"]
-        SW["Swagger UI agregado<br/>(nginx acme-swagger)"]
-    end
+    Users[Users BFF]
+    Reservation[Reservation]
+    Inventory[Inventory]
+    Rental[Rental]
+    Billing[Billing / Payment]
+    Pricing[Pricing]
+    Identity[Keycloak]
 
-    subgraph Services["Serviços (host JVM/Dev ou Docker)"]
-        U["users-service<br/>:8080 (UI Qute + OIDC)"]
-        R["reservation-service<br/>:8081"]
-        RT["rental-service<br/>:8082"]
-        I["inventory-service<br/>:8083 HTTP + :9000 gRPC"]
-        B["billing-service<br/>:8084 (🚧 placeholder)"]
-    end
+    Users --> Reservation
+    Reservation --> Inventory
+    Reservation --> Rental
+    Rental --> Billing
+    Reservation --> Pricing
+    Users --> Identity
+    Reservation --> Identity
+~~~
 
-    subgraph Contract["Contrato"]
-        P["inventory-proto<br/>org.acme:inventory-proto:1.0.0-SNAPSHOT"]
-    end
+### Inventory / Fleet
+Dono da frota, dos veículos e de seu estado operacional.
+Aggregates: Vehicle e MaintenanceOrder.
+Vehicle também mantém condition e odometer; MaintenanceOrder modela o workflow de manutenção.
+O inventário não possui reservas e não decide disponibilidade temporal.
 
-    T --> SW
-    T -->|"/users"| U
-    T -->|"/reservations"| R
-    T -->|"/rental"| RT
-    T -->|"/billing"| B
-    T -->|"/graphql"| I
+### Reservation
+Dono do compromisso de reserva.
+Aggregate root: Reservation.
+Conhece apenas IDs externos (CustomerId, VehicleId) e contratos de outras fronteiras.
 
-    CLI -->|"gRPC bidi/stream :9000"| I
-    R -->|"GraphQL (tipado + dinâmico)"| I
-    R -->|"REST @RestClient :8082"| RT
-    I -. "geram stubs gRPC a partir do contrato" .-> P
-    CLI -. "geram stubs gRPC a partir do contrato" .-> P
-```
+### Rental
+Dono do ciclo de vida físico da locação.
+Aggregate root: Rental.
 
-> O **inventory-service não expõe REST** — só GraphQL (para humanos e para o
-> reservation) e gRPC (para o CLI). Por isso o gateway encurta `/graphql` para ele e o
-> CLI o acessa direto na porta gRPC (`:9000`), sem passar pelo gateway.
+### Billing
+Dono futuro de faturas e pagamento.
+Aggregate root inicial: Invoice.
 
-## Tabela de portas
+### Users
+BFF/presentation service. Não duplica os aggregates de Reservation ou Inventory.
 
-| Componente | HTTP | gRPC | Teste (JVM) | Docker (profile `docker`) |
-|---|---|---|---|---|
-| users-service | 8080 | — | — | 8080 |
-| reservation-service | 8081 | — | **8181** (HTTP test) | 8081 |
-| rental-service | 8082 | — | — | 8082 |
-| inventory-service | 8083 | 9000 | — | 8083 |
-| billing-service | 8084 | — | — | 8084 |
-| Traefik gateway | 8090 | — | — | 8090 |
-| Traefik dashboard | 8095 | — | — | 8095 |
-| inventory-cli | — | client → localhost:9000 | — | — |
-| Keycloak (prod) | 7777 | — | — | 7777 |
-| PostgreSQL (prod) | — | — | — | (interno, só Keycloak) |
-| inventory-proto | — | (contrato, não executa) | — | — |
+## Comunicação
 
-Portas via env (`.env` / `${VAR}`): `USER_SERVICE_PORT`, `RESERVATION_PORT`,
-`RENTAL_PORT`, `INVENTORY_PORT`, `BILLING_PORT`, `GATEWAY_PORT`, `DASHBOARD_PORT`.
+| Origem | Destino | Canal | Responsabilidade |
+|---|---|---|---|
+| users | reservation | REST | interação do navegador |
+| reservation | inventory | GraphQL | consulta de catálogo/disponibilidade |
+| reservation | rental | REST | iniciar locação imediata |
+| inventory-cli | inventory | gRPC | administração e bulk |
+| future billing | other contexts | messaging/REST | cobrança e eventos |
 
-## Protocolos por par
+Contratos externos nunca atravessam a aplicação como modelos de domínio.
 
-| Origem → Destino | Protocolo | Mecanismo |
+## Inventory — estrutura
+
+~~~text
+inventory-service/src/main/java/org/acme/inventory/
+├── domain/model/
+│   ├── Vehicle.java
+│   ├── VehicleId.java
+│   ├── LicensePlate.java
+│   ├── VehicleSpecifications.java
+│   ├── VehicleLocation.java
+│   ├── VehicleStatus.java
+│   ├── VehicleCondition.java
+│   ├── OdometerReading.java
+│   ├── MaintenanceOrder.java
+│   ├── MaintenanceOrderId.java
+│   ├── MaintenanceType.java
+│   ├── MaintenanceStatus.java
+│   ├── VehicleCategory.java
+│   ├── Transmission.java
+│   └── FuelType.java
+├── application/
+│   ├── usecase/
+│   └── port/out/
+└── adapter/
+    ├── in/graphql/
+    ├── in/grpc/
+    └── out/persistence/
+~~~
+
+## Reservation — estrutura
+
+~~~text
+reservation-service/src/main/java/org/acme/reservation/
+├── domain/model/
+│   ├── Reservation.java
+│   ├── ReservationStatus.java
+│   ├── RentalPeriod.java
+│   ├── CustomerId.java
+│   ├── VehicleId.java
+│   └── ReservationId.java
+├── application/
+│   ├── usecase/
+│   ├── query/
+│   └── port/out/
+└── adapter/
+    ├── in/rest/
+    ├── in/security/
+    └── out/
+        ├── inventory/
+        ├── rental/
+        └── persistence/
+~~~
+
+## Rental — estrutura
+
+~~~text
+rental-service/src/main/java/org/acme/rental/
+├── domain/model/
+├── application/
+│   ├── usecase/
+│   └── port/out/
+└── adapter/
+    ├── in/rest/
+    └── out/persistence/
+~~~
+
+## Billing — estrutura inicial
+
+~~~text
+billing-service/src/main/java/org/acme/billing/
+├── domain/model/
+│   ├── Invoice.java
+│   ├── InvoiceLine.java
+│   ├── Money.java
+│   ├── InvoiceStatus.java
+│   ├── PaymentMethod.java
+│   └── PaymentStatus.java
+├── application/
+│   ├── usecase/
+│   └── port/out/
+└── adapter/
+    └── out/persistence/
+~~~
+
+A persistência de Billing permanece propositalmente simples até o capítulo de banco/messaging correspondente.
+
+## Users BFF
+
+~~~text
+users-service/src/main/java/org/acme/users/
+├── application/
+│   ├── usecase/
+│   └── port/out/
+└── adapter/
+    ├── in/security/
+    ├── in/web/
+    └── out/reservation/
+~~~
+
+O BFF adapta o modelo remoto de Reservation para a UI. Ele não importa a classe Reservation do reservation-service.
+
+## CLI
+
+~~~text
+inventory-cli/src/main/java/org/acme/inventory/cli/
+├── application/
+└── adapter/
+    ├── in/cli/
+    └── out/grpc/
+~~~
+
+## Persistência
+
+Cada bounded context possui seu próprio modelo de persistência.
+
+~~~text
+Domain Aggregate
+      ↓
+Repository Port
+      ↓
+Panache Adapter
+      ↓
+JPA / MongoDB / Reactive SQL
+~~~
+
+A documentação mantém a distinção entre domínio, application, adapter e persistence entity.
+
+## Reactive
+
+Reservation já usa Hibernate Reactive + Mutiny. A regra arquitetural é:
+
+- domínio não usa Uni/Mutiny;
+- aplicação pode compor I/O reativo;
+- adapters usam clientes reativos;
+- operações bloqueantes são isoladas;
+- backpressure é tratado como capacidade do fluxo, não como sinônimo de thread pool.
+
+Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; `@WithTransaction` é a anotação usada para fronteiras transacionais reativas em métodos CDI que retornam `Uni`. Ver <https://quarkus.io/guides/hibernate-reactive> e <https://quarkus.io/guides/hibernate-reactive-panache>.
+
+## Decisões
+
+| # | Decisão | Motivo |
 |---|---|---|
-| Navegador → serviços | REST | Traefik (PathPrefix) |
-| reservation → rental | REST | `@RestClient` (MicroProfile REST Client) + Jackson |
-| reservation → inventory | GraphQL | Tipado (`@GraphQLClient("inventory")`) + Dinâmico (`DynamicGraphQLClient`) |
-| CLI → inventory | gRPC | unary `remove` + **bidirecional stream** `add` |
-| inventory ← contrato | gRPC | stubs gerados de `inventory-proto` na build |
+| 1 | Serviços sem módulo Maven agregador | independência dos serviços |
+| 2 | DDD por bounded context | preservar ownership |
+| 3 | Domain/Application/Ports/Adapters | direção clara de dependências |
+| 4 | DTOs nas bordas | impedir vazamento de contratos |
+| 5 | Panache somente em adapters | manter domínio puro |
+| 6 | TDD por comportamento | design guiado por feedback |
+| 7 | REST/GraphQL/gRPC como adapters | transporte não é domínio |
+| 8 | Users como BFF | não criar falso bounded context |
+| 9 | Pricing fora do Inventory | evitar acoplamento semântico |
+| 10 | Billing começa com Invoice/Money | preparar domínio sem inventar workflow |
+| 11 | Inventory separa Vehicle de MaintenanceOrder | lifecycle da frota e workflow de manutenção têm limites distintos |
+| 12 | Consultas de seleção ficam na Application | adapters traduzem protocolo, não acumulam regra de consulta |
+| 13 | OpenCode funciona como architecture gate | impedir divergência entre futuras implementações |
 
-## Fluxos principais
+## Estratégia de evolução
 
-```mermaid
-sequenceDiagram
-    participant Cli as Cliente
-    participant Res as reservation-service
-    participant Inv as inventory-service
-    participant Ren as rental-service
+~~~text
+Behavior
+  ↓
+Domain/Application test
+  ↓
+Minimal implementation
+  ↓
+Adapter
+  ↓
+Integration test
+  ↓
+Refactor
+~~~
 
-    Cli->>Res: POST /reservations (make)
-    alt startDay == hoje
-        Res->>Ren: REST POST /rental/start/{userId}/{reservationId}
-    end
-    Res-->>Cli: Reserva criada (com id)
-
-    Cli->>Res: GET /reservations/availability?startDate&endDate
-    Res->>Inv: GraphQL query allCars
-    Res-->>Cli: carros não reservados no período
-```
-
-1. **Reserva** — `POST /reservations` persiste a reserva. Se a locação começa HOJE,
-   o reservation dispara o fluxo de aluguel chamando o rental via REST.
-2. **Disponibilidade** — `GET /reservations/availability` busca todos os carros no
-   inventory (GraphQL) e remove os que têm reserva sobreposta no período.
-3. **Inventário avançado** — endpoints `/reservations/inventory*` fazem **projeção de
-   campos**, busca, filtro estruturado e ordenação via cliente **dinâmico** GraphQL.
-
-## Padrões adotados
-
-- **Port & Adapter (persistência)** — cada serviço expõe um `XRepository` (**interface**
-  falando no model de domínio) com uma implementação Panache (`Panache*Repository`).
-  A porta é o seam que permite trocar **Active Record ↔ Repository pattern** sem tocar
-  no modelo/API. Adapters in-memory do cap.5 foram aposentados no cap.7 (bancos reais).
-- **Schema-first / contrato externo (gRPC)** — `inventory-proto` é um artefato standalone;
-  servidor e cliente geram stubs da mesma fonte (evita divergência).
-- **Code-first (GraphQL)** — schema gerado das anotações MicroProfile GraphQL.
-- **Config por env com default local e override Docker** — `quarkus.http.port=${VAR:default}`
-  e perfil `%docker.` apontando para nomes de container.
-- **Convenção de nomes/pacotes padronizada** — `org.acme.<serviço>.{api,client,model,entity,repository}`.
-
-## Decisões (ADR-lite)
-
-| # | Decisão | Motivação / Observação |
-|---|---|---|
-| 1 | Sem módulo pai/aggregator (reactor) | Microservices independentes; cada um compila seu próprio ritmo |
-| 2 | Contrato gRPC em artefato separado (`inventory-proto`) | Fonte única (schema-first); compat definida no wire |
-| 3 | Persistência in-memory por default (port & adapter) | Cursos rápidos do livro; banco entra no cap.7 |
-| 4 | gRPC reflection sempre ligada | Permite `grpcurl`/Dev UI sem proto local |
-| 5 | Teste do reservation em porta dedicada (`8181`) | Evita clash com o dev 8081 no continuous testing |
-| 6 | Testes de mock só com Mockito (`QuarkusMock`) | Cap.5: `@Mock` CDI (5.3.1) conflita com Mockito (5.3.2) |
-| 7 | CLI de inventário como app Quarkus Main | Ferramenta administrativa executável via `java -jar` |
-| 8 | Keycloak via Dev Services em dev; realm manual (`car-rental`) em produção | Cap.6: segurança OIDC compartilhada entre users (web_app) e reservation (service) |
-| 9 | **Model (POJO) ↔ Entity (Panache) separados** | `model/*` = domínio exposto por REST/GraphQL/gRPC (Lombok, com anotações GraphQL no caso do `Car`); `entity/*Entity` = só persistência (campos públicos). `Mapper` converte e `XRepository` (interface + impl `Panache*Repository`) é o seam p/ trocar Active Record ↔ Repository sem tocar no modelo. REST Data CRUD admin fica **na entidade** (reservation) |
-| 10 | **Inventário sem REST — dois ports focados** | No inventário não há recursos para o modelo de REST; os canais são divididos por propósito: **GraphQL** (`/graphql`) = leitura/consultas/projeção para UI e inter-service (reservation) + mutações de governança; **gRPC** = máquina-a-máquina/admin/bulk. O comum entre eles é o **façade de domínio** `domain/CarInventoryService` — cada adapter traduz só o próprio wire; NÃO há interface de transporte compartilhada (forçaria o menor denominador comum). Eventual REST só se surgir consumidor resource-orientado real |
-| 11 | **Ciclo de vida do veículo com soft delete por status** | `CarStatus {AVAILABLE, IN_MAINTENANCE, DECOMMISSIONED}` é dono do inventário. Baixar um veículo **nunca apaga a linha** (`decommission()`), pois reservas de outro serviço referenciam o `id` — consistência eventual entre serviços; cada serviço tem seu banco. `save` do repositório vira insert **e** update (via `merge`). A oferta padrão do GraphQL exclui `DECOMMISSIONED` |
-
-## Estado por serviço (resumo)
-
-| Serviço | Estado | Observação |
-|---|---|---|
-| inventory-service | ✅ | GraphQL + gRPC completos (cap.4) |
-| reservation-service | ✅ | REST + clientes + testes + OIDC service (cap.4-6) |
-| rental-service | ⚠️ | REST básico (start); Mongo em uso (cap.7) |
-| users-service | ✅ | UI Qute/HTMX + OIDC (cap.6) |
-| billing-service | 🚧 | Placeholder (deps messaging/mongo p/ caps. futuros) |
-| inventory-cli | ✅ | gRPC add (stream) / remove |
-| inventory-proto | ✅ | Contrato standalone 1.0.0-SNAPSHOT |
-
----
-
-_Próximo capítulo a integrar: **cap.7 (Database access)** — veja [roadmap.md](./roadmap.md)._
+A aplicação só ganha complexidade quando um comportamento exigir essa complexidade.

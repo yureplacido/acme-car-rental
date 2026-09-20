@@ -11,12 +11,12 @@ independentes, cada um no seu próprio módulo Maven (mentalidade de microservic
 
 | Página | O que cobre |
 |---|---|
-| [architecture.md](./architecture.md) | Visão geral: diagrama de componentes, fluxos, protocolos, padrões e decisões |
+| [architecture.md](./architecture.md) | Visão geral: DDD, adapters, fluxos, protocolos e decisões |
 | [services.md](./services.md) | Detalhe por serviço: portas, endpoints, dependências, repositório, estado |
 | [contracts.md](./contracts.md) | Contratos (gRPC `inventory-proto`): versionamento e regras de compatibilidade |
 | [deployment.md](./deployment.md) | Deploy local/Docker: docker-compose, Traefik (gateway), Swagger agregado, env |
-| [testing.md](./testing.md) | Estratégia de testes (cap.5): classes, comandos, perfis, mocks |
-| [roadmap.md](./roadmap.md) | Pendências organizadas por capítulo do livro |
+| [testing.md](./testing.md) | Estratégia DDD/TDD: domínio, aplicação, adapters e integração |
+| [domain.md](./domain.md) | Bounded Contexts, aggregates, value objects e evolução do domínio |\n| [ddd-tdd-standards.md](./ddd-tdd-standards.md) | Padrão arquitetural obrigatório do repositório |\n| [roadmap.md](./roadmap.md) | Evolução por capítulo e evidências executáveis |
 
 ## Legenda de status
 
@@ -47,6 +47,12 @@ capítulo, atualize as páginas indicadas e marque o item no [roadmap.md](./road
 | 9 | Quarkus messaging | `services.md` (billing), `contracts.md`, `roadmap.md` |
 | 10-12 | Cloud-native / cloud / extensões | `deployment.md`, `roadmap.md` |
 
+## Como trabalhar com OpenCode
+
+O projeto possui agentes e comandos em `.opencode/` para revisar DDD, TDD, Quarkus e consistência arquitetural. `feature-implementer` é o agente padrão configurado em `opencode.json`.
+
+Antes de uma mudança relevante, use `/preflight <feature>` e, após a mudança, `/ddd-audit`, `/tdd-audit`, `/quarkus-audit` ou `/architecture-audit` conforme o escopo.
+
 ## Como manter
 
 1. Cada página tem `Última atualização:` na primeira linha (data + capítulo do livro).
@@ -56,4 +62,4 @@ capítulo, atualize as páginas indicadas e marque o item no [roadmap.md](./road
 
 ---
 
-_Última atualização: 2026-09-19 (base cap.1-6 do livro)._
+_Última atualização: 2026-09-20 (DDD/TDD baseline + cap.1-7 do livro)._
