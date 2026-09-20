@@ -31,13 +31,12 @@ public class PanacheReservationRepository implements ReservationRepository, Pana
     }
 
     @Override
-    public Uni<Boolean> hasOverlap(VehicleId vehicleId, Reservation reservation) {
-        RentalPeriod period = reservation.period();
-        return find("carId = ?1", vehicleId.value())
+    public Uni<List<Reservation>> findByVehicle(VehicleId vehicleId) {
+        return find("carId", vehicleId.value())
                 .list()
                 .map(items -> items.stream()
                         .map(ReservationMapper::toDomain)
                         .filter(Reservation::active)
-                        .anyMatch(existing -> existing.period().overlaps(period)));
+                        .toList());
     }
 }
