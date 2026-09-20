@@ -14,7 +14,7 @@ public final class RentalMapper {
     public static Rental toDomain(RentalEntity entity) {
         return Rental.rehydrate(
                 new RentalId(entity.id == null ? null : entity.id.toString()),
-                new CustomerId(entity.customerId),
+                new CustomerId(entity.userId),
                 new ReservationId(entity.reservationId),
                 entity.startDate,
                 entity.endDate,
@@ -26,7 +26,7 @@ public final class RentalMapper {
         if (rental.id() != null) {
             entity.id = new org.bson.types.ObjectId(rental.id().value());
         }
-        entity.customerId = rental.customerId().value();
+        entity.userId = rental.customerId().value();
         entity.reservationId = rental.reservationId().value();
         entity.startDate = rental.startDate();
         entity.endDate = rental.endDate();
