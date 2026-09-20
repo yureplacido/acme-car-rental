@@ -229,6 +229,10 @@ Panache/JPA/Mongo
 
 Never move Panache/JPA annotations into the domain just to make persistence easier.
 
+## 5.1 Quarkus REST Data exception
+
+O `quarkus-hibernate-reactive-rest-data-panache` pode expor diretamente uma `PanacheEntityResource` em um endpoint administrativo/interno. Essa é uma exceção deliberada para demonstrar o recurso do capítulo de Database access; ela não autoriza transportar entidades de persistência pela API pública.
+
 ## 6. Context boundaries
 
 No bounded context may import another context's:
