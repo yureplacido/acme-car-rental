@@ -10,6 +10,8 @@ import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
 import org.acme.inventory.domain.model.VehicleLocation;
 import org.acme.inventory.domain.model.VehicleSpecifications;
+import org.acme.inventory.domain.model.VehicleDailyRate;
+import java.math.BigDecimal;
 
 @ApplicationScoped
 public class RegisterVehicle {
@@ -33,7 +35,8 @@ public class RegisterVehicle {
                         command.year(),
                         command.color(),
                         command.seats()),
-                command.location());
+                command.location(),
+                command.dailyRate() == null ? null : new VehicleDailyRate(command.dailyRate(), command.currency()));
         return repository.save(vehicle);
     }
 
@@ -47,6 +50,8 @@ public class RegisterVehicle {
             Integer year,
             String color,
             Integer seats,
-            VehicleLocation location) {
+            VehicleLocation location,
+            BigDecimal dailyRate,
+            String currency) {
     }
 }
