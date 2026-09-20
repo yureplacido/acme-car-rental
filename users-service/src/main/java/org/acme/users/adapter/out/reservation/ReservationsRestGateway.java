@@ -44,8 +44,6 @@ public class ReservationsRestGateway implements ReservationsGateway {
     public Collection<AvailableCar> availability(LocalDate startDate, LocalDate endDate) {
         return client.availability(startDate, endDate).stream().map(this::toAvailableCar).toList();
     }
-}
-
 
     private ReservationView toView(Reservation value) {
         return new ReservationView(
@@ -58,3 +56,4 @@ public class ReservationsRestGateway implements ReservationsGateway {
                 value.getId(), value.getLicensePlateNumber(),
                 value.getManufacturer(), value.getModel());
     }
+}
