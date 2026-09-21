@@ -14,6 +14,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ConsumeVehicleRegisteredTest {
 
@@ -28,12 +29,7 @@ class ConsumeVehicleRegisteredTest {
                     return Uni.createFrom().voidItem();
                 });
 
-        VehicleRegistered event = new VehicleRegistered(
-                UUID.randomUUID(),
-                1,
-                Instant.now(),
-                new VehicleId(42L),
-                "ABC123");
+        VehicleRegistered event = event("ABC123");
 
         consumer.handle(event).await().indefinitely();
         consumer.handle(event).await().indefinitely();
@@ -58,6 +54,31 @@ class ConsumeVehicleRegisteredTest {
         assertEquals(2, processed.get());
     }
 
+    @Test
+    void shouldAllowTheSameEventToBeProcessedAgainAfterFailure() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        AtomicInteger attempts = new AtomicInteger();
+        ConsumeVehicleRegistered consumer = new ConsumeVehicleRegistered(
+                store,
+                event -> {
+                    if (attempts.incrementAndGet() == 1) {
+                        return Uni.createFrom().failure(
+                                new IllegalStateException("processing failed"));
+                    }
+                    return Uni.createFrom().voidItem();
+                });
+
+        VehicleRegistered event = event("ABC123");
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> consumer.handle(event).await().indefinitely());
+
+        consumer.handle(event).await().indefinitely();
+
+        assertEquals(2, attempts.get());
+    }
+
     private static VehicleRegistered event(String plate) {
         return new VehicleRegistered(
                 UUID.randomUUID(),
@@ -71,8 +92,14 @@ class ConsumeVehicleRegisteredTest {
         private final Set<UUID> processed = new HashSet<>();
 
         @Override
-        public synchronized Uni<Boolean> markIfNew(UUID eventId) {
-            return Uni.createFrom().item(processed.add(eventId));
+        public synchronized Uni<Boolean> isProcessed(UUID eventId) {
+            return Uni.createFrom().item(processed.contains(eventId));
+        }
+
+        @Override
+        public synchronized Uni<Void> markProcessed(UUID eventId) {
+            processed.add(eventId);
+            return Uni.createFrom().voidItem();
         }
     }
 }
