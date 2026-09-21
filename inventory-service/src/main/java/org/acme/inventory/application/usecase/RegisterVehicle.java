@@ -29,6 +29,10 @@ public class RegisterVehicle {
         this.eventPublisher = eventPublisher;
     }
 
+    public RegisterVehicle(VehicleRepository repository) {
+        this(repository, event -> Uni.createFrom().voidItem());
+    }
+
     public Uni<Vehicle> handle(Command command) {
         Vehicle vehicle = Vehicle.register(
                 new LicensePlate(command.licensePlateNumber()),
