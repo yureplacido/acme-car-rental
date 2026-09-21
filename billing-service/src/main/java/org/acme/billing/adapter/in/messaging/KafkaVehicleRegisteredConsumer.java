@@ -1,12 +1,12 @@
-package org.acme.inventory.adapter.in.messaging;
+package org.acme.billing.adapter.in.messaging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.acme.inventory.application.port.out.ProcessedEventStore;
-import org.acme.inventory.application.usecase.ConsumeVehicleRegistered;
-import org.acme.inventory.domain.event.VehicleRegistered;
+import org.acme.billing.application.event.VehicleRegistered;
+import org.acme.billing.application.port.out.ProcessedEventStore;
+import org.acme.billing.application.usecase.ConsumeVehicleRegistered;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
@@ -38,13 +38,14 @@ public class KafkaVehicleRegisteredConsumer {
         try {
             return objectMapper.readValue(payload, VehicleRegistered.class);
         } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Could not deserialize VehicleRegistered event", e);
+            throw new IllegalArgumentException(
+                    "Could not deserialize VehicleRegistered event", e);
         }
     }
 
     private Uni<Void> process(VehicleRegistered event) {
         LOG.infof(
-                "Processed VehicleRegistered event: eventId=%s vehicleId=%s licensePlate=%s",
+                "Billing received VehicleRegistered event: eventId=%s vehicleId=%s licensePlate=%s",
                 event.eventId(),
                 event.vehicleId().value(),
                 event.licensePlate());
