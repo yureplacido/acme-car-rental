@@ -27,7 +27,7 @@ class KafkaEventPublisherTest {
         var objectMapper = new ObjectMapper();
         MutinyEmitter<KafkaRecord<String, String>> emitter = mock(MutinyEmitter.class);
 
-        when(emitter.send(any(KafkaRecord.class)))
+        when(emitter.send((KafkaRecord<String, String>) any(KafkaRecord.class)))
                 .thenReturn(Uni.createFrom().voidItem());
 
         var publisher = new KafkaEventPublisher(objectMapper, emitter);
@@ -44,7 +44,7 @@ class KafkaEventPublisherTest {
         verify(emitter).send(record.capture());
 
         assertEquals("42", record.getValue().getKey());
-        assertTrue(record.getValue().getValue().contains("\"vehicleId\":{\"value\":42}"));
-        assertTrue(record.getValue().getValue().contains("\"licensePlate\":\"ABC123\""));
+        assertTrue(record.getValue().getPayload().contains("\"vehicleId\":{\"value\":42}"));
+        assertTrue(record.getValue().getPayload().contains("\"licensePlate\":\"ABC123\""));
     }
 }
