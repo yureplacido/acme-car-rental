@@ -14,11 +14,11 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 public class KafkaEventPublisher implements EventPublisher {
 
     private final ObjectMapper objectMapper;
-    private final MutinyEmitter<String> emitter;
+    private final MutinyEmitter<KafkaRecord<String, String>> emitter;
 
     public KafkaEventPublisher(
             ObjectMapper objectMapper,
-            @Channel("vehicle-registered-out") MutinyEmitter<String> emitter) {
+            @Channel("vehicle-registered-out") MutinyEmitter<KafkaRecord<String, String>> emitter) {
         this.objectMapper = objectMapper;
         this.emitter = emitter;
     }
