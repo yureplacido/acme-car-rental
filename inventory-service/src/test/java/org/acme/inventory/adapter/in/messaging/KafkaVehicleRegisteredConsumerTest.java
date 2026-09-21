@@ -63,8 +63,14 @@ class KafkaVehicleRegisteredConsumerTest {
         private final Set<UUID> processed = new HashSet<>();
 
         @Override
-        public synchronized Uni<Boolean> markIfNew(UUID eventId) {
-            return Uni.createFrom().item(processed.add(eventId));
+        public synchronized Uni<Boolean> isProcessed(UUID eventId) {
+            return Uni.createFrom().item(processed.contains(eventId));
+        }
+
+        @Override
+        public synchronized Uni<Void> markProcessed(UUID eventId) {
+            processed.add(eventId);
+            return Uni.createFrom().voidItem();
         }
 
         int size() {
