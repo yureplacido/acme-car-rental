@@ -7,10 +7,12 @@ import java.util.UUID;
 public interface ProcessedEventStore {
 
     /**
-     * Registers an event when it has not been seen before.
-     *
-     * @return true when this is the first observation of the event,
-     *         false when the event was already observed.
+     * Checks whether an event was successfully processed.
      */
-    Uni<Boolean> markIfNew(UUID eventId);
+    Uni<Boolean> isProcessed(UUID eventId);
+
+    /**
+     * Records an event after its processing completes successfully.
+     */
+    Uni<Void> markProcessed(UUID eventId);
 }
