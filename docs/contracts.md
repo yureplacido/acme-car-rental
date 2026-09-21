@@ -103,10 +103,45 @@ Compatibilidade wire é definida pelo **número do campo** e pelo **nome do mét
    server novo funciona (o inverso não).
 5. Versão publicada é imutável: nunca edite um proto já publicado.
 
+## VehicleRegistered (Kafka) ✅
+
+**Fluxo:** inventory-service (publisher) → tópico `vehicle-registered` → billing-service (consumer).
+
+Não há artefato de contrato separado: cada contexto mantém a própria cópia anti-corruption do
+evento (regra DDD — nunca compartilhar classes entre bounded contexts).
+
+| Aspecto | Valor |
+|---|---|
+| Tópico | `vehicle-registered` |
+| Transporte | Kafka (SmallRye Reactive Messaging) |
+| Publisher | inventory-service (`vehicle-registered-out`) |
+| Consumer | billing-service (`vehicle-registered-in`, group `billing-service`) |
+| Encoding | JSON (String serializer/deserializer) |
+| Chave de idempotência | `eventId` (UUID) |
+
+Payload (`version = 1`):
+
+```json
+{
+  "eventId": "uuid",
+  "version": 1,
+  "occurredAt": "2026-09-21T12:00:00Z",
+  "vehicleId": 42,
+  "licensePlate": "ABC123"
+}
+```
+
+Regras de evolução:
+
+- Mudanças aditivas (campos novos opcionais) preservam o `version` enquanto não quebrarem consumidores.
+- Mudança com potencial de quebra → incrementa `version` e trata campos obsoletos como desconhecidos.
+- Consumidor deve ser idempotente por `eventId` (ver `ProcessedEventStore` no billing).
+- Pendente de pipeline (documentar quando houver): retry / dead-letter, schema registry, outbox/inbox.
+
 ## Novos contratos (futuro)
 
-- 🔜 **Billing/messaging (cap.9)**: schemas de eventos (ex.: `ReservaPaga`, `Fatura`)
-   e definição de fila/tópico (Kafka ou RabbitMQ) — registrar aqui quando surgir.
+- 🔜 **Eventos de cobrança (Reservation/Rental → Billing)**: ex.: `Reservation.confirmed`,
+   `Rental.completed`, `Fatura` — registrar aqui quando surgirem.
 
 ---
 

@@ -67,6 +67,7 @@ Inbound:
 
 Outbound:
 - JPA/Panache + MySQL
+- Kafka out (`EventPublisher`) → tópico `vehicle-registered` (cap.9)
 
 GraphQL exposes a transport DTO named `Car` for compatibility with the existing laboratory contract. It is not a domain object.
 
@@ -162,7 +163,10 @@ Domain:
 - `PaymentMethod`
 - `PaymentStatus`
 
-The current implementation is a domain/application foundation. Persistence, messaging and external payment workflows will be introduced as the corresponding Quarkus chapters are studied.
+The current implementation is a domain/application foundation. Inbound adapter (cap.9): Kafka consumer
+`vehicle-registered-in` (group `billing-service`) reage a eventos de integração do Inventory, com
+idempotência via `ProcessedEventStore` (in-memory). Persistência de faturas, inbox durável, retry/
+dead-letter e o fluxo de cobrança real a partir de eventos de Reservation/Rental ainda estão pendentes.
 
 ## users-service
 

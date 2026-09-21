@@ -45,11 +45,23 @@
 
 ## Cap. 9 — Messaging
 
+> Status: pipeline Kafka Inventory → Billing (`vehicle-registered`) executável em código e testes;
+> o fluxo de cobrança real (Reservation/Rental → Invoice) ainda não existe.
+
 - [ ] Billing recebe eventos de Reservation/Rental
-- [ ] Definir contratos de eventos e versionamento
-- [ ] Idempotência de consumidores
+- [x] Definir contratos de eventos e versionamento
+- [x] Idempotência de consumidores
 - [ ] Retry / dead-letter strategy
 - [ ] Outbox/inbox quando o domínio exigir consistência entre DB e eventos
+
+Notas de escopo:
+
+- Billing hoje consome `vehicle-registered` do Inventory (scaffold de aprendizagem; o handler só loga).
+  O fluxo de cobrança (Reservation/Rental → Invoice) ainda não existe.
+- Idempotência: `ConsumeVehicleRegistered` + `ProcessedEventStore` no billing, cobrindo o consumidor
+  atual. Implementação em memória (perde em restart) e com check-then-act não atômico — evoluir para
+  inbox persistido/atômico quando houver efeito colateral real.
+- Contrato documentado em `docs/contracts.md` (seção `VehicleRegistered (Kafka)`).
 
 ## Part 3 — Cloud and beyond
 
