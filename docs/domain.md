@@ -214,6 +214,10 @@ Future concerns:
 - invoice events;
 - asynchronous billing.
 
+> Nota (cap.9): idempotência de consumidor já existe como scaffold (`ProcessedEventStore` in-memory,
+> consumidor Kafka `vehicle-registered`); idempotência persistida/atômica e o workflow distribuído
+> real seguem como conceitos futuros.
+
 ## 6. Users Service
 
 `users-service` is a BFF/web adapter, not a duplicate Customer, Reservation or Inventory domain.
