@@ -19,7 +19,7 @@ class KafkaVehicleRegisteredConsumerTest {
 
     @Test
     void shouldDeserializeAndProcessVehicleRegisteredEvent() {
-        ProcessedEventStore store = new InMemoryProcessedEventStore();
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
         KafkaVehicleRegisteredConsumer consumer =
                 new KafkaVehicleRegisteredConsumer(new ObjectMapper().findAndRegisterModules(), store);
 
