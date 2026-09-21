@@ -1,5 +1,6 @@
 package org.acme.inventory.adapter.out.messaging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.MutinyEmitter;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
@@ -12,16 +13,19 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class KafkaEventPublisherTest {
 
     @Test
-    void shouldUseVehicleIdAsKafkaPartitionKey() {
-        var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        @SuppressWarnings("unchecked")
-        var emitter = mock(MutinyEmitter.class);
+    @SuppressWarnings("unchecked")
+    void shouldPublishVehicleRegisteredWithVehicleIdAsKafkaKey() {
+        var objectMapper = new ObjectMapper();
+        MutinyEmitter<KafkaRecord<String, String>> emitter = mock(MutinyEmitter.class);
 
         when(emitter.send(any(KafkaRecord.class)))
                 .thenReturn(Uni.createFrom().voidItem());
@@ -40,5 +44,7 @@ class KafkaEventPublisherTest {
         verify(emitter).send(record.capture());
 
         assertEquals("42", record.getValue().getKey());
+        assertTrue(record.getValue().getValue().contains("\"vehicleId\":{\"value\":42}"));
+        assertTrue(record.getValue().getValue().contains("\"licensePlate\":\"ABC123\""));
     }
 }
