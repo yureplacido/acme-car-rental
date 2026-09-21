@@ -19,9 +19,10 @@ public class ConsumeVehicleRegistered {
     }
 
     public Uni<Void> handle(VehicleRegistered event) {
-        return processedEventStore.markIfNew(event.eventId())
-                .flatMap(isNew -> isNew
-                        ? handler.apply(event)
-                        : Uni.createFrom().voidItem());
+        return processedEventStore.isProcessed(event.eventId())
+                .flatMap(isProcessed -> isProcessed
+                        ? Uni.createFrom().voidItem()
+                        : handler.apply(event)
+                                .call(() -> processedEventStore.markProcessed(event.eventId())));
     }
 }
