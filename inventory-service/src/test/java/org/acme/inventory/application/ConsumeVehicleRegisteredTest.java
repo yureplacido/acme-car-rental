@@ -14,6 +14,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ConsumeVehicleRegisteredTest {
 
@@ -56,6 +57,31 @@ class ConsumeVehicleRegisteredTest {
         consumer.handle(event("XYZ987")).await().indefinitely();
 
         assertEquals(2, processed.get());
+    }
+
+    @Test
+    void shouldAllowTheSameEventToBeProcessedAgainAfterFailure() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        AtomicInteger attempts = new AtomicInteger();
+        ConsumeVehicleRegistered consumer = new ConsumeVehicleRegistered(
+                store,
+                event -> {
+                    if (attempts.incrementAndGet() == 1) {
+                        return Uni.createFrom().failure(
+                                new IllegalStateException("processing failed"));
+                    }
+                    return Uni.createFrom().voidItem();
+                });
+
+        VehicleRegistered event = event("ABC123");
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> consumer.handle(event).await().indefinitely());
+
+        consumer.handle(event).await().indefinitely();
+
+        assertEquals(2, attempts.get());
     }
 
     private static VehicleRegistered event(String plate) {
