@@ -1,13 +1,29 @@
 name: Maven CI
 
+# This workflow is intentionally not triggered by every feature-branch push.
+# Our development loop is:
+#   1. Implement
+#   2. Validate locally (./mvnw test / ./mvnw verify)
+#   3. Commit and push
+#   4. Run CI manually when the change is ready for remote validation
+#
+# We still run automatically when code reaches main, so main remains protected
+# by a final CI check.
+
 on:
   push:
     branches:
       - main
-      - 'refactor/**'
   pull_request:
     branches:
       - main
+    types:
+      # Run once when a PR is opened or becomes ready for review.
+      # Later pushes do not automatically start another full matrix.
+      - opened
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
 
 jobs:
   test:
