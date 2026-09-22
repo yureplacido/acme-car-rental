@@ -20,10 +20,15 @@ public class ConsumeVehicleRegistered {
     }
 
     public Uni<Void> handle(VehicleRegistered event) {
-        return processedEventStore.isProcessed(event.eventId())
-                .flatMap(isProcessed -> isProcessed
-                        ? Uni.createFrom().voidItem()
-                        : handler.apply(event)
-                                .call(() -> processedEventStore.markProcessed(event.eventId())));
+        return processedEventStore.tryClaim(event.eventId())
+                .flatMap(claimed -> claimed
+                        ? process(event)
+                        : Uni.createFrom().voidItem());
+    }
+
+    private Uni<Void> process(VehicleRegistered event) {
+        return handler.apply(event)
+                .onFailure()
+                .call(() -> processedEventStore.release(event.eventId()));
     }
 }
