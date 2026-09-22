@@ -5,6 +5,7 @@
 ## Foundation
 
 - [x] Padronizar módulos independentes sem reactor
+- [x] Agregador de testes na raiz (conveniência; sem parent/acoplamento) — `./mvnw test`
 - [x] Definir Bounded Context Map
 - [x] Definir padrão Domain/Application/Ports/Adapters
 - [x] Definir padrão TDD

@@ -234,6 +234,30 @@ Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; 
 | 11 | Inventory separa Vehicle de MaintenanceOrder | lifecycle da frota e workflow de manutenção têm limites distintos |
 | 12 | Consultas de seleção ficam na Application | adapters traduzem protocolo, não acumulam regra de consulta |
 | 13 | OpenCode funciona como architecture gate | impedir divergência entre futuras implementações |
+| 14 | Agregador raiz **somente para testes** (`packaging=pom`, sem parent/dependencyManagement) | rodar todos os testes com `./mvnw test` sem acoplar os microserviços |
+
+## Construção e testes
+
+Cada serviço é um microserviço independente: build, versionamento de dependências e deploy isolados,
+sem parent compartilhado. O `pom.xml` da raiz é um **agregador de conveniência** (packaging `pom`,
+apenas `<modules>`): ele conhece os módulos, mas nenhum módulo o conhece — nenhuma herança, nenhum
+`dependencyManagement`, nenhuma configuração de plugin é imposta aos serviços.
+
+- `./mvnw test` na raiz executa os testes de todos os módulos em ordem de reactor.
+- Subconjunto: `./mvnw -pl reservation-service -am test`.
+- O reactor resolve `org.acme:inventory-proto` diretamente do módulo `inventory-proto` (validado
+  inclusive para o codegen `scan-for-proto` do Quarkus), dispensando a instalação manual no `~/.m2`
+  quando o build parte do agregador.
+
+Os módulos continuam sendo implantáveis e testáveis isoladamente (`./mvnw test` dentro de cada modulo).
+
+### Portas em teste
+
+`@QuarkusTest` usa porta de teste aleatória por padrão e o REST-assured acompanha a mesma porta,
+por isso os testes não fixam URLs com porta. O agregador força essa regra com
+`.mvn/maven.config` (`-Dquarkus.http.test-port=0`) em qualquer `./mvnw` na raiz. Módulos não devem
+definir `quarkus.http.test-port` fixo — evita colisões quando há execuções simultâneas ou builds
+paralelos (`-T`).
 
 ## Estratégia de evolução
 
