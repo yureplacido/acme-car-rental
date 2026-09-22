@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public interface ProcessedEventStore {
 
-    Uni<Boolean> isProcessed(UUID eventId);
+    Uni<Boolean> tryClaim(UUID eventId);
 
-    Uni<Void> markProcessed(UUID eventId);
+    Uni<Void> release(UUID eventId);
 }
