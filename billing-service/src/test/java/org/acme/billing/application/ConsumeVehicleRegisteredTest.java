@@ -75,19 +75,21 @@ class ConsumeVehicleRegisteredTest {
 
         ConsumeVehicleRegistered consumer = new ConsumeVehicleRegistered(
                 store,
-                event -> Uni.createFrom().item(() -> {
+                event -> {
                     attempts.incrementAndGet();
                     handlerStarted.countDown();
                     try {
                         if (!releaseHandler.await(1, TimeUnit.SECONDS)) {
-                            throw new IllegalStateException("Timed out waiting for concurrent delivery");
+                            return Uni.createFrom().failure(
+                                    new IllegalStateException("Timed out waiting for concurrent delivery"));
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        throw new IllegalStateException("Interrupted while processing event", e);
+                        return Uni.createFrom().failure(
+                                new IllegalStateException("Interrupted while processing event", e));
                     }
-                    return (Void) null;
-                }));
+                    return Uni.createFrom().voidItem();
+                });
 
         VehicleRegistered event = event("ABC123");
 
