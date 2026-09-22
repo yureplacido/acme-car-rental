@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.MutinyEmitter;
+import io.smallrye.reactive.messaging.kafka.KafkaRecord;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.inventory.application.port.out.EventPublisher;
 import org.acme.inventory.domain.event.VehicleRegistered;
@@ -13,11 +14,11 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 public class KafkaEventPublisher implements EventPublisher {
 
     private final ObjectMapper objectMapper;
-    private final MutinyEmitter<String> emitter;
+    private final MutinyEmitter<KafkaRecord<String, String>> emitter;
 
     public KafkaEventPublisher(
             ObjectMapper objectMapper,
-            @Channel("vehicle-registered-out") MutinyEmitter<String> emitter) {
+            @Channel("vehicle-registered-out") MutinyEmitter<KafkaRecord<String, String>> emitter) {
         this.objectMapper = objectMapper;
         this.emitter = emitter;
     }
@@ -26,7 +27,10 @@ public class KafkaEventPublisher implements EventPublisher {
     public Uni<Void> publish(VehicleRegistered event) {
         return Uni.createFrom()
                 .item(() -> serialize(event))
-                .flatMap(emitter::send);
+                .flatMap(payload -> emitter.send(
+                        KafkaRecord.<String, String>of(
+                                event.vehicleId().value().toString(),
+                                payload)));
     }
 
     private String serialize(VehicleRegistered event) {
