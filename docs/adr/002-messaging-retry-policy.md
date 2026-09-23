@@ -180,6 +180,23 @@ Esta ADR não define:
 
 Esses assuntos possuem decisões próprias.
 
+## Implementação nesta etapa
+
+O consumidor Kafka utiliza a estratégia `delayed-retry-topic` do conector SmallRye Reactive Messaging. As tentativas são encaminhadas para tópicos de retry com atrasos progressivos de 1s, 5s e 15s, com no máximo 3 retries e timeout global de 30s por ocorrência.
+
+Configuração aplicada em `billing-service/src/main/resources/application.properties`:
+
+```properties
+mp.messaging.incoming.vehicle-registered-in.failure-strategy=delayed-retry-topic
+mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.topics=vehicle-registered-retry-1000,vehicle-registered-retry-5000,vehicle-registered-retry-15000
+mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.max-retries=3
+mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.timeout=30000
+```
+
+Essa abordagem mantém o retry fora do caso de uso e evita bloquear a partição enquanto uma ocorrência aguarda o próximo intervalo de tentativa. O conector preserva a chave e os metadados do registro ao encaminhá-lo para os tópicos de retry.
+
+> A estratégia de DLQ após o esgotamento das tentativas permanece fora desta etapa e será definida na ADR 003.
+
 ## Evidência esperada
 
 A implementação desta decisão deverá demonstrar, por testes:
