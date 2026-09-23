@@ -59,9 +59,12 @@ Notas de escopo:
 
 - Billing hoje consome `vehicle-registered` do Inventory (scaffold de aprendizagem; o handler só loga).
   O fluxo de cobrança (Reservation/Rental → Invoice) ainda não existe.
-- Idempotência: `ConsumeVehicleRegistered` + `ProcessedEventStore` no billing, cobrindo o consumidor
-  atual. Implementação em memória (perde em restart) e com check-then-act não atômico — evoluir para
-  inbox persistido/atômico quando houver efeito colateral real.
+- Idempotência é uma preocupação transversal do pipeline de messaging e agora é aplicada pelo
+  `IdempotencyMessagingDecorator`, antes do consumer de negócio. O consumer não depende diretamente
+  de `ProcessedEventStore`.
+- `ProcessedEventStore.tryClaim(UUID)` representa o claim atômico. A implementação atual é em memória;
+  a Inbox persistente/durável continua pendente até existir efeito colateral de negócio real.
+- A decisão arquitetural está registrada em `docs/adr/001-messaging-idempotency-middleware.md`.
 - Contrato documentado em `docs/contracts.md` (seção `VehicleRegistered (Kafka)`).
 
 ## Part 3 — Cloud and beyond
