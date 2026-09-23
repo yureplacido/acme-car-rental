@@ -7,9 +7,9 @@ import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -63,16 +63,16 @@ class KafkaVehicleRegisteredConsumerTest {
     }
 
     static class InMemoryProcessedEventStore implements ProcessedEventStore {
-        private final Set<UUID> processed = new HashSet<>();
+        private final Set<UUID> processed = ConcurrentHashMap.newKeySet();
 
         @Override
-        public synchronized Uni<Boolean> isProcessed(UUID eventId) {
-            return Uni.createFrom().item(processed.contains(eventId));
+        public Uni<Boolean> tryClaim(UUID eventId) {
+            return Uni.createFrom().item(() -> processed.add(eventId));
         }
 
         @Override
-        public synchronized Uni<Void> markProcessed(UUID eventId) {
-            processed.add(eventId);
+        public Uni<Void> release(UUID eventId) {
+            processed.remove(eventId);
             return Uni.createFrom().voidItem();
         }
 
