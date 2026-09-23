@@ -222,7 +222,7 @@ Os tópicos são recursos Kafka reais e seus nomes são configurados explicitame
 
 O sufixo numérico do tópico é interpretado pela estratégia como o atraso em milissegundos. Portanto, neste caso, `1000`, `5000` e `15000` representam 1s, 5s e 15s respectivamente.
 
-A nomenclatura é uma convenção deliberada do projeto para tornar a topologia legível. O tópico precisa ser provisionado no Kafka; a estratégia de retry não deve ser confundida com um mecanismo que cria esses recursos automaticamente.
+A nomenclatura é uma convenção deliberada do projeto para tornar a topologia legível. O tópico precisa ser provisionado no Kafka; a estratégia de retry não deve ser confundida com um mecanismo que cria esses recursos automaticamente. No stack local, os tópicos são provisionados pelo serviço `kafka-init` do `docker-compose` de `others/` (broker single-node KRaft, imagem `apache/kafka:3.9.1`, tópicos com 1 partição e RF 1).
 
 Com `max-retries=3`, as três faixas de atraso são utilizadas em sequência:
 
@@ -248,7 +248,11 @@ A implementação desta decisão deverá demonstrar, por testes:
 - o claim de idempotência é liberado antes da nova tentativa;
 - uma mensagem que termina com sucesso não é processada novamente;
 - o número máximo de tentativas é respeitado;
-- após o limite, a mensagem segue para o mecanismo definido de DLQ.
+- após o limite, a mensagem é reconhecida como definitivamente reprovada — sem DLQ configurada nesta ADR, o
+  record é abandonado após o esgotamento; o destino de dead-letter fica para a ADR 003;
+- eventos corruptos (sem `eventId` extraível) também passam pela política: o `IdempotencyMessagingDecorator`
+  os repassa (sem claim) ao consumer, onde falham e percorrem os tópicos de retry antes do abandono —
+  coberto por `CorruptEventRetryKafkaIntegrationTest` e verificado E2E no stack docker (`SRMSG18278`/`SRMSG18280`).
 
 A evidência deve usar o mesmo pipeline de Reactive Messaging utilizado pelo consumidor real, evitando testar apenas uma chamada direta ao método do consumer.
 

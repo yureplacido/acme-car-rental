@@ -16,15 +16,27 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RecordingProcessedEventStore implements ProcessedEventStore {
 
     private final Set<UUID> processed = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<UUID, AtomicInteger> claimAttemptsByEvent =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, CompletableFuture<Void>> secondClaimAttempts =
+            new ConcurrentHashMap<>();
     private final AtomicInteger claimAttempts = new AtomicInteger();
-    private final CompletableFuture<Void> secondClaimAttempt = new CompletableFuture<>();
 
     @Override
     public Uni<Boolean> tryClaim(UUID eventId) {
         return Uni.createFrom().item(() -> {
-            if (claimAttempts.incrementAndGet() == 2) {
-                secondClaimAttempt.complete(null);
+            claimAttempts.incrementAndGet();
+
+            int eventAttempts = claimAttemptsByEvent
+                    .computeIfAbsent(eventId, ignored -> new AtomicInteger())
+                    .incrementAndGet();
+
+            if (eventAttempts == 2) {
+                secondClaimAttempts
+                        .computeIfAbsent(eventId, ignored -> new CompletableFuture<>())
+                        .complete(null);
             }
+
             return processed.add(eventId);
         });
     }
@@ -35,11 +47,25 @@ public class RecordingProcessedEventStore implements ProcessedEventStore {
         return Uni.createFrom().voidItem();
     }
 
-    public CompletableFuture<Void> secondClaimAttempt() {
-        return secondClaimAttempt;
+    public void reset() {
+        processed.clear();
+        claimAttemptsByEvent.clear();
+        secondClaimAttempts.clear();
+        claimAttempts.set(0);
+    }
+
+    public CompletableFuture<Void> secondClaimAttempt(UUID eventId) {
+        return secondClaimAttempts.computeIfAbsent(
+                eventId,
+                ignored -> new CompletableFuture<>());
     }
 
     public int claimAttempts() {
         return claimAttempts.get();
+    }
+
+    public int claimAttempts(UUID eventId) {
+        AtomicInteger attempts = claimAttemptsByEvent.get(eventId);
+        return attempts == null ? 0 : attempts.get();
     }
 }

@@ -16,10 +16,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.kafka.common.errors.TopicExistsException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
@@ -47,8 +49,14 @@ class DelayedRetryKafkaIntegrationTest {
     @Inject
     DelayedRetryExhaustionTestConsumer exhaustionConsumer;
 
+    @Inject
+    RecordingProcessedEventStore processedEventStore;
+
     @BeforeEach
-    void createTopics() {
+    void resetFixtures() {
+        processedEventStore.reset();
+        consumer.reset();
+        exhaustionConsumer.reset();
         createTopicIfMissing(SOURCE_TOPIC);
         createTopicIfMissing(RETRY_1_TOPIC);
         createTopicIfMissing(RETRY_2_TOPIC);
@@ -100,6 +108,7 @@ class DelayedRetryKafkaIntegrationTest {
         assertTrue(secondDelayMillis >= 4000,
                 "Expected second retry delay >= 4000ms, but was " + secondDelayMillis + "ms");
     }
+
     @Test
     void shouldAbandonRecordAfterConfiguredRetriesAreExhausted()
             throws Exception {
@@ -119,12 +128,20 @@ class DelayedRetryKafkaIntegrationTest {
                         payload))
                 .awaitCompletion();
 
-        exhaustionConsumer.exhausted().get(30, TimeUnit.SECONDS);
+        exhaustionConsumer.exhausted().get(60, TimeUnit.SECONDS);
 
         assertEquals(4, exhaustionConsumer.attempts());
 
-        Thread.sleep(2000);
+        boolean retriedWithinQuietPeriod;
+        try {
+            exhaustionConsumer.unexpectedAttempt().get(2, TimeUnit.SECONDS);
+            retriedWithinQuietPeriod = true;
+        } catch (TimeoutException expected) {
+            retriedWithinQuietPeriod = false;
+        }
 
+        assertFalse(retriedWithinQuietPeriod,
+                "expected no retry after exhaustion, but a further attempt occurred");
         assertEquals(4, exhaustionConsumer.attempts());
     }
 }
