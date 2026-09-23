@@ -83,7 +83,7 @@ class IdempotencyMessagingDecoratorTest {
             AtomicInteger acknowledgements) {
 
         return Message.of(
-                "{"eventId":"" + eventId + ""}",
+                "{\"eventId\":\"" + eventId + "\"}",
                 () -> {
                     acknowledgements.incrementAndGet();
                     return java.util.concurrent.CompletableFuture.completedFuture(null);
