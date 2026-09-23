@@ -27,13 +27,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DelayedRetryKafkaIntegrationTest {
 
     private static final String SOURCE_TOPIC = "retry-test";
-    private static final String RETRY_1_TOPIC = "retry-test-retry-1000";
-    private static final String RETRY_2_TOPIC = "retry-test-retry-5000";
-    private static final String RETRY_3_TOPIC = "retry-test-retry-15000";
+    private static final String RETRY_1_TOPIC = "retry-test-retry_1000";
+    private static final String RETRY_2_TOPIC = "retry-test-retry_5000";
+    private static final String RETRY_3_TOPIC = "retry-test-retry_15000";
     private static final String EXHAUSTION_SOURCE_TOPIC = "retry-exhaustion";
-    private static final String EXHAUSTION_RETRY_1_TOPIC = "retry-exhaustion-retry-1000";
-    private static final String EXHAUSTION_RETRY_2_TOPIC = "retry-exhaustion-retry-5000";
-    private static final String EXHAUSTION_RETRY_3_TOPIC = "retry-exhaustion-retry-15000";
+    private static final String EXHAUSTION_RETRY_1_TOPIC = "retry-exhaustion-retry_1000";
+    private static final String EXHAUSTION_RETRY_2_TOPIC = "retry-exhaustion-retry_5000";
+    private static final String EXHAUSTION_RETRY_3_TOPIC = "retry-exhaustion-retry_15000";
 
     @InjectKafkaCompanion
     KafkaCompanion companion;
