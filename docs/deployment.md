@@ -9,10 +9,14 @@ Três modos de execução:
    Bancos são **Dev Services** (Postgres/MySQL/Mongo zerados em container) — ver cap.7.
 2. **Docker (compose)** — subir a stack (ou partes dela) via **perfis**; edge
    (Traefik/Swagger) sobe por padrão via `COMPOSE_PROFILES=infra` no `.env`.
+
+   Os assets não-Java vivem em **`others/`** (compose, `.env`, `keycloak/`, `swagger/`,
+   `traefik/`). Rode os comandos a partir de `others/`:
+   `cd others && docker compose up ...`
 3. **Produção manual (cap.6.4)** — Keycloak + PostgreSQL no compose e os serviços
    empacotados rodando via `java -jar` no host (ou containers com `QUARKUS_PROFILE=docker`).
 
-## Docker (docker-compose.yml)
+## Docker (`others/docker-compose.yml`)
 
 Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-service`,
 `rental-service`, `inventory-service`, `billing-service` + bancos do cap.7
@@ -21,8 +25,10 @@ Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-servic
 
 ### Perfis
 
-Cada serviço pertence ao seu grupo **e** ao perfil `all`. Definido em `.env`:
+Cada serviço pertence ao seu grupo **e** ao perfil `all`. Definido em `others/.env`:
 `COMPOSE_PROFILES=infra` torna o `docker compose up` **sem flags** = só o agregador.
+
+> Todos os comandos abaixo partem de `others/` (`cd others`).
 
 | Perfil | Serviços | Comando |
 |---|---|---|
@@ -37,19 +43,21 @@ Cada serviço pertence ao seu grupo **e** ao perfil `all`. Definido em `.env`:
   e `http://inventory-service:8083/graphql` — **nomes de container**, não `localhost`).
 - `extra_hosts: host.docker.internal:host-gateway` permite o **Traefik** alcançar
   serviços que rodam no host (dev sem Docker) — por isso dá para subir **só o agregador**
-  no compose e as aplicações no **IntelliJ** (dev mode), desde que as portas batam com o `.env`.
+  no compose e as aplicações no **IntelliJ** (dev mode), desde que as portas batam com o `others/.env`.
 - Bancos têm `healthcheck`; aplicações usam `depends_on: condition: service_healthy`.
-- Portas publicadas via env do `.env`.
+- Portas publicadas via env do `others/.env`.
 
 **Subir tudo:**
 
-```
+```bash
+cd others
 docker compose up -d --profile all
 ```
 
 **Só a edge / agregador (aplicações via IntelliJ, por exemplo):**
 
-```
+```bash
+cd others
 docker compose up -d
 ```
 
@@ -59,10 +67,11 @@ Serviços `keycloak` (quay.io/keycloak/keycloak:25.0.6) e `postgres` (postgres:1
 perfil `identity`, com **realm importado no boot**:
 
 ```bash
+cd others
 docker compose up -d --profile identity
 ```
 
-- Realm **`car-rental`** (`keycloak/car-rental-realm.json`) com clients
+- Realm **`car-rental`** (`others/keycloak/car-rental-realm.json`) com clients
   `users-service` e `reservation-service` (públicos, redirect `*`) e usuários
   `alice`/`bob` (senha = usuário).
 - **Porta do host:** `${KEYCLOAK_PORT:-7777}` → 8080 interno. PostgreSQL **não é
@@ -92,7 +101,7 @@ compose, os serviços usam `%docker.*` → `http://keycloak:8080/realms/car-rent
 ## Edge (Traefik + Swagger)
 
 **Traefik v3** — gateway único no host portas `8090` (web) e `8095` (dashboard).
-Config dinâmica em `traefik/dynamic.yml`.
+Config dinâmica em `others/traefik/dynamic.yml`.
 
 | Rota (PathPrefix) | Serviço de destino | Prioridade |
 |---|---|---|
@@ -103,9 +112,9 @@ Config dinâmica em `traefik/dynamic.yml`.
 | `/billing` | `host.docker.internal:${BILLING_PORT}` (8084) | 100 |
 | `/graphql` | `host.docker.internal:${INVENTORY_PORT}` (8083) | 100 |
 
-**Swagger agregado** — container `nginx:alpine` servindo `swagger/index.html` (Swagger UI
+**Swagger agregado** — container `nginx:alpine` servindo `others/swagger/index.html` (Swagger UI
 bundled) que consolida os OpenAPI dos serviços. Como o traefik encaminha **sem strip**,
-cada serviço expõe o documento no próprio prefixo do gateway (`swagger/index.html` e
+cada serviço expõe o documento no próprio prefixo do gateway (`others/swagger/index.html` e
 `application.properties` batem):
 
 - users/openapi → `/users/q/openapi` (derivado de `quarkus.http.root-path=/users`)
@@ -125,7 +134,7 @@ cada serviço expõe o documento no próprio prefixo do gateway (`swagger/index.
 - ⚠️ **users-service exige login** nas rotas da UI (`302 → keycloak`); só o `/users/q/openapi`
   está liberado (permission `permit` específica).
 
-## Variáveis de ambiente (`.env`)
+## Variáveis de ambiente (`others/.env`)
 
 | Chave | Default | Uso |
 |---|---|---|
@@ -150,8 +159,8 @@ Cada serviço tem `Dockerfile` (multi-stage):
 2. `eclipse-temurin:21-jre` roda `quarkus-run.jar`.
 
 ⚠️ O **inventory-service** usa contexto de build = **raiz do repositório**
-(`context: .` + `dockerfile: inventory-service/Dockerfile` no compose), pois seu
-Dockerfile compila o contrato standalone `inventory-proto` antes do serviço
+(`context: ..` + `dockerfile: inventory-service/Dockerfile` no `others/docker-compose.yml`),
+pois seu Dockerfile compila o contrato standalone `inventory-proto` antes do serviço
 (`.dockerignore` na raiz restringe o contexto a `inventory-proto/` + `inventory-service/`).
 
 ---
