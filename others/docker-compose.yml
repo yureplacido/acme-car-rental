@@ -1,5 +1,8 @@
 name: acme-car-rental
 
+# Este arquivo vive em others/ (assets não-Java). Rode os comandos a partir de
+# others/ (cd others && docker compose up ...) para o compose resolver o .env,
+# os volumes (./swagger, ./traefik, ./keycloak) e os build contexts (../<módulo>).
 # ──────────────────────────────────────────────────────────────────────────
 # Perfis do compose — cada serviço participa do seu grupo E do perfil "all":
 #
@@ -57,7 +60,7 @@ services:
   users-service:
     profiles: ["services", "all"]
     build:
-      context: ./users-service
+      context: ../users-service
       dockerfile: Dockerfile
     container_name: users-service
     env_file:
@@ -70,7 +73,7 @@ services:
   reservation-service:
     profiles: ["services", "all"]
     build:
-      context: ./reservation-service
+      context: ../reservation-service
       dockerfile: Dockerfile
     container_name: reservation-service
     env_file:
@@ -86,7 +89,7 @@ services:
   rental-service:
     profiles: ["services", "all"]
     build:
-      context: ./rental-service
+      context: ../rental-service
       dockerfile: Dockerfile
     container_name: rental-service
     env_file:
@@ -102,9 +105,10 @@ services:
   inventory-service:
     profiles: ["services", "all"]
     build:
-      # Contexto RAIZ: o Dockerfile multi-modulo compila o contrato
-      # inventory-proto (schema-first) antes do servico.
-      context: .
+      # Contexto RAIZ do repositório: o Dockerfile multi-modulo compila o contrato
+      # inventory-proto (schema-first) antes do servico. O .dockerignore da raiz
+      # restringe o contexto a inventory-proto/ + inventory-service/.
+      context: ..
       dockerfile: inventory-service/Dockerfile
     container_name: inventory-service
     env_file:
@@ -120,7 +124,7 @@ services:
   billing-service:
     profiles: ["services", "all"]
     build:
-      context: ./billing-service
+      context: ../billing-service
       dockerfile: Dockerfile
     container_name: billing-service
     env_file:
