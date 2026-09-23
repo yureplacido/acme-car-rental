@@ -188,7 +188,7 @@ Configuração aplicada em `billing-service/src/main/resources/application.prope
 
 ```properties
 mp.messaging.incoming.vehicle-registered-in.failure-strategy=delayed-retry-topic
-mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.topics=vehicle-registered-retry-1000,vehicle-registered-retry-5000,vehicle-registered-retry-15000
+mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.topics=vehicle-registered-retry_1000,vehicle-registered-retry_5000,vehicle-registered-retry_15000
 mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.max-retries=3
 mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.timeout=30000
 ```
@@ -216,9 +216,9 @@ Os tópicos são recursos Kafka reais e seus nomes são configurados explicitame
 
 | Tópico | Atraso | Papel |
 |---|---:|---|
-| `vehicle-registered-retry-1000` | 1s | Primeiro retry |
-| `vehicle-registered-retry-5000` | 5s | Segundo retry |
-| `vehicle-registered-retry-15000` | 15s | Terceiro retry |
+| `vehicle-registered-retry_1000` | 1s | Primeiro retry |
+| `vehicle-registered-retry_5000` | 5s | Segundo retry |
+| `vehicle-registered-retry_15000` | 15s | Terceiro retry |
 
 O sufixo numérico do tópico é interpretado pela estratégia como o atraso em milissegundos. Portanto, neste caso, `1000`, `5000` e `15000` representam 1s, 5s e 15s respectivamente.
 
@@ -229,11 +229,11 @@ Com `max-retries=3`, as três faixas de atraso são utilizadas em sequência:
 ```text
 tentativa inicial
       ↓ NACK
-retry-1000   → 1s
+retry_1000   → 1s
       ↓ NACK
-retry-5000   → 5s
+retry_5000   → 5s
       ↓ NACK
-retry-15000  → 15s
+retry_15000  → 15s
       ↓
 nova tentativa
 ```
