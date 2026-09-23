@@ -29,7 +29,7 @@ class IdempotencyMessagingDecoratorTest {
         Message<String> first = message(eventId, acknowledgements);
         Message<String> duplicate = message(eventId, acknowledgements);
 
-        List<Message<?>> result = decorate(decorator, first, duplicate);
+        List<? extends Message<?>> result = decorate(decorator, first, duplicate);
 
         assertEquals(1, result.size());
         assertEquals(1, store.claims());
