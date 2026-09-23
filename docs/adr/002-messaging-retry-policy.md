@@ -197,6 +197,49 @@ Essa abordagem mantém o retry fora do caso de uso e evita bloquear a partição
 
 > A estratégia de DLQ após o esgotamento das tentativas permanece fora desta etapa e será definida na ADR 003.
 
+## Estratégias de falha disponíveis no conector Kafka
+
+O conector Kafka suporta as seguintes estratégias de tratamento de falhas no consumo:
+
+| Estratégia | Descrição |
+|---|---|
+| `fail` | Propaga a falha e interrompe o processamento do conector. É a estratégia padrão. |
+| `ignore` | Ignora a falha após registrá-la e continua o consumo. |
+| `dead-letter-queue` | Publica a mensagem que falhou em um tópico de Dead Letter Queue. |
+| `delayed-retry-topic` | Encaminha mensagens que sofreram `nack` para tópicos de retry com atraso, permitindo novas tentativas sem bloquear o consumidor original. |
+
+Nesta ADR, a estratégia adotada é `delayed-retry-topic`.
+
+## Tópicos de retry
+
+Os tópicos são recursos Kafka reais e seus nomes são configurados explicitamente em `delayed-retry-topic.topics`.
+
+| Tópico | Atraso | Papel |
+|---|---:|---|
+| `vehicle-registered-retry-1000` | 1s | Primeiro retry |
+| `vehicle-registered-retry-5000` | 5s | Segundo retry |
+| `vehicle-registered-retry-15000` | 15s | Terceiro retry |
+
+O sufixo numérico do tópico é interpretado pela estratégia como o atraso em milissegundos. Portanto, neste caso, `1000`, `5000` e `15000` representam 1s, 5s e 15s respectivamente.
+
+A nomenclatura é uma convenção deliberada do projeto para tornar a topologia legível. O tópico precisa ser provisionado no Kafka; a estratégia de retry não deve ser confundida com um mecanismo que cria esses recursos automaticamente.
+
+Com `max-retries=3`, as três faixas de atraso são utilizadas em sequência:
+
+```text
+tentativa inicial
+      ↓ NACK
+retry-1000   → 1s
+      ↓ NACK
+retry-5000   → 5s
+      ↓ NACK
+retry-15000  → 15s
+      ↓
+nova tentativa
+```
+
+Se houver menos tópicos configurados do que retries permitidos, a estratégia pode reutilizar o último tópico para as tentativas adicionais.
+
 ## Evidência esperada
 
 A implementação desta decisão deverá demonstrar, por testes:
