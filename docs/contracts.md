@@ -135,13 +135,15 @@ Regras de evolução:
 
 - Mudanças aditivas (campos novos opcionais) preservam o `version` enquanto não quebrarem consumidores.
 - Mudança com potencial de quebra → incrementa `version` e trata campos obsoletos como desconhecidos.
-- Consumidor deve ser idempotente por `eventId` (ver `ProcessedEventStore` no billing).
-- Pendente de pipeline (documentar quando houver): retry / dead-letter, schema registry, outbox/inbox.
+- Consumidores não implementam idempotência individualmente: a política de deduplicação é aplicada pelo
+  middleware de messaging através de `ProcessedEventStore.tryClaim(eventId)`.
+- O middleware considera `eventId` obrigatório no envelope JSON dos eventos de integração.
+- Pendente de pipeline (documentar quando houver): retry / dead-letter, schema registry, outbox/inbox persistente.
 
 ## Novos contratos (futuro)
 
 - 🔜 **Eventos de cobrança (Reservation/Rental → Billing)**: ex.: `Reservation.confirmed`,
-   `Rental.completed`, `Fatura` — registrar aqui quando surgirem.
+  `Rental.completed`, `Fatura` — registrar aqui quando surgirem.
 
 ---
 

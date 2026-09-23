@@ -164,9 +164,13 @@ Domain:
 - `PaymentStatus`
 
 The current implementation is a domain/application foundation. Inbound adapter (cap.9): Kafka consumer
-`vehicle-registered-in` (group `billing-service`) reage a eventos de integração do Inventory, com
-idempotência via `ProcessedEventStore` (in-memory). Persistência de faturas, inbox durável, retry/
-dead-letter e o fluxo de cobrança real a partir de eventos de Reservation/Rental ainda estão pendentes.
+`vehicle-registered-in` (group `billing-service`) reage a eventos de integração do Inventory.
+
+Idempotência é aplicada por um middleware transversal de messaging (`IdempotencyMessagingDecorator`) antes
+do consumer de negócio. O consumer não depende diretamente do `ProcessedEventStore`.
+
+Persistência de faturas, inbox durável, retry/dead-letter e o fluxo de cobrança real a partir de eventos de
+Reservation/Rental ainda estão pendentes.
 
 ## users-service
 
@@ -221,6 +225,8 @@ adapter out
 ~~~
 
 Models do not cross bounded-context boundaries merely to avoid mapping.
+
+Messaging cross-cutting concerns such as idempotency belong to the messaging infrastructure, not to individual business consumers.
 
 ## Migration status
 

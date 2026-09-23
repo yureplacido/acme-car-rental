@@ -14,13 +14,13 @@ public class InMemoryProcessedEventStore implements ProcessedEventStore {
     private final Set<UUID> processed = ConcurrentHashMap.newKeySet();
 
     @Override
-    public Uni<Boolean> isProcessed(UUID eventId) {
-        return Uni.createFrom().item(processed.contains(eventId));
+    public Uni<Boolean> tryClaim(UUID eventId) {
+        return Uni.createFrom().item(() -> processed.add(eventId));
     }
 
     @Override
-    public Uni<Void> markProcessed(UUID eventId) {
-        processed.add(eventId);
+    public Uni<Void> release(UUID eventId) {
+        processed.remove(eventId);
         return Uni.createFrom().voidItem();
     }
 }
