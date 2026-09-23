@@ -7,15 +7,12 @@ import io.smallrye.reactive.messaging.memory.InMemoryConnector;
 import io.smallrye.reactive.messaging.memory.InMemorySource;
 import jakarta.inject.Inject;
 import org.acme.billing.application.event.VehicleRegistered;
-import org.eclipse.microprofile.reactive.messaging.Message;
-import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.junit.jupiter.api.Test;
+import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 
 import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -30,12 +27,13 @@ class SubscriberDecoratorIntegrationTest {
     @Inject
     ObjectMapper objectMapper;
 
+    @Inject
+    RecordingProcessedEventStore processedEventStore;
+
     @Test
     void shouldClaimOnlyOneDuplicateMessageBeforeItReachesTheConsumer()
             throws Exception {
         InMemorySource<String> source = connector.source("vehicle-registered-in");
-        AtomicInteger acknowledgements = new AtomicInteger();
-        CompletableFuture<Void> firstAcknowledgement = new CompletableFuture<>();
 
         VehicleRegistered event = new VehicleRegistered(
                 UUID.randomUUID(),
@@ -46,24 +44,12 @@ class SubscriberDecoratorIntegrationTest {
 
         String payload = objectMapper.writeValueAsString(event);
 
-        source.send(message(payload, acknowledgements, firstAcknowledgement));
-        source.send(message(payload, acknowledgements, firstAcknowledgement));
+        source.send(payload);
+        source.send(payload);
 
-        firstAcknowledgement.get(5, TimeUnit.SECONDS);
+        processedEventStore.secondClaimAttempt()
+                .get(5, TimeUnit.SECONDS);
 
-        assertEquals(1, acknowledgements.get());
-    }
-
-    private static Message<String> message(
-            String payload,
-            AtomicInteger acknowledgements,
-            CompletableFuture<Void> firstAcknowledgement) {
-        return Message.of(
-                payload,
-                () -> {
-                    acknowledgements.incrementAndGet();
-                    firstAcknowledgement.complete(null);
-                    return CompletableFuture.completedFuture(null);
-                });
+        assertEquals(2, processedEventStore.claimAttempts());
     }
 }
