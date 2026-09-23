@@ -8,6 +8,7 @@ import io.smallrye.reactive.messaging.memory.InMemorySource;
 import jakarta.inject.Inject;
 import org.acme.billing.application.event.VehicleRegistered;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -32,6 +33,11 @@ class SubscriberDecoratorIntegrationTest {
 
     @Inject
     NackTestConsumer nackTestConsumer;
+
+    @BeforeEach
+    void resetProcessedEventStore() {
+        processedEventStore.reset();
+    }
 
     @Test
     void shouldClaimOnlyOneDuplicateMessageBeforeItReachesTheConsumer()
