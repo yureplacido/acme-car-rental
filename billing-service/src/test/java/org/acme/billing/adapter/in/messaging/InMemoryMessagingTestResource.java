@@ -12,7 +12,7 @@ public class InMemoryMessagingTestResource implements QuarkusTestResourceLifecyc
     public Map<String, String> start() {
         Map<String, String> properties = new HashMap<>();
         properties.putAll(
-                InMemoryConnector.switchIncomingChannelsToInMemory("vehicle-registered-in"));
+                InMemoryConnector.switchIncomingChannelsToInMemory("vehicle-registered-in", "vehicle-registered-nack-test"));
         return properties;
     }
 
