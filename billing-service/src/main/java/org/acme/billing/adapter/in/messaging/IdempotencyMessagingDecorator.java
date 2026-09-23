@@ -4,19 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.reactive.messaging.SubscriberDecorator;
+import io.smallrye.reactive.messaging.PublisherDecorator;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.billing.application.port.out.ProcessedEventStore;
-import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 
 @ApplicationScoped
-public class IdempotencyMessagingDecorator implements SubscriberDecorator {
+public class IdempotencyMessagingDecorator implements PublisherDecorator {
 
     private final ObjectMapper objectMapper;
     private final ProcessedEventStore processedEventStore;
@@ -31,10 +29,10 @@ public class IdempotencyMessagingDecorator implements SubscriberDecorator {
     @Override
     public Multi<? extends Message<?>> decorate(
             Multi<? extends Message<?>> messages,
-            List<String> channelNames,
-            Config channelConfig) {
+            String channelName,
+            boolean isConnector) {
 
-        if (channelConfig == null) {
+        if (!isConnector) {
             return messages;
         }
 
