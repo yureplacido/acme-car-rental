@@ -56,10 +56,10 @@ class SubscriberDecoratorIntegrationTest {
         source.send(payload);
         source.send(payload);
 
-        processedEventStore.secondClaimAttempt()
+        processedEventStore.secondClaimAttempt(event.eventId())
                 .get(5, TimeUnit.SECONDS);
 
-        assertEquals(2, processedEventStore.claimAttempts());
+        assertEquals(2, processedEventStore.claimAttempts(event.eventId()));
     }
 
     @Test
