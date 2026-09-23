@@ -21,8 +21,10 @@ public class NackTestConsumer {
 
         if (attempt == 1) {
             firstAttempt.complete(null);
+
             return Uni.createFrom()
-                    .failure(new IllegalStateException("simulated processing failure"));
+                    .completionStage(message.nack(
+                            new IllegalStateException("simulated processing failure")));
         }
 
         if (attempt == 2) {
