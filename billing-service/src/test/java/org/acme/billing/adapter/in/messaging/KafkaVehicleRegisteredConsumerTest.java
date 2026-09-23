@@ -54,4 +54,21 @@ class KafkaVehicleRegisteredConsumerTest {
 
         assertTrue(error.getMessage().contains("Could not deserialize VehicleRegistered event"));
     }
+
+    @Test
+    void shouldFailWhenDeserializedEventIsMissingRequiredFields() {
+        KafkaVehicleRegisteredConsumer consumer =
+                new KafkaVehicleRegisteredConsumer(
+                        new ObjectMapper().findAndRegisterModules());
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> consumer.consume(
+                        "{\"version\":1,\"occurredAt\":\"2026-09-23T10:00:00Z\","
+                                + "\"licensePlate\":\"ABC-123\"}")
+                        .await()
+                        .atMost(Duration.ofSeconds(5)));
+
+        assertTrue(error.getMessage().contains("missing required fields"));
+    }
 }

@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class IdempotencyMessagingDecoratorTest {
 
@@ -84,6 +85,56 @@ class IdempotencyMessagingDecoratorTest {
                 .atMost(Duration.ofSeconds(5));
 
         assertEquals(2, result.size());
+        assertEquals(0, store.claims());
+    }
+
+    @Test
+    void shouldPassThroughMessagesWhoseEventIdCannotBeExtracted() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        AtomicInteger acknowledgements = new AtomicInteger();
+        Message<String> corrupt = Message.of(
+                "{\"noEventId\":true}",
+                () -> {
+                    acknowledgements.incrementAndGet();
+                    return java.util.concurrent.CompletableFuture.completedFuture(null);
+                });
+
+        List<? extends Message<?>> result = decorate(decorator, corrupt);
+
+        assertEquals(1, result.size());
+        assertSame(corrupt, result.getFirst());
+        assertEquals(0, store.claims());
+        assertEquals(0, acknowledgements.get());
+    }
+
+    @Test
+    void shouldPassThroughMessagesThatAreNotJson() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        List<? extends Message<?>> result = decorate(
+                decorator,
+                Message.of("not-json"));
+
+        assertEquals(1, result.size());
+        assertEquals(0, store.claims());
+    }
+
+    @Test
+    void shouldPassThroughMessagesWhoseEventIdIsNotAUuid() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        List<? extends Message<?>> result = decorate(
+                decorator,
+                Message.of("{\"eventId\":\"not-a-uuid\"}"));
+
+        assertEquals(1, result.size());
         assertEquals(0, store.claims());
     }
 
