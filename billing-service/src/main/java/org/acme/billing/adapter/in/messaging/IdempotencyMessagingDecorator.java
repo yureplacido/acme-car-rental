@@ -11,6 +11,7 @@ import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 
@@ -39,10 +40,13 @@ public class IdempotencyMessagingDecorator implements SubscriberDecorator {
 
         return messages
                 .onItem()
-                .transformToUniAndMerge(this::guard);
+                .transformToUniAndMerge(this::guard)
+                .select()
+                .where(Optional::isPresent)
+                .map(Optional::get);
     }
 
-    private Uni<Message<?>> guard(Message<?> message) {
+    private Uni<Optional<Message<?>>> guard(Message<?> message) {
         UUID eventId = extractEventId(message);
 
         return processedEventStore.tryClaim(eventId)
@@ -50,12 +54,13 @@ public class IdempotencyMessagingDecorator implements SubscriberDecorator {
                     if (!claimed) {
                         return Uni.createFrom()
                                 .completionStage(message.ack())
-                                .replaceWithNull();
+                                .replaceWith(Optional.empty());
                     }
 
-                    return Uni.createFrom().item(
-                            message.withNack(failure ->
-                                    releaseAndNack(eventId, message, failure)));
+                    Message<?> guardedMessage = message.withNack(
+                            failure -> releaseAndNack(eventId, message, failure));
+
+                    return Uni.createFrom().item(Optional.of(guardedMessage));
                 });
     }
 
