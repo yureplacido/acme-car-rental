@@ -7,8 +7,10 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.PublisherDecorator;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.billing.application.port.out.ProcessedEventStore;
+import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
@@ -29,10 +31,10 @@ public class IdempotencyMessagingDecorator implements PublisherDecorator {
     @Override
     public Multi<? extends Message<?>> decorate(
             Multi<? extends Message<?>> messages,
-            String channelName,
-            boolean isConnector) {
+            List<String> channelNames,
+            Config channelConfig) {
 
-        if (!isConnector) {
+        if (channelConfig == null) {
             return messages;
         }
 

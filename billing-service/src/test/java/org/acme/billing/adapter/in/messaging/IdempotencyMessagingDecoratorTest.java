@@ -8,6 +8,7 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -63,6 +64,29 @@ class IdempotencyMessagingDecoratorTest {
         assertEquals(1, retried.size());
     }
 
+    @Test
+    void shouldNotDecorateChannelsWithoutConnectorConfig() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        Message<String> first = message(UUID.randomUUID(), new AtomicInteger());
+        Message<String> second = message(UUID.randomUUID(), new AtomicInteger());
+
+        List<? extends Message<?>> result = decorator
+                .decorate(
+                        Multi.createFrom().items(first, second),
+                        List.of("some-emitter"),
+                        null)
+                .collect()
+                .asList()
+                .await()
+                .atMost(Duration.ofSeconds(5));
+
+        assertEquals(2, result.size());
+        assertEquals(0, store.claims());
+    }
+
     private static List<? extends Message<?>> decorate(
             IdempotencyMessagingDecorator decorator,
             Message<?>... messages) {
@@ -75,7 +99,7 @@ class IdempotencyMessagingDecoratorTest {
                 .collect()
                 .asList()
                 .await()
-                .indefinitely();
+                .atMost(Duration.ofSeconds(5));
     }
 
     private static Message<String> message(

@@ -52,7 +52,8 @@
 - [ ] Billing recebe eventos de Reservation/Rental
 - [x] Definir contratos de eventos e versionamento
 - [x] Idempotência de consumidores
-- [ ] Retry / dead-letter strategy
+- [x] Retry (delayed-retry-topic, ADR 002)
+- [ ] Dead-letter strategy (ADR 003)
 - [ ] Outbox/inbox quando o domínio exigir consistência entre DB e eventos
 
 Notas de escopo:
@@ -64,6 +65,8 @@ Notas de escopo:
   de `ProcessedEventStore`.
 - `ProcessedEventStore.tryClaim(UUID)` representa o claim atômico. A implementação atual é em memória;
   a Inbox persistente/durável continua pendente até existir efeito colateral de negócio real.
+- Retry é configurado na infraestrutura Kafka (`delayed-retry-topic`, `max-retries=3`, atrasos 1s/5s/15s);
+  decisão em `docs/adr/002-messaging-retry-policy.md`. A DLQ após o esgotamento fica para a ADR 003.
 - A decisão arquitetural está registrada em `docs/adr/001-messaging-idempotency-middleware.md`.
 - Contrato documentado em `docs/contracts.md` (seção `VehicleRegistered (Kafka)`).
 

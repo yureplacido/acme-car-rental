@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
 @QuarkusTestResource(InMemoryMessagingTestResource.class)
-class SubscriberDecoratorIntegrationTest {
+class PublisherDecoratorIntegrationTest {
 
     @Inject
     @Connector("smallrye-in-memory")
@@ -35,8 +35,9 @@ class SubscriberDecoratorIntegrationTest {
     NackTestConsumer nackTestConsumer;
 
     @BeforeEach
-    void resetProcessedEventStore() {
+    void resetFixtures() {
         processedEventStore.reset();
+        nackTestConsumer.reset();
     }
 
     @Test
