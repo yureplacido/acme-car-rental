@@ -7,8 +7,8 @@ import io.smallrye.reactive.messaging.memory.InMemoryConnector;
 import io.smallrye.reactive.messaging.memory.InMemorySource;
 import jakarta.inject.Inject;
 import org.acme.billing.application.event.VehicleRegistered;
-import org.junit.jupiter.api.Test;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
+import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -29,6 +29,9 @@ class SubscriberDecoratorIntegrationTest {
 
     @Inject
     RecordingProcessedEventStore processedEventStore;
+
+    @Inject
+    NackTestConsumer nackTestConsumer;
 
     @Test
     void shouldClaimOnlyOneDuplicateMessageBeforeItReachesTheConsumer()
@@ -51,5 +54,33 @@ class SubscriberDecoratorIntegrationTest {
                 .get(5, TimeUnit.SECONDS);
 
         assertEquals(2, processedEventStore.claimAttempts());
+    }
+
+    @Test
+    void shouldReleaseClaimWhenConsumerNacksAndAllowRedelivery()
+            throws Exception {
+        InMemorySource<String> source =
+                connector.source("vehicle-registered-nack-test");
+
+        VehicleRegistered event = new VehicleRegistered(
+                UUID.randomUUID(),
+                1,
+                Instant.parse("2026-09-21T12:00:00Z"),
+                new VehicleRegistered.VehicleId(43L),
+                "XYZ789");
+
+        String payload = objectMapper.writeValueAsString(event);
+
+        source.send(payload);
+
+        nackTestConsumer.firstAttempt()
+                .get(5, TimeUnit.SECONDS);
+
+        source.send(payload);
+
+        nackTestConsumer.secondAttempt()
+                .get(5, TimeUnit.SECONDS);
+
+        assertEquals(2, nackTestConsumer.attempts());
     }
 }
