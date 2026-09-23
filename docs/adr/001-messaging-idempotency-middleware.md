@@ -23,7 +23,7 @@ Use Case
 
 Esse desenho permite que um consumer novo seja criado sem a proteção de idempotência.
 
-O projeto usa Quarkus Messaging / SmallRye Reactive Messaging, que permite decorar o pipeline de subscribers por meio de `SubscriberDecorator`. Essa extensão é específica do SmallRye e integra a infraestrutura ao grafo de Reactive Messaging.
+Este projeto usa Quarkus Messaging / SmallRye Reactive Messaging. Para o consumo de mensagens, o pipeline de entrada é interceptado por um `PublisherDecorator`, permitindo aplicar a política transversal antes que a mensagem chegue ao consumer de negócio.
 
 ## Decisão
 
@@ -84,7 +84,7 @@ O `eventId` identifica a ocorrência do evento e é a chave usada para deduplica
 
 ### Negativas
 
-- `SubscriberDecorator` é uma extensão específica do SmallRye Reactive Messaging;
+- `PublisherDecorator` é uma extensão específica do SmallRye Reactive Messaging;
 - o middleware depende de um contrato comum de `eventId`;
 - falhas no middleware podem impedir o consumo da mensagem;
 - a implementação atual ainda usa um store em memória.
