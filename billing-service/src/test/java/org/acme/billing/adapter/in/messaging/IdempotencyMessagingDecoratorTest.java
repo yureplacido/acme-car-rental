@@ -56,14 +56,14 @@ class IdempotencyMessagingDecoratorTest {
 
         assertEquals(0, store.claims());
 
-        List<Message<?>> retried = decorate(
+        List<? extends Message<?>> retried = decorate(
                 decorator,
                 message(eventId, acknowledgements));
 
         assertEquals(1, retried.size());
     }
 
-    private static List<Message<?>> decorate(
+    private static List<? extends Message<?>> decorate(
             IdempotencyMessagingDecorator decorator,
             Message<?>... messages) {
 
