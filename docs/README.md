@@ -14,7 +14,7 @@ independentes, cada um no seu próprio módulo Maven (mentalidade de microservic
 | [architecture.md](./architecture.md) | Visão geral: DDD, adapters, fluxos, protocolos e decisões |
 | [services.md](./services.md) | Detalhe por serviço: portas, endpoints, dependências, repositório, estado |
 | [contracts.md](./contracts.md) | Contratos (gRPC `inventory-proto`): versionamento e regras de compatibilidade |
-| [deployment.md](./deployment.md) | Deploy local/Docker: docker-compose, Traefik (gateway), Swagger agregado, env |
+| [deployment.md](./deployment.md) | Deploy local/Docker: `others/` (compose, Traefik, Swagger, Keycloak, env) |
 | [testing.md](./testing.md) | Estratégia DDD/TDD: domínio, aplicação, adapters e integração |
 | [domain.md](./domain.md) | Bounded Contexts, aggregates, value objects e evolução do domínio |\n| [ddd-tdd-standards.md](./ddd-tdd-standards.md) | Padrão arquitetural obrigatório do repositório |\n| [roadmap.md](./roadmap.md) | Evolução por capítulo e evidências executáveis |
 
