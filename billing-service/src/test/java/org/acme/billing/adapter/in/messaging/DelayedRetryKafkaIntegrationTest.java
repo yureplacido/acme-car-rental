@@ -17,6 +17,8 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.kafka.common.errors.TopicExistsException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,14 +49,22 @@ class DelayedRetryKafkaIntegrationTest {
 
     @BeforeEach
     void createTopics() {
-        companion.topics().createAndWait(SOURCE_TOPIC, 1);
-        companion.topics().createAndWait(RETRY_1_TOPIC, 1);
-        companion.topics().createAndWait(RETRY_2_TOPIC, 1);
-        companion.topics().createAndWait(RETRY_3_TOPIC, 1);
-        companion.topics().createAndWait(EXHAUSTION_SOURCE_TOPIC, 1);
-        companion.topics().createAndWait(EXHAUSTION_RETRY_1_TOPIC, 1);
-        companion.topics().createAndWait(EXHAUSTION_RETRY_2_TOPIC, 1);
-        companion.topics().createAndWait(EXHAUSTION_RETRY_3_TOPIC, 1);
+        createTopicIfMissing(SOURCE_TOPIC);
+        createTopicIfMissing(RETRY_1_TOPIC);
+        createTopicIfMissing(RETRY_2_TOPIC);
+        createTopicIfMissing(RETRY_3_TOPIC);
+        createTopicIfMissing(EXHAUSTION_SOURCE_TOPIC);
+        createTopicIfMissing(EXHAUSTION_RETRY_1_TOPIC);
+        createTopicIfMissing(EXHAUSTION_RETRY_2_TOPIC);
+        createTopicIfMissing(EXHAUSTION_RETRY_3_TOPIC);
+    }
+
+    private void createTopicIfMissing(String topic) {
+        try {
+            companion.topics().createAndWait(topic, 1);
+        } catch (TopicExistsException ignored) {
+            // Topic already exists from another test in this test class.
+        }
     }
 
     @Test
