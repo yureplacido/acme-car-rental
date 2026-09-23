@@ -47,7 +47,12 @@ public class IdempotencyMessagingDecorator implements PublisherDecorator {
     }
 
     private Uni<Optional<Message<?>>> guard(Message<?> message) {
-        UUID eventId = extractEventId(message);
+        UUID eventId;
+        try {
+            eventId = extractEventId(message);
+        } catch (IllegalArgumentException e) {
+            return Uni.createFrom().item(Optional.of(message));
+        }
 
         return processedEventStore.tryClaim(eventId)
                 .flatMap(claimed -> {

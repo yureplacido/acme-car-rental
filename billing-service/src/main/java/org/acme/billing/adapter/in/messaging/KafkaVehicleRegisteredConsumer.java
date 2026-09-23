@@ -40,12 +40,20 @@ public class KafkaVehicleRegisteredConsumer {
     }
 
     private VehicleRegistered deserialize(String payload) {
+        VehicleRegistered event;
         try {
-            return objectMapper.readValue(payload, VehicleRegistered.class);
+            event = objectMapper.readValue(payload, VehicleRegistered.class);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException(
                     "Could not deserialize VehicleRegistered event", e);
         }
+
+        if (event.eventId() == null || event.vehicleId() == null) {
+            throw new IllegalArgumentException(
+                    "VehicleRegistered event is missing required fields");
+        }
+
+        return event;
     }
 
     private static Uni<Void> process(VehicleRegistered event) {
