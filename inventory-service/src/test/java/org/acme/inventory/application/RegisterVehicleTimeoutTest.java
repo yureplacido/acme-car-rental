@@ -22,13 +22,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class RegisterVehicleTimeoutTest {
 
+    private static final Duration DEADLINE = Duration.ofMillis(25);
+
     @Test
     void shouldFailWhenReactiveOperationExceedsDeadline() {
         SlowVehicleRepository repository = new SlowVehicleRepository();
         RegisterVehicle registerVehicle = new RegisterVehicle(repository);
 
         Uni<Vehicle> operation = registerVehicle.handle(command())
-                .ifNoItem().after(Duration.ofMillis(25))
+                .ifNoItem().after(DEADLINE)
                 .fail();
 
         UniAssertSubscriber<Vehicle> subscriber = operation

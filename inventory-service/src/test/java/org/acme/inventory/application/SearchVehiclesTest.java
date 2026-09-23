@@ -28,7 +28,9 @@ class SearchVehiclesTest {
 
     @Test
     void shouldSearchVehiclesByManufacturer() {
+
         repository.items.add(vehicle("AAA111", "Ford", "Mustang", 1L));
+
         repository.items.add(vehicle("BBB222", "Toyota", "Corolla", 2L));
 
         var result = search.handle(new VehicleSearch(
@@ -92,11 +94,20 @@ class SearchVehiclesTest {
     static class FakeVehicleRepository implements VehicleRepository {
         final List<Vehicle> items = new ArrayList<>();
 
-        public Uni<List<Vehicle>> all() { return Uni.createFrom().item(List.copyOf(items)); }
+        @Override
+        public Uni<List<Vehicle>> all() {
+            return Uni.createFrom().item(List.copyOf(items));
+        }
+
+        @Override
         public Uni<Optional<Vehicle>> findByLicensePlate(LicensePlate plate) {
             return Uni.createFrom().item(items.stream()
                     .filter(v -> v.licensePlate().equals(plate)).findFirst());
         }
-        public Uni<Vehicle> save(Vehicle vehicle) { return Uni.createFrom().item(vehicle); }
+
+        @Override
+        public Uni<Vehicle> save(Vehicle vehicle) {
+            return Uni.createFrom().item(vehicle);
+        }
     }
 }

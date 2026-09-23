@@ -1,17 +1,12 @@
 package org.acme.inventory.adapter.out.persistence;
 
-import org.acme.inventory.domain.model.FuelType;
 import org.acme.inventory.domain.model.LicensePlate;
 import org.acme.inventory.domain.model.OdometerReading;
-import org.acme.inventory.domain.model.Transmission;
 import org.acme.inventory.domain.model.Vehicle;
-import org.acme.inventory.domain.model.VehicleCategory;
-import org.acme.inventory.domain.model.VehicleCondition;
 import org.acme.inventory.domain.model.VehicleDailyRate;
 import org.acme.inventory.domain.model.VehicleId;
 import org.acme.inventory.domain.model.VehicleLocation;
 import org.acme.inventory.domain.model.VehicleSpecifications;
-import org.acme.inventory.domain.model.VehicleStatus;
 
 public final class VehicleMapper {
 

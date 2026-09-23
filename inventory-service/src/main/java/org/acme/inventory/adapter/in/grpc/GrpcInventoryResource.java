@@ -4,21 +4,20 @@ import io.quarkus.grpc.GrpcService;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
-import org.acme.inventory.application.usecase.DecommissionVehicle;
 import org.acme.inventory.application.usecase.BulkRegisterVehicles;
+import org.acme.inventory.application.usecase.DecommissionVehicle;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.model.FuelType;
 import org.acme.inventory.domain.model.Transmission;
 import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
+import org.acme.inventory.domain.model.VehicleLocation;
 import org.acme.inventory.model.CarResponse;
 import org.acme.inventory.model.InsertCarRequest;
 import org.acme.inventory.model.InventoryService;
 import org.acme.inventory.model.RemoveCarRequest;
-import org.acme.inventory.domain.model.VehicleLocation;
 
 import java.math.BigDecimal;
-import java.util.Optional;
 
 @GrpcService
 public class GrpcInventoryResource implements InventoryService {

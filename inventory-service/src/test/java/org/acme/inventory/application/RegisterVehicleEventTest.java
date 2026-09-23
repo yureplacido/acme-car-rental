@@ -6,6 +6,7 @@ import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.event.VehicleRegistered;
 import org.acme.inventory.domain.model.FuelType;
+import org.acme.inventory.domain.model.LicensePlate;
 import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
 import org.acme.inventory.domain.model.VehicleId;
@@ -25,13 +26,16 @@ class RegisterVehicleEventTest {
     void shouldPublishVehicleRegisteredAfterVehicleIsPersisted() {
         FakeVehicleRepository repository = new FakeVehicleRepository();
         RecordingEventPublisher publisher = new RecordingEventPublisher();
+
         RegisterVehicle useCase = new RegisterVehicle(repository, publisher);
 
-        Vehicle vehicle = useCase.handle(new RegisterVehicle.Command(
+        RegisterVehicle.Command command = new RegisterVehicle.Command(
                 "abc123", "Ford", "Mustang",
                 VehicleCategory.SUV, null, FuelType.GASOLINE,
                 2025, "black", 5, null,
-                new BigDecimal("149.90"), "BRL"))
+                new BigDecimal("149.90"), "BRL");
+
+        Vehicle vehicle = useCase.handle(command)
                 .await().indefinitely();
 
         assertEquals(1, publisher.events.size());
@@ -45,6 +49,7 @@ class RegisterVehicleEventTest {
     }
 
     static class RecordingEventPublisher implements EventPublisher {
+
         final List<VehicleRegistered> events = new ArrayList<>();
 
         @Override
@@ -55,6 +60,7 @@ class RegisterVehicleEventTest {
     }
 
     static class FakeVehicleRepository implements VehicleRepository {
+
         private final List<Vehicle> saved = new ArrayList<>();
 
         @Override
@@ -64,7 +70,7 @@ class RegisterVehicleEventTest {
 
         @Override
         public Uni<Optional<Vehicle>> findByLicensePlate(
-                org.acme.inventory.domain.model.LicensePlate plate) {
+                LicensePlate plate) {
             return Uni.createFrom().item(saved.stream()
                     .filter(v -> v.licensePlate().equals(plate))
                     .findFirst());
