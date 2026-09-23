@@ -6,6 +6,7 @@ import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import org.acme.rental.application.usecase.EndRental;
 import org.acme.rental.application.usecase.ListRentals;
 import org.acme.rental.application.usecase.StartRental;
@@ -32,16 +33,16 @@ public class RentalResource {
 
     @POST
     @Path("/start/{userId}/{reservationId}")
-    public RentalResponse start(@jakarta.ws.rs.PathParam("userId") String userId,
-                                @jakarta.ws.rs.PathParam("reservationId") Long reservationId) {
+    public RentalResponse start(@PathParam("userId") String userId,
+                                @PathParam("reservationId") Long reservationId) {
         return RentalResponse.from(
                 startRental.handle(new StartRental.Command(userId, reservationId, LocalDate.now())));
     }
 
     @PUT
     @Path("/end/{userId}/{reservationId}")
-    public RentalResponse end(@jakarta.ws.rs.PathParam("userId") String userId,
-                              @jakarta.ws.rs.PathParam("reservationId") Long reservationId) {
+    public RentalResponse end(@PathParam("userId") String userId,
+                              @PathParam("reservationId") Long reservationId) {
         try {
             return RentalResponse.from(
                     endRental.handle(new EndRental.Command(userId, reservationId, LocalDate.now())));
