@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.kafka.InjectKafkaCompanion;
-import io.quarkus.test.kafka.KafkaCompanion;
+import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
 import io.quarkus.test.kafka.KafkaCompanionResource;
 import org.acme.billing.application.event.VehicleRegistered;
 import org.apache.kafka.clients.producer.ProducerRecord;
