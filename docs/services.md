@@ -169,7 +169,10 @@ The current implementation is a domain/application foundation. Inbound adapter (
 Idempotência é aplicada por um middleware transversal de messaging (`IdempotencyMessagingDecorator`) antes
 do consumer de negócio. O consumer não depende diretamente do `ProcessedEventStore`.
 
-Persistência de faturas, inbox durável, retry/dead-letter e o fluxo de cobrança real a partir de eventos de
+Retry de processamento é tratado na infraestrutura de messaging (estratégia `delayed-retry-topic` do conector
+Kafka, com tópicos `vehicle-registered-retry_1000/5000/15000` e `max-retries=3`; ver ADR 002).
+
+Persistência de faturas, inbox durável, dead-letter (ADR 003) e o fluxo de cobrança real a partir de eventos de
 Reservation/Rental ainda estão pendentes.
 
 ## users-service

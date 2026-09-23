@@ -138,7 +138,8 @@ Regras de evolução:
 - Consumidores não implementam idempotência individualmente: a política de deduplicação é aplicada pelo
   middleware de messaging através de `ProcessedEventStore.tryClaim(eventId)`.
 - O middleware considera `eventId` obrigatório no envelope JSON dos eventos de integração.
-- Pendente de pipeline (documentar quando houver): retry / dead-letter, schema registry, outbox/inbox persistente.
+- Retry de processamento é aplicado na infraestrutura de messaging (estratégia `delayed-retry-topic`, ver ADR 002).
+- Pendente de pipeline (documentar quando houver): dead-letter, schema registry, outbox/inbox persistente.
 
 ## Novos contratos (futuro)
 

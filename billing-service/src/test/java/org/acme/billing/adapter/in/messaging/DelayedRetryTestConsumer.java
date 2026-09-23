@@ -13,13 +13,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class DelayedRetryTestConsumer {
 
     private final AtomicInteger attempts = new AtomicInteger();
-    private final CompletableFuture<Void> thirdAttempt = new CompletableFuture<>();
-    private final CompletableFuture<Void> firstAttempt = new CompletableFuture<>();
-    private final CompletableFuture<Void> secondAttempt = new CompletableFuture<>();
-    private final CompletableFuture<Void> success = new CompletableFuture<>();
+    private CompletableFuture<Void> firstAttempt = new CompletableFuture<>();
+    private CompletableFuture<Void> secondAttempt = new CompletableFuture<>();
+    private CompletableFuture<Void> thirdAttempt = new CompletableFuture<>();
+    private CompletableFuture<Void> success = new CompletableFuture<>();
     private volatile Instant firstAttemptAt;
     private volatile Instant secondAttemptAt;
     private volatile Instant thirdAttemptAt;
+
+    public void reset() {
+        attempts.set(0);
+        firstAttempt = new CompletableFuture<>();
+        secondAttempt = new CompletableFuture<>();
+        thirdAttempt = new CompletableFuture<>();
+        success = new CompletableFuture<>();
+        firstAttemptAt = null;
+        secondAttemptAt = null;
+        thirdAttemptAt = null;
+    }
 
     @Incoming("retry-test-in")
     public Uni<Void> consume(Message<String> message) {

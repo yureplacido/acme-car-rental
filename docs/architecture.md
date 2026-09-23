@@ -157,12 +157,18 @@ billing-service/src/main/java/org/acme/billing/
 │   └── PaymentStatus.java
 ├── application/
 │   ├── usecase/
+│   ├── event/
 │   └── port/out/
 └── adapter/
-    └── out/persistence/
+    ├── in/messaging/
+    │   ├── KafkaVehicleRegisteredConsumer.java
+    │   └── IdempotencyMessagingDecorator.java
+    └── out/
+        ├── messaging/InMemoryProcessedEventStore.java
+        └── persistence/
 ~~~
 
-A persistência de Billing permanece propositalmente simples até o capítulo de banco/messaging correspondente.
+A persistência de Billing permanece propositalmente simples até o capítulo de banco/messaging correspondente. O inbond Kafka (cap.9) consome `vehicle-registered`; a idempotência é aplicada via `PublisherDecorator` (ADR 001) e o retry via `delayed-retry-topic` (ADR 002).
 
 ## Users BFF
 

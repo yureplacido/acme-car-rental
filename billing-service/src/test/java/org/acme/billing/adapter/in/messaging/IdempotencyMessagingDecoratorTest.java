@@ -8,12 +8,14 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class IdempotencyMessagingDecoratorTest {
 
@@ -63,6 +65,79 @@ class IdempotencyMessagingDecoratorTest {
         assertEquals(1, retried.size());
     }
 
+    @Test
+    void shouldNotDecorateChannelsWithoutConnectorConfig() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        Message<String> first = message(UUID.randomUUID(), new AtomicInteger());
+        Message<String> second = message(UUID.randomUUID(), new AtomicInteger());
+
+        List<? extends Message<?>> result = decorator
+                .decorate(
+                        Multi.createFrom().items(first, second),
+                        List.of("some-emitter"),
+                        null)
+                .collect()
+                .asList()
+                .await()
+                .atMost(Duration.ofSeconds(5));
+
+        assertEquals(2, result.size());
+        assertEquals(0, store.claims());
+    }
+
+    @Test
+    void shouldPassThroughMessagesWhoseEventIdCannotBeExtracted() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        AtomicInteger acknowledgements = new AtomicInteger();
+        Message<String> corrupt = Message.of(
+                "{\"noEventId\":true}",
+                () -> {
+                    acknowledgements.incrementAndGet();
+                    return java.util.concurrent.CompletableFuture.completedFuture(null);
+                });
+
+        List<? extends Message<?>> result = decorate(decorator, corrupt);
+
+        assertEquals(1, result.size());
+        assertSame(corrupt, result.getFirst());
+        assertEquals(0, store.claims());
+        assertEquals(0, acknowledgements.get());
+    }
+
+    @Test
+    void shouldPassThroughMessagesThatAreNotJson() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        List<? extends Message<?>> result = decorate(
+                decorator,
+                Message.of("not-json"));
+
+        assertEquals(1, result.size());
+        assertEquals(0, store.claims());
+    }
+
+    @Test
+    void shouldPassThroughMessagesWhoseEventIdIsNotAUuid() {
+        InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
+        IdempotencyMessagingDecorator decorator =
+                new IdempotencyMessagingDecorator(new ObjectMapper(), store);
+
+        List<? extends Message<?>> result = decorate(
+                decorator,
+                Message.of("{\"eventId\":\"not-a-uuid\"}"));
+
+        assertEquals(1, result.size());
+        assertEquals(0, store.claims());
+    }
+
     private static List<? extends Message<?>> decorate(
             IdempotencyMessagingDecorator decorator,
             Message<?>... messages) {
@@ -75,7 +150,7 @@ class IdempotencyMessagingDecoratorTest {
                 .collect()
                 .asList()
                 .await()
-                .indefinitely();
+                .atMost(Duration.ofSeconds(5));
     }
 
     private static Message<String> message(

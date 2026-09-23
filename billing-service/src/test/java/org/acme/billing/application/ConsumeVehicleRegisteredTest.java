@@ -5,6 +5,7 @@ import org.acme.billing.application.event.VehicleRegistered;
 import org.acme.billing.application.usecase.ConsumeVehicleRegistered;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,7 +25,7 @@ class ConsumeVehicleRegisteredTest {
                     return Uni.createFrom().voidItem();
                 });
 
-        consumer.handle(event("ABC123")).await().indefinitely();
+        consumer.handle(event("ABC123")).await().atMost(Duration.ofSeconds(5));
 
         assertEquals(1, attempts.get());
     }
@@ -37,7 +38,7 @@ class ConsumeVehicleRegisteredTest {
 
         assertThrows(
                 IllegalStateException.class,
-                () -> consumer.handle(event("ABC123")).await().indefinitely());
+                () -> consumer.handle(event("ABC123")).await().atMost(Duration.ofSeconds(5)));
     }
 
     private static VehicleRegistered event(String licensePlate) {

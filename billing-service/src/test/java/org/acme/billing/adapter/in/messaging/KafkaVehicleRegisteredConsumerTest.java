@@ -1,21 +1,31 @@
 package org.acme.billing.adapter.in.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.Uni;
 import org.acme.billing.application.event.VehicleRegistered;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KafkaVehicleRegisteredConsumerTest {
 
     @Test
-    void shouldDeserializeAndProcessVehicleRegisteredEvent() throws Exception {
+    void shouldConsumeWellFormedVehicleRegisteredEventPayload() throws Exception {
+        AtomicReference<VehicleRegistered> received = new AtomicReference<>();
         KafkaVehicleRegisteredConsumer consumer =
                 new KafkaVehicleRegisteredConsumer(
-                        new ObjectMapper().findAndRegisterModules());
+                        new ObjectMapper().findAndRegisterModules(),
+                        event -> {
+                            received.set(event);
+                            return Uni.createFrom().voidItem();
+                        });
 
         VehicleRegistered event = new VehicleRegistered(
                 UUID.randomUUID(),
@@ -27,7 +37,38 @@ class KafkaVehicleRegisteredConsumerTest {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         String payload = mapper.writeValueAsString(event);
 
-        assertDoesNotThrow(() ->
-                consumer.consume(payload).await().indefinitely());
+        consumer.consume(payload).await().atMost(Duration.ofSeconds(5));
+
+        assertEquals(event, received.get());
+    }
+
+    @Test
+    void shouldFailWhenPayloadCannotBeDeserialized() {
+        KafkaVehicleRegisteredConsumer consumer =
+                new KafkaVehicleRegisteredConsumer(
+                        new ObjectMapper().findAndRegisterModules());
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> consumer.consume("not-json").await().atMost(Duration.ofSeconds(5)));
+
+        assertTrue(error.getMessage().contains("Could not deserialize VehicleRegistered event"));
+    }
+
+    @Test
+    void shouldFailWhenDeserializedEventIsMissingRequiredFields() {
+        KafkaVehicleRegisteredConsumer consumer =
+                new KafkaVehicleRegisteredConsumer(
+                        new ObjectMapper().findAndRegisterModules());
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> consumer.consume(
+                        "{\"version\":1,\"occurredAt\":\"2026-09-23T10:00:00Z\","
+                                + "\"licensePlate\":\"ABC-123\"}")
+                        .await()
+                        .atMost(Duration.ofSeconds(5)));
+
+        assertTrue(error.getMessage().contains("missing required fields"));
     }
 }

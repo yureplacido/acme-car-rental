@@ -12,8 +12,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class NackTestConsumer {
 
     private final AtomicInteger attempts = new AtomicInteger();
-    private final CompletableFuture<Void> firstAttempt = new CompletableFuture<>();
-    private final CompletableFuture<Void> secondAttempt = new CompletableFuture<>();
+    private CompletableFuture<Void> firstAttempt = new CompletableFuture<>();
+    private CompletableFuture<Void> secondAttempt = new CompletableFuture<>();
+
+    public void reset() {
+        attempts.set(0);
+        firstAttempt = new CompletableFuture<>();
+        secondAttempt = new CompletableFuture<>();
+    }
 
     @Incoming("vehicle-registered-nack-test")
     public Uni<Void> consume(Message<String> message) {

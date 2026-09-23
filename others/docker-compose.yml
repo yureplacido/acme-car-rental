@@ -6,12 +6,15 @@ name: acme-car-rental
 # ──────────────────────────────────────────────────────────────────────────
 # Perfis do compose — cada serviço participa do seu grupo E do perfil "all":
 #
-#   infra:      traefik + swagger   → subir so o agregador:
-#   services:   aplicacoes          → docker compose up -d --profile infra
-#   databases:  bancos (ch.7)       → apps + bancos:
+#   infra:      traefik + swagger   → subir só o agregador:
+#   services:   aplicacoes              docker compose up -d --profile infra
+#   databases:  bancos (ch.7)      → apps + bancos + kafka:
 #   identity:   keycloak + postgres    docker compose up -d --profile services
-#   all:        tudo                → so bancos: docker compose up -d --profile databases
-#                                   → tudo: docker compose up -d --profile all
+#   all:        tudo               → só bancos: docker compose up -d --profile databases
+#                                  → tudo: docker compose up -d --profile all
+#
+# Kafka (cap.9) entra no perfil services/all: broker KRaft + kafka-init provê os
+# tópicos de messaging antes de inventory/billing iniciarem.
 #
 # Bancos pertencem a `services` E `databases`: --profile services sobe apps com
 # seus bancos (respeitando o depends_on); --profile databases sobe so os bancos.
@@ -120,6 +123,8 @@ services:
     depends_on:
       inventory-mysql:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
   billing-service:
     profiles: ["services", "all"]
@@ -133,6 +138,9 @@ services:
       QUARKUS_PROFILE: docker
     ports:
       - "${BILLING_PORT:-8084}:${BILLING_PORT:-8084}"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
 
   # ---------------- databases ----------------
 
@@ -181,6 +189,68 @@ services:
       timeout: 5s
       retries: 10
 
+  # ---------------- messaging ----------------
+
+  # Cap.9 - Kafka KRaft single-node. Na rede default do compose, os serviços
+  # resolvem `kafka` pelo nome (kafka.bootstrap.servers %docker) no porto 9092.
+  # Ferramentas no host usam docker exec (ex.: docker exec acme-kafka kafka-topics.sh
+  # --bootstrap-server kafka:9092 ...). auto-create desligado: os tópicos de
+  # messaging são provisionados via kafka-init (ADR 002 — retry não é mecanismo
+  # de criação automática de recursos).
+
+  kafka:
+    container_name: acme-kafka
+    image: apache/kafka:3.9.1
+    restart: unless-stopped
+    profiles: ["services", "all"]
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  # Provisiona os tópicos de messaging antes dos serviços iniciarem
+  # (one-shot; inventory/billing dependem de service_completed_successfully).
+  kafka-init:
+    container_name: acme-kafka-init
+    image: apache/kafka:3.9.1
+    restart: "no"
+    profiles: ["services", "all"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        for t in \
+          vehicle-registered \
+          vehicle-registered-retry_1000 \
+          vehicle-registered-retry_5000 \
+          vehicle-registered-retry_15000; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+            --create --if-not-exists --topic "$$t" --partitions 1 --replication-factor 1
+        done
+        echo "messaging topics provisioned"
+
   # ---------------- identity ----------------
 
   # Cap.6.4 - Keycloak + PostgreSQL (perfil identity). Na rede default para que
@@ -223,3 +293,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+volumes:
+  kafka-data:

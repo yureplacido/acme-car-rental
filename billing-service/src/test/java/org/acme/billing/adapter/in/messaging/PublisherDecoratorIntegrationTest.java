@@ -8,6 +8,7 @@ import io.smallrye.reactive.messaging.memory.InMemorySource;
 import jakarta.inject.Inject;
 import org.acme.billing.application.event.VehicleRegistered;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
 @QuarkusTestResource(InMemoryMessagingTestResource.class)
-class SubscriberDecoratorIntegrationTest {
+class PublisherDecoratorIntegrationTest {
 
     @Inject
     @Connector("smallrye-in-memory")
@@ -32,6 +33,12 @@ class SubscriberDecoratorIntegrationTest {
 
     @Inject
     NackTestConsumer nackTestConsumer;
+
+    @BeforeEach
+    void resetFixtures() {
+        processedEventStore.reset();
+        nackTestConsumer.reset();
+    }
 
     @Test
     void shouldClaimOnlyOneDuplicateMessageBeforeItReachesTheConsumer()
@@ -50,10 +57,10 @@ class SubscriberDecoratorIntegrationTest {
         source.send(payload);
         source.send(payload);
 
-        processedEventStore.secondClaimAttempt()
+        processedEventStore.secondClaimAttempt(event.eventId())
                 .get(5, TimeUnit.SECONDS);
 
-        assertEquals(2, processedEventStore.claimAttempts());
+        assertEquals(2, processedEventStore.claimAttempts(event.eventId()));
     }
 
     @Test
