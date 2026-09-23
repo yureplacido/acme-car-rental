@@ -67,7 +67,7 @@ class ConsumeVehicleRegisteredTest {
     }
 
     @Test
-    void shouldProcessTheSameEventOnlyOnceWhenHandledConcurrently() {
+    void shouldProcessTheSameEventOnlyOnceWhenHandledConcurrently() throws InterruptedException {
         InMemoryProcessedEventStore store = new InMemoryProcessedEventStore();
         AtomicInteger attempts = new AtomicInteger();
         CountDownLatch handlerStarted = new CountDownLatch(1);
@@ -119,12 +119,10 @@ class ConsumeVehicleRegisteredTest {
 
     static class InMemoryProcessedEventStore implements ProcessedEventStore {
         private final Set<UUID> processed = ConcurrentHashMap.newKeySet();
-        private final CountDownLatch concurrentChecks = new CountDownLatch(2);
 
         @Override
         public Uni<Boolean> tryClaim(UUID eventId) {
-            concurrentChecks.countDown();
-            return Uni.createFrom().item(processed.add(eventId));
+            return Uni.createFrom().item(() -> processed.add(eventId));
         }
 
         @Override
