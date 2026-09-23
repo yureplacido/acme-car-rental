@@ -18,8 +18,9 @@ public class RecordingProcessedEventStore implements ProcessedEventStore {
     private final Set<UUID> processed = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<UUID, AtomicInteger> claimAttemptsByEvent =
             new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, CompletableFuture<Void>> secondClaimAttempts =
+            new ConcurrentHashMap<>();
     private final AtomicInteger claimAttempts = new AtomicInteger();
-    private CompletableFuture<Void> secondClaimAttempt = new CompletableFuture<>();
 
     @Override
     public Uni<Boolean> tryClaim(UUID eventId) {
@@ -31,7 +32,9 @@ public class RecordingProcessedEventStore implements ProcessedEventStore {
                     .incrementAndGet();
 
             if (eventAttempts == 2) {
-                secondClaimAttempt.complete(null);
+                secondClaimAttempts
+                        .computeIfAbsent(eventId, ignored -> new CompletableFuture<>())
+                        .complete(null);
             }
 
             return processed.add(eventId);
@@ -47,12 +50,14 @@ public class RecordingProcessedEventStore implements ProcessedEventStore {
     public void reset() {
         processed.clear();
         claimAttemptsByEvent.clear();
+        secondClaimAttempts.clear();
         claimAttempts.set(0);
-        secondClaimAttempt = new CompletableFuture<>();
     }
 
-    public CompletableFuture<Void> secondClaimAttempt() {
-        return secondClaimAttempt;
+    public CompletableFuture<Void> secondClaimAttempt(UUID eventId) {
+        return secondClaimAttempts.computeIfAbsent(
+                eventId,
+                ignored -> new CompletableFuture<>());
     }
 
     public int claimAttempts() {
