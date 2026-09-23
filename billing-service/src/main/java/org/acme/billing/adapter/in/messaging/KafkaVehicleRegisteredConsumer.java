@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.billing.application.event.VehicleRegistered;
-import org.acme.billing.application.port.out.ProcessedEventStore;
 import org.acme.billing.application.usecase.ConsumeVehicleRegistered;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
@@ -18,13 +17,9 @@ public class KafkaVehicleRegisteredConsumer {
     private final ObjectMapper objectMapper;
     private final ConsumeVehicleRegistered consumer;
 
-    public KafkaVehicleRegisteredConsumer(
-            ObjectMapper objectMapper,
-            ProcessedEventStore processedEventStore) {
+    public KafkaVehicleRegisteredConsumer(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        this.consumer = new ConsumeVehicleRegistered(
-                processedEventStore,
-                this::process);
+        this.consumer = new ConsumeVehicleRegistered(this::process);
     }
 
     @Incoming("vehicle-registered-in")
