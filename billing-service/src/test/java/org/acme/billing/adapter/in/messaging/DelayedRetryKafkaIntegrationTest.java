@@ -59,7 +59,7 @@ class DelayedRetryKafkaIntegrationTest {
         String payload = objectMapper.writeValueAsString(event);
 
         companion.produceStrings()
-                .fromRecords(new ProducerRecord<>(SOURCE_TOPIC, event.vehicleId().value().toString(), payload))
+                .fromRecords(new ProducerRecord<>(SOURCE_TOPIC, String.valueOf(event.vehicleId().value()), payload))
                 .awaitCompletion();
 
         consumer.success().get(30, TimeUnit.SECONDS);
