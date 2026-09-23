@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -85,7 +84,10 @@ class IdempotencyMessagingDecoratorTest {
 
         return Message.of(
                 "{"eventId":"" + eventId + ""}",
-                acknowledgements::incrementAndGet);
+                () -> {
+                    acknowledgements.incrementAndGet();
+                    return java.util.concurrent.CompletableFuture.completedFuture(null);
+                });
     }
 
     static class InMemoryProcessedEventStore implements ProcessedEventStore {
