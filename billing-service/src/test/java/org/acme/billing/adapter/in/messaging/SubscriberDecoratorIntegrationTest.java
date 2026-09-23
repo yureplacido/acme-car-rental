@@ -14,9 +14,9 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
@@ -31,9 +31,11 @@ class SubscriberDecoratorIntegrationTest {
     ObjectMapper objectMapper;
 
     @Test
-    void shouldClaimOnlyOneDuplicateMessageBeforeItReachesTheConsumer() throws Exception {
+    void shouldClaimOnlyOneDuplicateMessageBeforeItReachesTheConsumer()
+            throws Exception {
         InMemorySource<String> source = connector.source("vehicle-registered-in");
         AtomicInteger acknowledgements = new AtomicInteger();
+        CompletableFuture<Void> firstAcknowledgement = new CompletableFuture<>();
 
         VehicleRegistered event = new VehicleRegistered(
                 UUID.randomUUID(),
@@ -44,19 +46,23 @@ class SubscriberDecoratorIntegrationTest {
 
         String payload = objectMapper.writeValueAsString(event);
 
-        source.send(message(payload, acknowledgements));
-        source.send(message(payload, acknowledgements));
+        source.send(message(payload, acknowledgements, firstAcknowledgement));
+        source.send(message(payload, acknowledgements, firstAcknowledgement));
 
-        await().untilAsserted(() -> assertEquals(1, acknowledgements.get()));
+        firstAcknowledgement.get(5, TimeUnit.SECONDS);
+
+        assertEquals(1, acknowledgements.get());
     }
 
     private static Message<String> message(
             String payload,
-            AtomicInteger acknowledgements) {
+            AtomicInteger acknowledgements,
+            CompletableFuture<Void> firstAcknowledgement) {
         return Message.of(
                 payload,
                 () -> {
                     acknowledgements.incrementAndGet();
+                    firstAcknowledgement.complete(null);
                     return CompletableFuture.completedFuture(null);
                 });
     }
