@@ -28,6 +28,10 @@ class DelayedRetryKafkaIntegrationTest {
     private static final String RETRY_1_TOPIC = "retry-test-retry-1000";
     private static final String RETRY_2_TOPIC = "retry-test-retry-5000";
     private static final String RETRY_3_TOPIC = "retry-test-retry-15000";
+    private static final String EXHAUSTION_SOURCE_TOPIC = "retry-exhaustion";
+    private static final String EXHAUSTION_RETRY_1_TOPIC = "retry-exhaustion-retry-1000";
+    private static final String EXHAUSTION_RETRY_2_TOPIC = "retry-exhaustion-retry-5000";
+    private static final String EXHAUSTION_RETRY_3_TOPIC = "retry-exhaustion-retry-15000";
 
     @InjectKafkaCompanion
     KafkaCompanion companion;
@@ -38,12 +42,19 @@ class DelayedRetryKafkaIntegrationTest {
     @Inject
     DelayedRetryTestConsumer consumer;
 
+    @Inject
+    DelayedRetryExhaustionTestConsumer exhaustionConsumer;
+
     @BeforeEach
     void createTopics() {
         companion.topics().createAndWait(SOURCE_TOPIC, 1);
         companion.topics().createAndWait(RETRY_1_TOPIC, 1);
         companion.topics().createAndWait(RETRY_2_TOPIC, 1);
         companion.topics().createAndWait(RETRY_3_TOPIC, 1);
+        companion.topics().createAndWait(EXHAUSTION_SOURCE_TOPIC, 1);
+        companion.topics().createAndWait(EXHAUSTION_RETRY_1_TOPIC, 1);
+        companion.topics().createAndWait(EXHAUSTION_RETRY_2_TOPIC, 1);
+        companion.topics().createAndWait(EXHAUSTION_RETRY_3_TOPIC, 1);
     }
 
     @Test
@@ -78,5 +89,32 @@ class DelayedRetryKafkaIntegrationTest {
                 "Expected first retry delay >= 800ms, but was " + firstDelayMillis + "ms");
         assertTrue(secondDelayMillis >= 4000,
                 "Expected second retry delay >= 4000ms, but was " + secondDelayMillis + "ms");
+    }
+    @Test
+    void shouldAbandonRecordAfterConfiguredRetriesAreExhausted()
+            throws Exception {
+        VehicleRegistered event = new VehicleRegistered(
+                UUID.randomUUID(),
+                1,
+                Instant.now(),
+                new VehicleRegistered.VehicleId(101L),
+                "RET999");
+
+        String payload = objectMapper.writeValueAsString(event);
+
+        companion.produceStrings()
+                .fromRecords(new ProducerRecord<>(
+                        EXHAUSTION_SOURCE_TOPIC,
+                        String.valueOf(event.vehicleId().value()),
+                        payload))
+                .awaitCompletion();
+
+        exhaustionConsumer.exhausted().get(30, TimeUnit.SECONDS);
+
+        assertEquals(4, exhaustionConsumer.attempts());
+
+        Thread.sleep(2000);
+
+        assertEquals(4, exhaustionConsumer.attempts());
     }
 }
