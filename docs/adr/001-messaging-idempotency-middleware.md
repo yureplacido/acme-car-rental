@@ -1,6 +1,6 @@
 # ADR 001 — Idempotência transversal no pipeline de mensagens
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR 007
 - **Data:** 2026-09-22
 - **Contexto:** Capítulo 9 — Quarkus Messaging
 - **Escopo:** consumidores de mensagens dos serviços de negócio
@@ -127,9 +127,13 @@ Idempotência de transporte e idempotência de negócio continuam sendo conceito
 
 **Rejeitada.** Offset representa progresso do consumer group na partição, não a identidade de uma ocorrência de evento nem a confirmação de que o efeito de negócio foi concluído.
 
-## Evidência no código
+## Evolução da decisão
 
-- `IdempotencyMessagingDecorator` implementa o middleware.
+Para eventos com efeito persistente, um `PublisherDecorator` não consegue manter o claim e o efeito de negócio dentro da mesma transação. O desenho foi substituído pelo `TransactionalInboxProcessor` (ADR 007), chamado pelos adapters inbound.
+
+## Evidência histórica no código
+
+- `IdempotencyMessagingDecorator` implementava o middleware na primeira versão.
 - `ProcessedEventStore.tryClaim(UUID)` define o contrato atômico.
 - `KafkaVehicleRegisteredConsumer` não depende mais do store de idempotência.
-- Testes do middleware cobrem duplicação e liberação do claim em `nack`.
+- Os testes históricos do middleware cobriam duplicação e liberação do claim em `nack`.
