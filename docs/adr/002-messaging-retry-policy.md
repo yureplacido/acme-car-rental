@@ -37,7 +37,7 @@ Retry não deve ser implementado dentro de cada consumer nem dentro do middlewar
 
 A política de retry será tratada como uma preocupação de **messaging/infrastructure**, separada da lógica de negócio e da idempotência.
 
-O `IdempotencyMessagingDecorator` continuará responsável somente por:
+A política de retry permanece separada do processamento transacional. O `TransactionalInboxProcessor` é responsável pelo claim + efeito; o mecanismo de retry continua responsável somente por redelivery após `NACK`.
 
 1. identificar a ocorrência pelo `eventId`;
 2. obter o claim antes do processamento;
@@ -83,7 +83,7 @@ processamento falha
    ↓
 NACK
    ↓
-release(eventId)
+transaction rollback
    ↓
 retry / redelivery
    ↓
@@ -250,8 +250,7 @@ A implementação desta decisão deverá demonstrar, por testes:
 - o número máximo de tentativas é respeitado;
 - após o limite, a mensagem é reconhecida como definitivamente reprovada — roteada para a
   DLQ configurada na ADR 003 `vehicle-registered-dlq` em vez de ser abandonada;
-- eventos corruptos (sem `eventId` extraível) também passam pela política: o `IdempotencyMessagingDecorator`
-  os repassa (sem claim) ao consumer, onde falham e percorrem os tópicos de retry antes de atingir a DLQ —
+- eventos corruptos (sem `eventId` extraível) também passam pela política: o consumer falha antes do processamento transacional, e percorrem os tópicos de retry antes de atingir a DLQ —
   coberto por `DlqKafkaIntegrationTest` (canal de teste `dlq-test-in` + consumer double) e verificado
   E2E no stack docker (`SRMSG18278` encadeado até o tópico de dead-letter).
 

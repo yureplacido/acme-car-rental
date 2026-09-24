@@ -21,26 +21,46 @@ public class KafkaRentalCompletedConsumer {
 
     private final ObjectMapper objectMapper;
     private final ConsumeRentalCompleted consumer;
+    private final InboundEventProcessor inboxProcessor;
 
     @Inject
-    public KafkaRentalCompletedConsumer(ObjectMapper objectMapper, OpenInvoiceForRental openInvoiceForRental) {
-        this(objectMapper, event -> openInvoiceForRental.handle(toCommand(event)).replaceWithVoid());
+    public KafkaRentalCompletedConsumer(
+            ObjectMapper objectMapper,
+            OpenInvoiceForRental openInvoiceForRental,
+            InboundEventProcessor inboxProcessor) {
+        this(
+                objectMapper,
+                event -> openInvoiceForRental.handle(toCommand(event)).replaceWithVoid(),
+                inboxProcessor);
     }
 
     KafkaRentalCompletedConsumer(
             ObjectMapper objectMapper,
             Function<RentalCompleted, Uni<Void>> handler) {
+        this(objectMapper, handler, (eventId, effect) -> effect.get());
+    }
+
+    KafkaRentalCompletedConsumer(
+            ObjectMapper objectMapper,
+            Function<RentalCompleted, Uni<Void>> handler,
+            InboundEventProcessor inboxProcessor) {
         this.objectMapper = objectMapper;
         this.consumer = new ConsumeRentalCompleted(handler);
+        this.inboxProcessor = inboxProcessor;
     }
 
     @Incoming("rental-completed-in")
     public Uni<Void> consume(String payload) {
         return Uni.createFrom()
                 .item(() -> deserialize(payload))
-                .flatMap(consumer::handle)
+                .flatMap(event -> inboxProcessor.process(
+                        event.eventId(),
+                        () -> consumer.handle(event)))
                 .onFailure().invoke(f ->
-                        LOG.errorf("Error processing RentalCompleted event: %s", f.toString(), f));
+                        LOG.errorf(
+                                "Error processing RentalCompleted event: %s",
+                                f.toString(),
+                                f));
     }
 
     private RentalCompleted deserialize(String payload) {

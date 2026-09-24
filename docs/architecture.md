@@ -174,7 +174,7 @@ billing-service/src/main/java/org/acme/billing/
     │   ├── KafkaReservationConfirmedConsumer.java
     │   ├── KafkaRentalCompletedConsumer.java
     │   ├── KafkaVehicleRegisteredConsumer.java
-    │   └── IdempotencyMessagingDecorator.java
+    │   └── TransactionalInboxProcessor.java
     └── out/
         ├── messaging/InMemoryProcessedEventStore.java
         └── persistence/
@@ -185,8 +185,8 @@ billing-service/src/main/java/org/acme/billing/
 ~~~
 
 O fluxo de cobrança (cap.9) consome `reservation-confirmed`/`rental-completed` e persiste invoices em
-PostgreSQL (DRAFT→OPEN), aplicando idempotência via `PublisherDecorator`/`IdempotencyMessagingDecorator`
-(ADR 001) e inbox durável via `PostgresProcessedEventStore` (ADR 005); retry via `delayed-retry-topic`
+PostgreSQL (DRAFT→OPEN), aplicando idempotência via `TransactionalInboxProcessor` (ADR 007) e inbox durável via `PostgresProcessedEventStore`
+(ADR 005); retry via `delayed-retry-topic`
 (ADR 002) e DLQ (ADR 003).
 
 ## Users BFF
