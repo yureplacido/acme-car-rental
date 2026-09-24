@@ -157,18 +157,37 @@ billing-service/src/main/java/org/acme/billing/
 │   └── PaymentStatus.java
 ├── application/
 │   ├── usecase/
+│   │   ├── CreateInvoice.java          (ReservationConfirmed -> invoice DRAFT)
+│   │   ├── OpenInvoiceForRental.java   (RentalCompleted -> linha efetiva + OPEN)
+│   │   ├── ConsumeReservationConfirmed.java
+│   │   ├── ConsumeRentalCompleted.java
+│   │   └── ConsumeVehicleRegistered.java
 │   ├── event/
+│   │   ├── ReservationConfirmed.java   (contrato anti-corrupção)
+│   │   ├── RentalCompleted.java        (contrato anti-corrupção)
+│   │   └── VehicleRegistered.java
 │   └── port/out/
+│       ├── InvoiceRepository.java
+│       └── ProcessedEventStore.java
 └── adapter/
     ├── in/messaging/
+    │   ├── KafkaReservationConfirmedConsumer.java
+    │   ├── KafkaRentalCompletedConsumer.java
     │   ├── KafkaVehicleRegisteredConsumer.java
     │   └── IdempotencyMessagingDecorator.java
     └── out/
         ├── messaging/InMemoryProcessedEventStore.java
         └── persistence/
+            ├── PanacheInvoiceRepository.java
+            ├── InvoiceEntity.java / InvoiceMapper.java / InvoiceLinesConverter.java
+            ├── PostgresProcessedEventStore.java (inbox durável, ADR 005)
+            └── ProcessedEventEntity.java
 ~~~
 
-A persistência de Billing permanece propositalmente simples até o capítulo de banco/messaging correspondente. O inbond Kafka (cap.9) consome `vehicle-registered`; a idempotência é aplicada via `PublisherDecorator` (ADR 001) e o retry via `delayed-retry-topic` (ADR 002).
+O fluxo de cobrança (cap.9) consome `reservation-confirmed`/`rental-completed` e persiste invoices em
+PostgreSQL (DRAFT→OPEN), aplicando idempotência via `PublisherDecorator`/`IdempotencyMessagingDecorator`
+(ADR 001) e inbox durável via `PostgresProcessedEventStore` (ADR 005); retry via `delayed-retry-topic`
+(ADR 002) e DLQ (ADR 003).
 
 ## Users BFF
 

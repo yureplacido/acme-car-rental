@@ -40,6 +40,45 @@ class InvoiceTest {
     }
 
     @Test
+    void shouldReplaceLinesWhileDraft() {
+        Invoice invoice = Invoice.draft(
+                "alice",
+                "reservation-42",
+                List.of(new InvoiceLine("Rental", 2, Money.brl(new BigDecimal("100.00")))));
+
+        invoice.replaceLines(
+                List.of(new InvoiceLine("Rental", 3, Money.brl(new BigDecimal("200.00")))));
+
+        assertEquals(1, invoice.lines().size());
+        assertEquals(3, invoice.lines().get(0).quantity());
+        assertEquals(new BigDecimal("600.00"), invoice.total().amount());
+        assertEquals(InvoiceStatus.DRAFT, invoice.status());
+    }
+
+    @Test
+    void shouldNotReplaceLinesOnOpenInvoice() {
+        Invoice invoice = Invoice.draft(
+                "alice",
+                "reservation-42",
+                List.of(new InvoiceLine("Rental", 1, Money.brl(new BigDecimal("100.00")))));
+        invoice.open();
+
+        assertThrows(IllegalStateException.class, () ->
+                invoice.replaceLines(
+                        List.of(new InvoiceLine("Rental", 2, Money.brl(new BigDecimal("100.00"))))));
+    }
+
+    @Test
+    void shouldNotReplaceLinesWhenEmpty() {
+        Invoice invoice = Invoice.draft(
+                "alice",
+                "reservation-42",
+                List.of(new InvoiceLine("Rental", 1, Money.brl(new BigDecimal("100.00")))));
+
+        assertThrows(IllegalArgumentException.class, () -> invoice.replaceLines(List.of()));
+    }
+
+    @Test
     void shouldNotPayDraftInvoice() {
         Invoice invoice = Invoice.draft(
                 "alice",
