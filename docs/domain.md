@@ -218,9 +218,8 @@ Future concerns:
 - invoice events (outbox);
 - asynchronous billing.
 
-> Nota (cap.9): idempotência de consumidor é aplicada pelo `IdempotencyMessagingDecorator` com inbox
-> durável (`PostgresProcessedEventStore`, `INSERT ... ON CONFLICT DO NOTHING`); em memória apenas nos
-> testes de application. O workflow DRAFT→OPEN via Kafka→Postgres está executável e coberto por testes
+> Nota (cap.9): idempotência de consumidor é aplicada pelo `TransactionalInboxProcessor` com inbox durável (`PostgresProcessedEventStore`, `INSERT ... ON CONFLICT DO NOTHING`);
+> claim e efeito de negócio compartilham a mesma transação reativa. O workflow DRAFT→OPEN via Kafka→Postgres está executável e coberto por testes
 > (app/domain/persistence + `BillingFlowKafkaIntegrationTest`).
 
 ## 6. Users Service

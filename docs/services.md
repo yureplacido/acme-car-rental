@@ -170,8 +170,7 @@ DRAFT→OPEN: `ReservationConfirmed` cria a fatura DRAFT; `RentalCompleted` reco
 efetivas (price lock da tarifa diária) e abre a fatura (`CreateInvoice`/`OpenInvoiceForRental`),
 persistida em PostgreSQL (Hibernate Reactive Panache).
 
-Idempotência é aplicada por um middleware transversal de messaging (`IdempotencyMessagingDecorator`) antes
-do consumer de negócio. O consumer não depende diretamente do `ProcessedEventStore`.
+Idempotência é aplicada pela fronteira transacional `TransactionalInboxProcessor` (ADR 007). O consumer entrega o `eventId` e o efeito de negócio ao processor; o `ProcessedEventStore` permanece atrás de uma porta.
 
 Retry de processamento é tratado na infraestrutura de messaging (estratégia `delayed-retry-topic` do conector
 Kafka, `max-retries=3`; ver ADR 002) e a DLQ após o esgotamento (ADR 003). O inbox durável usa

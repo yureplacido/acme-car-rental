@@ -142,14 +142,13 @@ Regras de evolução:
 - Após o esgotamento dos retries, o record é roteado para a **DLQ** `vehicle-registered-dlq`
   (`mp.messaging.incoming.vehicle-registered-in.dead-letter-queue.topic`, ver ADR 003), com chave,
   payload e headers de diagnóstico preservados.
-- Pendente de pipeline (documentar quando houver): consumer/requeue da DLQ, schema registry, outbox/inbox persistente.
+- Pendente de pipeline (documentar quando houver): consumer/requeue da DLQ e schema registry.
 
 ## Novos contratos (futuro)
 
 - ✅ **Eventos de cobrança (Reservation/Rental → Billing)**: ver `ReservationConfirmed`/`RentalCompleted`
   em `billing-service` (`application/event`); consumidos nos tópicos `reservation-confirmed`/`rental-completed`
-  (canal `reservation-confirmed-in`/`rental-completed-in`, group `billing-service`). As regras de evolução
-  acima se aplicam; cada consumidor roda sobre o decorator de idempotência + retry (delayed-retry-topic) + DLQ.
+  (canal `reservation-confirmed-in`/`rental-completed-in`, group `billing-service`). As regras de evolução acima se aplicam; cada consumidor usa `TransactionalInboxProcessor` para claim + efeito na mesma transação, além de retry (delayed-retry-topic) + DLQ.
 - 🔜 **Saída de fatura do Billing** (ex.: evento de invoice emitida para consumo de outros contextos) —
   registrar aqui quando surgir.
 

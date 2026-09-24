@@ -91,9 +91,7 @@ O tópico `vehicle-registered-dlq` é provisionado pelo serviço `kafka-init` do
 `docker-compose` de `others/` (1 partição, RF 1), junto com os tópicos de fonte e retry.
 
 A política se aplica a qualquer falha do pipeline (transitória que esgota os retries ou
-permanente), incluindo eventos corruptos sem `eventId`: o `IdempotencyMessagingDecorator`
-repassa (sem claim) o que não consegue extrair `eventId`; a falha ocorre no consumer e
-segue o mesmo caminho de retry → DLQ.
+permanente), incluindo eventos corruptos sem `eventId`: a falha ocorre antes do processamento transacional no consumer e segue o mesmo caminho de retry → DLQ.
 
 ## Evidência esperada
 

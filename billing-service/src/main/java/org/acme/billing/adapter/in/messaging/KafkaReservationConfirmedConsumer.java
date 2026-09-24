@@ -25,26 +25,46 @@ public class KafkaReservationConfirmedConsumer {
 
     private final ObjectMapper objectMapper;
     private final ConsumeReservationConfirmed consumer;
+    private final InboundEventProcessor inboxProcessor;
 
     @Inject
-    public KafkaReservationConfirmedConsumer(ObjectMapper objectMapper, CreateInvoice createInvoice) {
-        this(objectMapper, event -> createInvoice.handle(toCommand(event)).replaceWithVoid());
+    public KafkaReservationConfirmedConsumer(
+            ObjectMapper objectMapper,
+            CreateInvoice createInvoice,
+            InboundEventProcessor inboxProcessor) {
+        this(
+                objectMapper,
+                event -> createInvoice.handle(toCommand(event)).replaceWithVoid(),
+                inboxProcessor);
     }
 
     KafkaReservationConfirmedConsumer(
             ObjectMapper objectMapper,
             Function<ReservationConfirmed, Uni<Void>> handler) {
+        this(objectMapper, handler, (eventId, effect) -> effect.get());
+    }
+
+    KafkaReservationConfirmedConsumer(
+            ObjectMapper objectMapper,
+            Function<ReservationConfirmed, Uni<Void>> handler,
+            InboundEventProcessor inboxProcessor) {
         this.objectMapper = objectMapper;
         this.consumer = new ConsumeReservationConfirmed(handler);
+        this.inboxProcessor = inboxProcessor;
     }
 
     @Incoming("reservation-confirmed-in")
     public Uni<Void> consume(String payload) {
         return Uni.createFrom()
                 .item(() -> deserialize(payload))
-                .flatMap(consumer::handle)
+                .flatMap(event -> inboxProcessor.process(
+                        event.eventId(),
+                        () -> consumer.handle(event)))
                 .onFailure().invoke(f ->
-                        LOG.errorf("Error processing ReservationConfirmed event: %s", f.toString(), f));
+                        LOG.errorf(
+                                "Error processing ReservationConfirmed event: %s",
+                                f.toString(),
+                                f));
     }
 
     private ReservationConfirmed deserialize(String payload) {

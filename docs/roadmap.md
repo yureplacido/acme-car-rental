@@ -67,9 +67,8 @@ Notas de escopo:
   `BillingFlowKafkaIntegrationTest` (Kafka real + Postgres). O teste usa `UniAsserter` (sem transação
   envolvente) para que cada leitura veja o efeito commitado pelo consumer; com
   `TransactionalUniAsserter` o cache de primeira camada enxergava sempre o DRAFT e mascarava o UPDATE.
-- Idempotência é uma preocupação transversal do pipeline de messaging e agora é aplicada pelo
-  `IdempotencyMessagingDecorator`, antes do consumer de negócio. O consumer não depende diretamente
-  de `ProcessedEventStore`.
+- Idempotência é aplicada no processamento inbound pelo `TransactionalInboxProcessor`: claim e efeito de negócio
+  compartilham a mesma transação reativa. O `ProcessedEventStore` permanece atrás de uma porta.
 - `ProcessedEventStore.tryClaim(UUID)` representa o claim atômico. A implementação persistente em
   Postgres (`INSERT ... ON CONFLICT DO NOTHING`) cobre o inbox durável (ADR 005); em memória fica
   apenas para os testes de unidade/application.
@@ -85,7 +84,7 @@ Notas de escopo:
   A imagem é **`3.9.1` e não `3.9.0`** por causa do bug **KAFKA-18281**: com KRaft 3.9.0 o broker
   validava listeners não-advertised (ex.: `CONTROLLER`) contra `advertised.listeners` e o `0.0.0.0`
   causava falha de inicialização/healthcheck com a nossa configuração — corrigido em 3.9.1.
-- A decisão arquitetural está registrada em `docs/adr/001-messaging-idempotency-middleware.md`.
+- A decisão arquitetural da fronteira transacional está registrada em `docs/adr/007-transactional-inbox.md`.
 - Contrato documentado em `docs/contracts.md` (seção `VehicleRegistered (Kafka)`).
 
 ## Part 3 — Cloud and beyond

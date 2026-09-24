@@ -49,12 +49,8 @@ class DelayedRetryKafkaIntegrationTest {
     @Inject
     DelayedRetryExhaustionTestConsumer exhaustionConsumer;
 
-    @Inject
-    RecordingProcessedEventStore processedEventStore;
-
     @BeforeEach
     void resetFixtures() {
-        processedEventStore.reset();
         consumer.reset();
         exhaustionConsumer.reset();
         createTopicIfMissing(SOURCE_TOPIC);
