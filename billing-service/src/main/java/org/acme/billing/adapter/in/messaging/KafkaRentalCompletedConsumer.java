@@ -38,7 +38,7 @@ public class KafkaRentalCompletedConsumer {
     KafkaRentalCompletedConsumer(
             ObjectMapper objectMapper,
             Function<RentalCompleted, Uni<Void>> handler,
-            TransactionalInboxProcessor inboxProcessor) {
+            InboundEventProcessor inboxProcessor) {
         this.objectMapper = objectMapper;
         this.consumer = new ConsumeRentalCompleted(handler);
         this.inboxProcessor = inboxProcessor;
