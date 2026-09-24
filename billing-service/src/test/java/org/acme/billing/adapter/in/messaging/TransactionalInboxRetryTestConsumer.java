@@ -5,6 +5,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -15,6 +17,8 @@ public class TransactionalInboxRetryTestConsumer {
     private final AtomicInteger attempts = new AtomicInteger();
     private final AtomicInteger successfulEffects = new AtomicInteger();
     private volatile UUID eventId;
+    private volatile Instant firstAttemptAt;
+    private volatile Instant secondAttemptAt;
     private CompletableFuture<Void> success = new CompletableFuture<>();
 
     private final InboundEventProcessor inboxProcessor;
@@ -27,6 +31,8 @@ public class TransactionalInboxRetryTestConsumer {
         attempts.set(0);
         successfulEffects.set(0);
         eventId = null;
+        firstAttemptAt = null;
+        secondAttemptAt = null;
         success = new CompletableFuture<>();
     }
 
@@ -35,6 +41,11 @@ public class TransactionalInboxRetryTestConsumer {
         UUID currentEventId = UUID.fromString(message.getPayload());
         eventId = currentEventId;
         int attempt = attempts.incrementAndGet();
+        if (attempt == 1) {
+            firstAttemptAt = Instant.now();
+        } else if (attempt == 2) {
+            secondAttemptAt = Instant.now();
+        }
 
         return inboxProcessor.process(
                 currentEventId,
@@ -64,5 +75,9 @@ public class TransactionalInboxRetryTestConsumer {
 
     public UUID eventId() {
         return eventId;
+    }
+
+    public long firstRetryDelayMillis() {
+        return Duration.between(firstAttemptAt, secondAttemptAt).toMillis();
     }
 }
