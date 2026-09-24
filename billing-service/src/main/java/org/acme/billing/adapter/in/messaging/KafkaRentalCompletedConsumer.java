@@ -8,7 +8,6 @@ import jakarta.inject.Inject;
 import org.acme.billing.application.event.RentalCompleted;
 import org.acme.billing.application.usecase.ConsumeRentalCompleted;
 import org.acme.billing.application.usecase.OpenInvoiceForRental;
-import org.acme.billing.application.usecase.TransactionalInboxProcessor;
 import org.acme.billing.domain.model.Money;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
@@ -22,20 +21,20 @@ public class KafkaRentalCompletedConsumer {
 
     private final ObjectMapper objectMapper;
     private final ConsumeRentalCompleted consumer;
-    private final TransactionalInboxProcessor inboxProcessor;
+    private final InboundEventProcessor inboxProcessor;
 
     @Inject
     public KafkaRentalCompletedConsumer(
             ObjectMapper objectMapper,
             OpenInvoiceForRental openInvoiceForRental,
-            TransactionalInboxProcessor inboxProcessor) {
+            InboundEventProcessor inboxProcessor) {
         this(
                 objectMapper,
                 event -> openInvoiceForRental.handle(toCommand(event)).replaceWithVoid(),
                 inboxProcessor);
     }
 
-        KafkaRentalCompletedConsumer(
+    KafkaRentalCompletedConsumer(
             ObjectMapper objectMapper,
             Function<RentalCompleted, Uni<Void>> handler) {
         this(objectMapper, handler, (eventId, effect) -> effect.get());
