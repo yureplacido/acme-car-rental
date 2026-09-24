@@ -1,14 +1,16 @@
 package org.acme.billing.adapter.out.messaging;
 
 import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.billing.application.port.out.ProcessedEventStore;
 
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-@ApplicationScoped
+/**
+ * Store em memória usado apenas nos testes unitários do middleware. Em produção o
+ * bean CDI real é {@code PostgresProcessedEventStore} (ADR 005).
+ */
 public class InMemoryProcessedEventStore implements ProcessedEventStore {
 
     private final Set<UUID> processed = ConcurrentHashMap.newKeySet();

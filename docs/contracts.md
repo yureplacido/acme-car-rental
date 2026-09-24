@@ -146,8 +146,12 @@ Regras de evolução:
 
 ## Novos contratos (futuro)
 
-- 🔜 **Eventos de cobrança (Reservation/Rental → Billing)**: ex.: `Reservation.confirmed`,
-  `Rental.completed`, `Fatura` — registrar aqui quando surgirem.
+- ✅ **Eventos de cobrança (Reservation/Rental → Billing)**: ver `ReservationConfirmed`/`RentalCompleted`
+  em `billing-service` (`application/event`); consumidos nos tópicos `reservation-confirmed`/`rental-completed`
+  (canal `reservation-confirmed-in`/`rental-completed-in`, group `billing-service`). As regras de evolução
+  acima se aplicam; cada consumidor roda sobre o decorator de idempotência + retry (delayed-retry-topic) + DLQ.
+- 🔜 **Saída de fatura do Billing** (ex.: evento de invoice emitida para consumo de outros contextos) —
+  registrar aqui quando surgir.
 
 ---
 
