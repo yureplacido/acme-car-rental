@@ -16,12 +16,16 @@ import org.apache.kafka.common.errors.TopicExistsException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 @QuarkusTestResource(BillingFlowKafkaCompanionResource.class)
 class TransactionalInboxRetryKafkaIntegrationTest {
 
     private static final String TOPIC = "transactional-inbox-retry-test";
+    private static final String RETRY_1_TOPIC = TOPIC + "-retry_1000";
+    private static final String RETRY_2_TOPIC = TOPIC + "-retry_5000";
+    private static final String RETRY_3_TOPIC = TOPIC + "-retry_15000";
 
     @InjectKafkaCompanion
     KafkaCompanion companion;
@@ -36,7 +40,15 @@ class TransactionalInboxRetryKafkaIntegrationTest {
     void reset() {
         consumer.reset();
         try {
-            companion.topics().createAndWait(TOPIC, 1);
+            createTopicIfMissing(TOPIC);
+            createTopicIfMissing(RETRY_1_TOPIC);
+            createTopicIfMissing(RETRY_2_TOPIC);
+            createTopicIfMissing(RETRY_3_TOPIC);
+    }
+
+    private void createTopicIfMissing(String topic) {
+        try {
+            companion.topics().createAndWait(topic, 1);
         } catch (TopicExistsException ignored) {
             // Topic already exists from another test run.
         }
@@ -55,7 +67,7 @@ class TransactionalInboxRetryKafkaIntegrationTest {
 
         assertEquals(2, consumer.attempts());
         assertEquals(1, consumer.successfulEffects());
-        assertEquals(true, consumer.firstRetryDelayMillis() >= 800,
+        assertTrue(consumer.firstRetryDelayMillis() >= 800,
                 "Expected delayed retry >= 800ms, but was " + consumer.firstRetryDelayMillis() + "ms");
 
         long processedEvents = pgPool.withConnection(connection ->
