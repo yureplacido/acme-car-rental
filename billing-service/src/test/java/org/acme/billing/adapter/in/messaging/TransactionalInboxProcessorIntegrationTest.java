@@ -27,7 +27,8 @@ class TransactionalInboxProcessorIntegrationTest {
         asserter.execute(() -> processor.process(
                 eventId,
                 () -> Uni.createFrom().failure(
-                        new IllegalStateException("simulated business failure"))));
+                        new IllegalStateException("simulated business failure")))
+                .onFailure().recoverWithNull());
 
         asserter.execute(() -> processor.process(
                 eventId,
