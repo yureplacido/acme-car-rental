@@ -22,8 +22,9 @@ Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-servic
 `rental-service`, `inventory-service`, `billing-service` + bancos do cap.7
 (`reservation-postgres`, `inventory-mysql`, `rental-mongo`) + **`keycloak`**, **`postgres`**
 (cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft `apache/kafka:3.9.1`) e
-**`kafka-init`** (provisiona os tópicos `vehicle-registered` e os retry
-`vehicle-registered-retry_1000/5000/15000` antes de `inventory-service`/`billing-service` via
+**`kafka-init`** (provisiona os tópicos `vehicle-registered`, os retry
+`vehicle-registered-retry_1000/5000/15000` e a DLQ `vehicle-registered-dlq` antes de
+`inventory-service`/`billing-service` via
 `depends_on: service_completed_successfully`; `KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`).
 Os serviços de messaging usam o perfil `QUARKUS_PROFILE=docker` com
 `%docker.kafka.bootstrap.servers=kafka:9092`.

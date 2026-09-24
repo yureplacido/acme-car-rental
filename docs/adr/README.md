@@ -10,7 +10,7 @@ As ADRs também são material de estudo: devem explicar **por que** uma decisão
 |---|---|---|---|
 | 1 | [ADR 001 — Idempotência transversal no pipeline de mensagens](./001-messaging-idempotency-middleware.md) | deduplicação por `eventId` no consumo | Accepted / implementada |
 | 2 | [ADR 002 — Política de retry para consumo de mensagens](./002-messaging-retry-policy.md) | novas tentativas após `NACK` | Accepted / implementada |
-| 3 | ADR 003 — Dead Letter Queue (DLQ) | destino após esgotar tentativas | A definir |
+| 3 | [ADR 003 — Dead Letter Queue (DLQ)](./003-dead-letter-queue.md) | destino após esgotar tentativas | Accepted / implementada |
 | 4 | ADR 004 — Outbox | consistência entre persistência de negócio e publicação de eventos | Futuro |
 | 5 | ADR 005 — Inbox persistente | idempotência durável associada ao efeito de negócio | Futuro |
 
