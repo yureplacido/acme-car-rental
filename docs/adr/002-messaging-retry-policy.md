@@ -195,7 +195,7 @@ mp.messaging.incoming.vehicle-registered-in.delayed-retry-topic.timeout=30000
 
 Essa abordagem mantém o retry fora do caso de uso e evita bloquear a partição enquanto uma ocorrência aguarda o próximo intervalo de tentativa. O conector preserva a chave e os metadados do registro ao encaminhá-lo para os tópicos de retry.
 
-> A estratégia de DLQ após o esgotamento das tentativas permanece fora desta etapa e será definida na ADR 003.
+> A estratégia de DLQ após o esgotamento das tentativas é definida na **ADR 003**.
 
 ## Estratégias de falha disponíveis no conector Kafka
 
@@ -248,11 +248,12 @@ A implementação desta decisão deverá demonstrar, por testes:
 - o claim de idempotência é liberado antes da nova tentativa;
 - uma mensagem que termina com sucesso não é processada novamente;
 - o número máximo de tentativas é respeitado;
-- após o limite, a mensagem é reconhecida como definitivamente reprovada — sem DLQ configurada nesta ADR, o
-  record é abandonado após o esgotamento; o destino de dead-letter fica para a ADR 003;
+- após o limite, a mensagem é reconhecida como definitivamente reprovada — roteada para a
+  DLQ configurada na ADR 003 `vehicle-registered-dlq` em vez de ser abandonada;
 - eventos corruptos (sem `eventId` extraível) também passam pela política: o `IdempotencyMessagingDecorator`
-  os repassa (sem claim) ao consumer, onde falham e percorrem os tópicos de retry antes do abandono —
-  coberto por `CorruptEventRetryKafkaIntegrationTest` e verificado E2E no stack docker (`SRMSG18278`/`SRMSG18280`).
+  os repassa (sem claim) ao consumer, onde falham e percorrem os tópicos de retry antes de atingir a DLQ —
+  coberto por `DlqKafkaIntegrationTest` (canal de teste `dlq-test-in` + consumer double) e verificado
+  E2E no stack docker (`SRMSG18278` encadeado até o tópico de dead-letter).
 
 A evidência deve usar o mesmo pipeline de Reactive Messaging utilizado pelo consumidor real, evitando testar apenas uma chamada direta ao método do consumer.
 
