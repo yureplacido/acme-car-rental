@@ -20,9 +20,4 @@ public class InMemoryProcessedEventStore implements ProcessedEventStore {
         return Uni.createFrom().item(() -> processed.add(eventId));
     }
 
-    @Override
-    public Uni<Void> release(UUID eventId) {
-        processed.remove(eventId);
-        return Uni.createFrom().voidItem();
-    }
 }
