@@ -139,7 +139,10 @@ Regras de evolução:
   middleware de messaging através de `ProcessedEventStore.tryClaim(eventId)`.
 - O middleware considera `eventId` obrigatório no envelope JSON dos eventos de integração.
 - Retry de processamento é aplicado na infraestrutura de messaging (estratégia `delayed-retry-topic`, ver ADR 002).
-- Pendente de pipeline (documentar quando houver): dead-letter, schema registry, outbox/inbox persistente.
+- Após o esgotamento dos retries, o record é roteado para a **DLQ** `vehicle-registered-dlq`
+  (`mp.messaging.incoming.vehicle-registered-in.dead-letter-queue.topic`, ver ADR 003), com chave,
+  payload e headers de diagnóstico preservados.
+- Pendente de pipeline (documentar quando houver): consumer/requeue da DLQ, schema registry, outbox/inbox persistente.
 
 ## Novos contratos (futuro)
 

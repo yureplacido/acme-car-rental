@@ -245,7 +245,8 @@ services:
           vehicle-registered \
           vehicle-registered-retry_1000 \
           vehicle-registered-retry_5000 \
-          vehicle-registered-retry_15000; do
+          vehicle-registered-retry_15000 \
+          vehicle-registered-dlq; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
             --create --if-not-exists --topic "$$t" --partitions 1 --replication-factor 1
         done

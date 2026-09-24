@@ -47,7 +47,7 @@
 ## Cap. 9 — Messaging
 
 > Status: pipeline Kafka Inventory → Billing (`vehicle-registered`) executável em código, testes e
-> stack docker-compose (Kafka provisionado via `kafka-init`);
+> stack docker-compose (Kafka provisionado via `kafka-init`), com retry (ADR 002) e DLQ (ADR 003);
 > o fluxo de cobrança real (Reservation/Rental → Invoice) ainda não existe.
 
 - [ ] Billing recebe eventos de Reservation/Rental
@@ -55,7 +55,7 @@
 - [x] Idempotência de consumidores
 - [x] Retry (delayed-retry-topic, ADR 002)
 - [x] Kafka provisionado no stack docker (broker KRaft + tópicos via `kafka-init`)
-- [ ] Dead-letter strategy (ADR 003)
+- [x] Dead-letter strategy (ADR 003)
 - [ ] Outbox/inbox quando o domínio exigir consistência entre DB e eventos
 
 Notas de escopo:
@@ -68,10 +68,12 @@ Notas de escopo:
 - `ProcessedEventStore.tryClaim(UUID)` representa o claim atômico. A implementação atual é em memória;
   a Inbox persistente/durável continua pendente até existir efeito colateral de negócio real.
 - Retry é configurado na infraestrutura Kafka (`delayed-retry-topic`, `max-retries=3`, atrasos 1s/5s/15s);
-  decisão em `docs/adr/002-messaging-retry-policy.md`. A DLQ após o esgotamento fica para a ADR 003.
-  Eventos corruptos também percorrem a política: o decorator de idempotência repassa ao consumer
-  (sem claim) o que não consegue extrair `eventId`; a falha ocorre no consumer e segue o retry;
-  validado por teste de integração e E2E no stack (`SRMSG18278` → `SRMSG18280`).
+  decisão em `docs/adr/002-messaging-retry-policy.md`. Após o esgotamento, o record vai para a DLQ
+  `vehicle-registered-dlq` (decisão em `docs/adr/003-dead-letter-queue.md`). Eventos corruptos também
+  percorrem a política: o decorator de idempotência repassa ao consumer (sem claim) o que não consegue
+  extrair `eventId`; a falha ocorre no consumer e segue retry até a DLQ; validado por teste de integração
+  (`DlqKafkaIntegrationTest`, canal de teste `dlq-test-in`) e E2E no stack (`SRMSG18278` encadeado até
+  `vehicle-registered-dlq`).
 - O stack docker provisiona Kafka via `others/docker-compose.yml` (serviços `kafka` e `kafka-init`,
   broker `apache/kafka:3.9.1`). Ferramentas de operação: `docker exec acme-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 ...`.
   A imagem é **`3.9.1` e não `3.9.0`** por causa do bug **KAFKA-18281**: com KRaft 3.9.0 o broker

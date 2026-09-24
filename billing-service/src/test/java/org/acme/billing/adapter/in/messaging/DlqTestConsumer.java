@@ -1,10 +1,7 @@
 package org.acme.billing.adapter.in.messaging;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.acme.billing.application.event.VehicleRegistered;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
@@ -12,14 +9,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @ApplicationScoped
-public class CorruptEventTestConsumer {
+public class DlqTestConsumer {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicInteger attempts = new AtomicInteger();
     private CompletableFuture<Void> exhausted = new CompletableFuture<>();
     private CompletableFuture<Void> unexpectedAttempt = new CompletableFuture<>();
 
-    @Incoming("corrupt-test-in")
+    @Incoming("dlq-test-in")
     public Uni<Void> consume(Message<String> message) {
         int attempt = attempts.incrementAndGet();
 
@@ -31,20 +27,9 @@ public class CorruptEventTestConsumer {
             unexpectedAttempt.complete(null);
         }
 
-        try {
-            VehicleRegistered event = objectMapper.readValue(
-                    message.getPayload(), VehicleRegistered.class);
-
-            if (event.eventId() == null || event.vehicleId() == null) {
-                return Uni.createFrom().completionStage(message.nack(
-                        new IllegalArgumentException("Corrupt VehicleRegistered event")));
-            }
-
-            return Uni.createFrom().voidItem();
-        } catch (JsonProcessingException e) {
-            return Uni.createFrom().completionStage(message.nack(
-                    new IllegalArgumentException("Corrupt VehicleRegistered event", e)));
-        }
+        return Uni.createFrom()
+                .completionStage(message.nack(
+                        new IllegalArgumentException("VehicleRegistered event is missing required fields")));
     }
 
     public void reset() {
