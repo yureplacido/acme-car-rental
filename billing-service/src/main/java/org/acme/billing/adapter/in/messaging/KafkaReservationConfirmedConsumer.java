@@ -39,6 +39,12 @@ public class KafkaReservationConfirmedConsumer {
                 inboxProcessor);
     }
 
+        KafkaReservationConfirmedConsumer(
+            ObjectMapper objectMapper,
+            Function<ReservationConfirmed, Uni<Void>> handler) {
+        this(objectMapper, handler, (eventId, effect) -> effect.get());
+    }
+
     KafkaReservationConfirmedConsumer(
             ObjectMapper objectMapper,
             Function<ReservationConfirmed, Uni<Void>> handler,
