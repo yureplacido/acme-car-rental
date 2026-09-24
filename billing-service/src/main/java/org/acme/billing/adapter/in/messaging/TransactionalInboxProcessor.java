@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  * to claim the event again.
  */
 @ApplicationScoped
-public class TransactionalInboxProcessor {
+public class TransactionalInboxProcessor implements InboundEventProcessor {
 
     private final ProcessedEventStore processedEventStore;
 
@@ -26,6 +26,7 @@ public class TransactionalInboxProcessor {
         this.processedEventStore = processedEventStore;
     }
 
+    @Override
     @WithTransaction
     public Uni<Void> process(UUID eventId, Supplier<Uni<Void>> businessEffect) {
         return processedEventStore.tryClaim(eventId)
