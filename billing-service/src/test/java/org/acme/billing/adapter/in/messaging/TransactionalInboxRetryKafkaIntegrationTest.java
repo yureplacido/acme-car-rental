@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
+
+import org.apache.kafka.common.errors.TopicExistsException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,7 +35,11 @@ class TransactionalInboxRetryKafkaIntegrationTest {
     @BeforeEach
     void reset() {
         consumer.reset();
-        companion.topics().createAndWait(TOPIC, 1);
+        try {
+            companion.topics().createAndWait(TOPIC, 1);
+        } catch (TopicExistsException ignored) {
+            // Topic already exists from another test run.
+        }
     }
 
     @Test
@@ -49,6 +55,8 @@ class TransactionalInboxRetryKafkaIntegrationTest {
 
         assertEquals(2, consumer.attempts());
         assertEquals(1, consumer.successfulEffects());
+        assertEquals(true, consumer.firstRetryDelayMillis() >= 800,
+                "Expected delayed retry >= 800ms, but was " + consumer.firstRetryDelayMillis() + "ms");
 
         long processedEvents = pgPool.withConnection(connection ->
                 connection.query("""
