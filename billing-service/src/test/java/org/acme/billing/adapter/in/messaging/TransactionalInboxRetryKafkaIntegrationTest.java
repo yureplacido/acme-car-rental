@@ -7,12 +7,11 @@ import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
 import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
-
-import org.apache.kafka.common.errors.TopicExistsException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,11 +38,10 @@ class TransactionalInboxRetryKafkaIntegrationTest {
     @BeforeEach
     void reset() {
         consumer.reset();
-        try {
-            createTopicIfMissing(TOPIC);
-            createTopicIfMissing(RETRY_1_TOPIC);
-            createTopicIfMissing(RETRY_2_TOPIC);
-            createTopicIfMissing(RETRY_3_TOPIC);
+        createTopicIfMissing(TOPIC);
+        createTopicIfMissing(RETRY_1_TOPIC);
+        createTopicIfMissing(RETRY_2_TOPIC);
+        createTopicIfMissing(RETRY_3_TOPIC);
     }
 
     private void createTopicIfMissing(String topic) {
@@ -60,7 +58,10 @@ class TransactionalInboxRetryKafkaIntegrationTest {
         UUID eventId = UUID.randomUUID();
 
         companion.produceStrings()
-                .fromRecords(new ProducerRecord<>(TOPIC, eventId.toString(), eventId.toString()))
+                .fromRecords(new ProducerRecord<>(
+                        TOPIC,
+                        eventId.toString(),
+                        eventId.toString()))
                 .awaitCompletion();
 
         consumer.success().get(30, TimeUnit.SECONDS);
@@ -68,7 +69,8 @@ class TransactionalInboxRetryKafkaIntegrationTest {
         assertEquals(2, consumer.attempts());
         assertEquals(1, consumer.successfulEffects());
         assertTrue(consumer.firstRetryDelayMillis() >= 800,
-                "Expected delayed retry >= 800ms, but was " + consumer.firstRetryDelayMillis() + "ms");
+                "Expected delayed retry >= 800ms, but was "
+                        + consumer.firstRetryDelayMillis() + "ms");
 
         long processedEvents = pgPool.withConnection(connection ->
                 connection.query("""
