@@ -41,11 +41,6 @@ public class RecordingProcessedEventStore implements ProcessedEventStore {
         });
     }
 
-    @Override
-    public Uni<Void> release(UUID eventId) {
-        processed.remove(eventId);
-        return Uni.createFrom().voidItem();
-    }
 
     public void reset() {
         processed.clear();
