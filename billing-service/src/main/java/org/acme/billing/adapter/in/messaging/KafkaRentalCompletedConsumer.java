@@ -8,6 +8,7 @@ import jakarta.inject.Inject;
 import org.acme.billing.application.event.RentalCompleted;
 import org.acme.billing.application.usecase.ConsumeRentalCompleted;
 import org.acme.billing.application.usecase.OpenInvoiceForRental;
+import org.acme.billing.application.usecase.TransactionalInboxProcessor;
 import org.acme.billing.domain.model.Money;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
@@ -21,26 +22,40 @@ public class KafkaRentalCompletedConsumer {
 
     private final ObjectMapper objectMapper;
     private final ConsumeRentalCompleted consumer;
+    private final TransactionalInboxProcessor inboxProcessor;
 
     @Inject
-    public KafkaRentalCompletedConsumer(ObjectMapper objectMapper, OpenInvoiceForRental openInvoiceForRental) {
-        this(objectMapper, event -> openInvoiceForRental.handle(toCommand(event)).replaceWithVoid());
+    public KafkaRentalCompletedConsumer(
+            ObjectMapper objectMapper,
+            OpenInvoiceForRental openInvoiceForRental,
+            TransactionalInboxProcessor inboxProcessor) {
+        this(
+                objectMapper,
+                event -> openInvoiceForRental.handle(toCommand(event)).replaceWithVoid(),
+                inboxProcessor);
     }
 
     KafkaRentalCompletedConsumer(
             ObjectMapper objectMapper,
-            Function<RentalCompleted, Uni<Void>> handler) {
+            Function<RentalCompleted, Uni<Void>> handler,
+            TransactionalInboxProcessor inboxProcessor) {
         this.objectMapper = objectMapper;
         this.consumer = new ConsumeRentalCompleted(handler);
+        this.inboxProcessor = inboxProcessor;
     }
 
     @Incoming("rental-completed-in")
     public Uni<Void> consume(String payload) {
         return Uni.createFrom()
                 .item(() -> deserialize(payload))
-                .flatMap(consumer::handle)
+                .flatMap(event -> inboxProcessor.process(
+                        event.eventId(),
+                        () -> consumer.handle(event)))
                 .onFailure().invoke(f ->
-                        LOG.errorf("Error processing RentalCompleted event: %s", f.toString(), f));
+                        LOG.errorf(
+                                "Error processing RentalCompleted event: %s",
+                                f.toString(),
+                                f));
     }
 
     private RentalCompleted deserialize(String payload) {

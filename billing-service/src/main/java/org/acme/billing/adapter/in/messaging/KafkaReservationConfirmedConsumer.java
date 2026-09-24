@@ -8,6 +8,7 @@ import jakarta.inject.Inject;
 import org.acme.billing.application.event.ReservationConfirmed;
 import org.acme.billing.application.usecase.ConsumeReservationConfirmed;
 import org.acme.billing.application.usecase.CreateInvoice;
+import org.acme.billing.application.usecase.TransactionalInboxProcessor;
 import org.acme.billing.domain.model.InvoiceLine;
 import org.acme.billing.domain.model.Money;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
@@ -25,26 +26,40 @@ public class KafkaReservationConfirmedConsumer {
 
     private final ObjectMapper objectMapper;
     private final ConsumeReservationConfirmed consumer;
+    private final TransactionalInboxProcessor inboxProcessor;
 
     @Inject
-    public KafkaReservationConfirmedConsumer(ObjectMapper objectMapper, CreateInvoice createInvoice) {
-        this(objectMapper, event -> createInvoice.handle(toCommand(event)).replaceWithVoid());
+    public KafkaReservationConfirmedConsumer(
+            ObjectMapper objectMapper,
+            CreateInvoice createInvoice,
+            TransactionalInboxProcessor inboxProcessor) {
+        this(
+                objectMapper,
+                event -> createInvoice.handle(toCommand(event)).replaceWithVoid(),
+                inboxProcessor);
     }
 
     KafkaReservationConfirmedConsumer(
             ObjectMapper objectMapper,
-            Function<ReservationConfirmed, Uni<Void>> handler) {
+            Function<ReservationConfirmed, Uni<Void>> handler,
+            TransactionalInboxProcessor inboxProcessor) {
         this.objectMapper = objectMapper;
         this.consumer = new ConsumeReservationConfirmed(handler);
+        this.inboxProcessor = inboxProcessor;
     }
 
     @Incoming("reservation-confirmed-in")
     public Uni<Void> consume(String payload) {
         return Uni.createFrom()
                 .item(() -> deserialize(payload))
-                .flatMap(consumer::handle)
+                .flatMap(event -> inboxProcessor.process(
+                        event.eventId(),
+                        () -> consumer.handle(event)))
                 .onFailure().invoke(f ->
-                        LOG.errorf("Error processing ReservationConfirmed event: %s", f.toString(), f));
+                        LOG.errorf(
+                                "Error processing ReservationConfirmed event: %s",
+                                f.toString(),
+                                f));
     }
 
     private ReservationConfirmed deserialize(String payload) {
