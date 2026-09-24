@@ -35,6 +35,12 @@ public class KafkaRentalCompletedConsumer {
                 inboxProcessor);
     }
 
+        KafkaRentalCompletedConsumer(
+            ObjectMapper objectMapper,
+            Function<RentalCompleted, Uni<Void>> handler) {
+        this(objectMapper, handler, (eventId, effect) -> effect.get());
+    }
+
     KafkaRentalCompletedConsumer(
             ObjectMapper objectMapper,
             Function<RentalCompleted, Uni<Void>> handler,
