@@ -1,5 +1,6 @@
 package org.acme.billing.application.usecase;
 
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.billing.application.port.out.InvoiceRepository;
@@ -18,7 +19,7 @@ public class CreateInvoice {
         this.repository = repository;
     }
 
-    public Invoice handle(Command command) {
+    public Uni<Invoice> handle(Command command) {
         return repository.save(Invoice.draft(
                 command.customerId(),
                 command.reservationId(),

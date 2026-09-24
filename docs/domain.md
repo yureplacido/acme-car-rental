@@ -187,7 +187,8 @@ Inventory may expose vehicle category/specification information that Pricing con
 
 ## 5. Billing / Payment Context
 
-The billing service now has the first domain foundation but not the final distributed workflow.
+The billing service has the first domain foundation (Invoice DRAFT→OPEN driven by integration events)
+plus the persisted inbox (ADR 005).
 
 ### Aggregate root
 
@@ -204,19 +205,23 @@ The billing service now has the first domain foundation but not the final distri
 - `PaymentMethod`
 - `PaymentStatus`
 
+Integration contracts (anti-corruption events, own per-context representation):
+
+- `ReservationConfirmed` → `CreateInvoice` (invoice DRAFT, guessed period from reservation)
+- `RentalCompleted` → `OpenInvoiceForRental` (effective dates + daily-rate price lock → OPEN)
+
 Future concerns:
 
 - payment authorization;
 - payment reference;
-- idempotency;
-- retries;
 - refunds/compensation;
-- invoice events;
+- invoice events (outbox);
 - asynchronous billing.
 
-> Nota (cap.9): idempotência de consumidor já existe como scaffold (`ProcessedEventStore` in-memory,
-> consumidor Kafka `vehicle-registered`); idempotência persistida/atômica e o workflow distribuído
-> real seguem como conceitos futuros.
+> Nota (cap.9): idempotência de consumidor é aplicada pelo `IdempotencyMessagingDecorator` com inbox
+> durável (`PostgresProcessedEventStore`, `INSERT ... ON CONFLICT DO NOTHING`); em memória apenas nos
+> testes de application. O workflow DRAFT→OPEN via Kafka→Postgres está executável e coberto por testes
+> (app/domain/persistence + `BillingFlowKafkaIntegrationTest`).
 
 ## 6. Users Service
 

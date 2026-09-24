@@ -48,25 +48,31 @@
 
 > Status: pipeline Kafka Inventory → Billing (`vehicle-registered`) executável em código, testes e
 > stack docker-compose (Kafka provisionado via `kafka-init`), com retry (ADR 002) e DLQ (ADR 003);
-> o fluxo de cobrança real (Reservation/Rental → Invoice) ainda não existe.
+> o fluxo de cobrança (Reservation/Rental → Invoice DRAFT→OPEN) é executável em código e testes
+> (Kafka → Postgres via Dev Services), com inbox durável (ADR 005).
 
-- [ ] Billing recebe eventos de Reservation/Rental
+- [x] Billing recebe eventos de Reservation/Rental
 - [x] Definir contratos de eventos e versionamento
 - [x] Idempotência de consumidores
 - [x] Retry (delayed-retry-topic, ADR 002)
 - [x] Kafka provisionado no stack docker (broker KRaft + tópicos via `kafka-init`)
 - [x] Dead-letter strategy (ADR 003)
-- [ ] Outbox/inbox quando o domínio exigir consistência entre DB e eventos
+- [x] Outbox/inbox quando o domínio exigir consistência entre DB e eventos
 
 Notas de escopo:
 
-- Billing hoje consome `vehicle-registered` do Inventory (scaffold de aprendizagem; o handler só loga).
-  O fluxo de cobrança (Reservation/Rental → Invoice) ainda não existe.
+- Billing hoje consome além de `vehicle-registered` (scaffold de aprendizagem; o handler só loga):
+  os eventos `ReservationConfirmed`/`RentalCompleted` do fluxo de cobrança — DRAFT→OPEN — em
+  `KafkaReservationConfirmedConsumer`/`KafkaRentalCompletedConsumer`, validado por
+  `BillingFlowKafkaIntegrationTest` (Kafka real + Postgres). O teste usa `UniAsserter` (sem transação
+  envolvente) para que cada leitura veja o efeito commitado pelo consumer; com
+  `TransactionalUniAsserter` o cache de primeira camada enxergava sempre o DRAFT e mascarava o UPDATE.
 - Idempotência é uma preocupação transversal do pipeline de messaging e agora é aplicada pelo
   `IdempotencyMessagingDecorator`, antes do consumer de negócio. O consumer não depende diretamente
   de `ProcessedEventStore`.
-- `ProcessedEventStore.tryClaim(UUID)` representa o claim atômico. A implementação atual é em memória;
-  a Inbox persistente/durável continua pendente até existir efeito colateral de negócio real.
+- `ProcessedEventStore.tryClaim(UUID)` representa o claim atômico. A implementação persistente em
+  Postgres (`INSERT ... ON CONFLICT DO NOTHING`) cobre o inbox durável (ADR 005); em memória fica
+  apenas para os testes de unidade/application.
 - Retry é configurado na infraestrutura Kafka (`delayed-retry-topic`, `max-retries=3`, atrasos 1s/5s/15s);
   decisão em `docs/adr/002-messaging-retry-policy.md`. Após o esgotamento, o record vai para a DLQ
   `vehicle-registered-dlq` (decisão em `docs/adr/003-dead-letter-queue.md`). Eventos corruptos também

@@ -42,15 +42,17 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-messaging-rabbitmq</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-messaging-kafka</artifactId>
         </dependency>
+        <!-- Cap.9 (fluxo de cobrança): billing ganha datasource PostgreSQL (inbox durável
+             ADR 005 + persistência real de invoice). Remove vestigiais rabbitmq/mongodb. -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-mongodb-panache</artifactId>
+            <artifactId>quarkus-hibernate-reactive-panache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-reactive-pg-client</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -69,6 +71,13 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-test-kafka-companion</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Cap.9 - teste reativo assíncrono (@RunOnVertxContext + UniAsserter) sem transação
+             envolvente; cada leitura deve ver o efeito commitado pelo consumer Kafka. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-vertx</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -32,10 +32,31 @@ public final class Invoice {
         return new Invoice(null, customerId, reservationId, lines, InvoiceStatus.DRAFT);
     }
 
+    public static Invoice rehydrate(InvoiceId id, String customerId, String reservationId, List<InvoiceLine> lines, InvoiceStatus status) {
+        return new Invoice(id, customerId, reservationId, lines, status);
+    }
+
     public Invoice open() {
         if (lines.isEmpty()) throw new IllegalStateException("invoice must contain lines");
         if (status != InvoiceStatus.DRAFT) throw new IllegalStateException("only draft invoices can be opened");
         status = InvoiceStatus.OPEN;
+        return this;
+    }
+
+    /**
+     * Substitui as linhas de uma fatura ainda em rascunho. Usado pelo fluxo de
+     * cobrança: a fatura nasce DRAFT com um palpite de período (reserva) e o
+     * fechamento da locação redefine a linha com as datas efetivas (Cap.9).
+     */
+    public Invoice replaceLines(List<InvoiceLine> newLines) {
+        if (status != InvoiceStatus.DRAFT) {
+            throw new IllegalStateException("only draft invoices can have lines replaced");
+        }
+        if (newLines == null || newLines.isEmpty()) {
+            throw new IllegalArgumentException("invoice must contain at least one line");
+        }
+        lines.clear();
+        lines.addAll(newLines);
         return this;
     }
 
@@ -54,7 +75,7 @@ public final class Invoice {
     public Money total() {
         return lines.stream()
                 .map(InvoiceLine::total)
-                .reduce((left, right) -> left.add(right))
+                .reduce(Money::add)
                 .orElseThrow();
     }
 

@@ -163,17 +163,19 @@ Domain:
 - `PaymentMethod`
 - `PaymentStatus`
 
-The current implementation is a domain/application foundation. Inbound adapter (cap.9): Kafka consumer
-`vehicle-registered-in` (group `billing-service`) reage a eventos de integração do Inventory.
+The current implementation is a domain/application foundation. Inbound adapters (cap.9): Kafka consumers
+`reservation-confirmed-in`/`rental-completed-in`/`vehicle-registered-in` (group `billing-service`)
+reagem a eventos de integração de Reservation/Rental/Inventory. O fluxo de cobrança executa
+DRAFT→OPEN: `ReservationConfirmed` cria a fatura DRAFT; `RentalCompleted` recompõe a linha com as datas
+efetivas (price lock da tarifa diária) e abre a fatura (`CreateInvoice`/`OpenInvoiceForRental`),
+persistida em PostgreSQL (Hibernate Reactive Panache).
 
 Idempotência é aplicada por um middleware transversal de messaging (`IdempotencyMessagingDecorator`) antes
 do consumer de negócio. O consumer não depende diretamente do `ProcessedEventStore`.
 
 Retry de processamento é tratado na infraestrutura de messaging (estratégia `delayed-retry-topic` do conector
-Kafka, com tópicos `vehicle-registered-retry_1000/5000/15000` e `max-retries=3`; ver ADR 002).
-
-Persistência de faturas, inbox durável, dead-letter (ADR 003) e o fluxo de cobrança real a partir de eventos de
-Reservation/Rental ainda estão pendentes.
+Kafka, `max-retries=3`; ver ADR 002) e a DLQ após o esgotamento (ADR 003). O inbox durável usa
+`PostgresProcessedEventStore` com claim atômico (`INSERT ... ON CONFLICT DO NOTHING`; ver ADR 005).
 
 ## users-service
 
