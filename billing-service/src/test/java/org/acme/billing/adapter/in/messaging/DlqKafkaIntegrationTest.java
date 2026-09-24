@@ -6,6 +6,7 @@ import io.quarkus.test.kafka.InjectKafkaCompanion;
 import io.quarkus.test.kafka.KafkaCompanionResource;
 import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.header.Header;
@@ -39,6 +40,9 @@ class DlqKafkaIntegrationTest {
     @Inject
     DlqTestConsumer consumer;
 
+    @ConfigProperty(name = "mp.messaging.incoming.vehicle-registered-in.dead-letter-queue.topic")
+    String realChannelDeadLetterTopic;
+
     @BeforeEach
     void setUp() {
         consumer.reset();
@@ -55,6 +59,12 @@ class DlqKafkaIntegrationTest {
         } catch (TopicExistsException ignored) {
             // Topic already exists from another test in this test class.
         }
+    }
+
+    @Test
+    void shouldConfigureDeadLetterTopicOnRealVehicleRegisteredChannel() {
+        assertEquals("vehicle-registered-dlq", realChannelDeadLetterTopic,
+                "the real channel must route exhausted records to the DLQ instead of dropping them (ADR 003)");
     }
 
     @Test
@@ -110,5 +120,15 @@ class DlqKafkaIntegrationTest {
         assertFalse(originalTopic.isEmpty(), "expected a delayed-retry-topic header on the dead-letter record");
         assertEquals(RETRY_3_TOPIC, originalTopic,
                 "the delayed-retry-topic header must point to the topic the record was last consumed from");
+
+        assertTrue(dlqRecords.get(0).headers().headers("delayed-retry-count").iterator().hasNext(),
+                "expected a delayed-retry-count header on the dead-letter record");
+
+        Iterable<Header> exceptionClasses = dlqRecords.get(0).headers().headers("delayed-retry-exception-class-name");
+        String exceptionClass = exceptionClasses.iterator().hasNext()
+                ? new String(exceptionClasses.iterator().next().value(), StandardCharsets.UTF_8)
+                : "";
+        assertEquals("java.lang.IllegalArgumentException", exceptionClass,
+                "the dead-letter record must carry the last failure exception class");
     }
 }

@@ -107,12 +107,16 @@ Após o esgotamento dos retries:
 No stack local (`docker compose`), a chegada na DLQ é observável pelo log do conector
 (`SRMSG18278: ... sending the record to topic vehicle-registered-dlq`).
 
-> Em `@QuarkusTest` com `KafkaCompanionResource`, os canais configurados em
-> `src/main/resources` não materializam emissor/consumidor Kafka; os canais definidos em
-> `src/test/resources` sim. Por isso o teste de integração usa um canal de teste dedicado
+> Em `@QuarkusTest`, o canal real `vehicle-registered-in` é trocado para o conector
+> `smallrye-in-memory` pelo `InMemoryMessagingTestResource` (escopo global do módulo,
+> usado pelo `PublisherDecoratorIntegrationTest`) e, por isso, não materializa consumidor
+> Kafka com o `KafkaCompanionResource`; os canais definidos em `src/test/resources` sim.
+> Por isso o teste de integração do mecanismo DLQ usa um canal de teste dedicado
 > (`dlq-test-in`) com o mesmo pipeline `delayed-retry-topic` + DLQ e um consumer de teste
-> que nacka como um evento corrupto. O consumer real é validado por unit test
-> (`KafkaVehicleRegisteredConsumerTest`) e o caminho real completo é verificado E2E no stack.
+> que nacka como um evento corrupto. O canal real é coberto por um teste de configuração
+> (`DlqKafkaIntegrationTest.shouldConfigureDeadLetterTopicOnRealVehicleRegisteredChannel`),
+> o consumer real por unit test (`KafkaVehicleRegisteredConsumerTest`) e o caminho real
+> completo é verificado E2E no stack docker.
 
 ## Consequências
 
