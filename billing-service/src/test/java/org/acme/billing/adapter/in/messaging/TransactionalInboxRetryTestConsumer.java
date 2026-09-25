@@ -2,6 +2,7 @@ package org.acme.billing.adapter.in.messaging;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.reactive.messaging.Acknowledgment;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
@@ -37,6 +38,7 @@ public class TransactionalInboxRetryTestConsumer {
     }
 
     @Incoming("transactional-inbox-retry-test-in")
+    @Acknowledgment(Acknowledgment.Strategy.MANUAL)
     public Uni<Void> consume(Message<String> message) {
         UUID currentEventId = UUID.fromString(message.getPayload());
         eventId = currentEventId;
