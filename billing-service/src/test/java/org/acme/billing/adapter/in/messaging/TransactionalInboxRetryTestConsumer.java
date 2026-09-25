@@ -58,7 +58,9 @@ public class TransactionalInboxRetryTestConsumer {
                     successfulEffects.incrementAndGet();
                     success.complete(null);
                     return Uni.createFrom().voidItem();
-                });
+                })
+                .onFailure().recoverWithUni(error ->
+                        Uni.createFrom().completionStage(message.nack(error)));
     }
 
     public CompletableFuture<Void> success() {
