@@ -1,7 +1,8 @@
 package org.acme.billing.adapter.out.persistence;
 
 import io.quarkus.test.junit.QuarkusTest;
-import io.smallrye.mutiny.Uni;
+import io.quarkus.test.vertx.RunOnVertxContext;
+import io.quarkus.test.vertx.UniAsserter;
 import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.inject.Inject;
 import org.acme.billing.application.usecase.CreateInvoice;
@@ -33,7 +34,8 @@ class BillingOutboxIntegrationTest {
     PgPool pgPool;
 
     @Test
-    void shouldCommitInvoiceAndOutboxTogetherWhenInvoiceIsOpened() {
+    @RunOnVertxContext
+    void shouldCommitInvoiceAndOutboxTogetherWhenInvoiceIsOpened(UniAsserter asserter) {
         String reservationId = "outbox-" + UUID.randomUUID();
 
         CreateInvoice.Command create = new CreateInvoice.Command(
@@ -45,18 +47,20 @@ class BillingOutboxIntegrationTest {
                         LocalDate.of(2026, 9, 27),
                         new Money(new BigDecimal("100.00"), "BRL"))));
 
-        createInvoice.handle(create)
-                .flatMap(invoice -> openInvoice.handle(
-                        new OpenInvoiceForRental.Command(
-                                new OpenInvoiceForRental.RentalDetails(
-                                        reservationId,
-                                        LocalDate.of(2026, 9, 26),
-                                        LocalDate.of(2026, 9, 28),
-                                        new Money(new BigDecimal("120.00"), "BRL"),
-                                        "ABC-1234"))))
-                .await().indefinitely();
+        asserter.assertThat(
+                () -> createInvoice.handle(create)
+                        .flatMap(invoice -> openInvoice.handle(
+                                new OpenInvoiceForRental.Command(
+                                        new OpenInvoiceForRental.RentalDetails(
+                                                reservationId,
+                                                LocalDate.of(2026, 9, 26),
+                                                LocalDate.of(2026, 9, 28),
+                                                new Money(new BigDecimal("120.00"), "BRL"),
+                                                "ABC-1234")))),
+                assertNotNull);
 
-        Row row = pgPool.withConnection(connection ->
+        asserter.<Row>assertThat(
+                () -> pgPool.withConnection(connection ->
                         connection.preparedQuery("""
                                         SELECT i.status,
                                                o.event_id,
@@ -72,10 +76,13 @@ class BillingOutboxIntegrationTest {
                                 .execute(io.vertx.mutiny.sqlclient.Tuple.of(reservationId))
                                 .map(rows -> {
                                     var iterator = rows.iterator();
+
                                     if (!iterator.hasNext()) {
                                         return null;
                                     }
+
                                     var item = iterator.next();
+
                                     return new Row(
                                             item.getString("status"),
                                             item.getString("event_id"),
@@ -85,16 +92,16 @@ class BillingOutboxIntegrationTest {
                                                     ? item.getOffsetDateTime("published_at").toInstant()
                                                     : null,
                                             item.getInteger("attempts"));
-                                }))
-                .await().indefinitely();
-
-        assertNotNull(row);
-        assertEquals("OPEN", row.status());
-        assertNotNull(row.eventId());
-        assertEquals("InvoiceOpened", row.eventType());
-        assertNotNull(row.aggregateId());
-        assertNull(row.publishedAt());
-        assertEquals(0, row.attempts());
+                                })),
+                row -> {
+                    assertNotNull(row);
+                    assertEquals("OPEN", row.status());
+                    assertNotNull(row.eventId());
+                    assertEquals("InvoiceOpened", row.eventType());
+                    assertNotNull(row.aggregateId());
+                    assertNull(row.publishedAt());
+                    assertEquals(0, row.attempts());
+                });
     }
 
     private record Row(
