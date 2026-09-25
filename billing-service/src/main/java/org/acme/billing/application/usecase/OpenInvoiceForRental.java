@@ -39,7 +39,7 @@ public class OpenInvoiceForRental {
                 .map(maybe -> maybe.orElseThrow(() ->
                         new IllegalStateException("No draft invoice for reservation: " + details.reservationId())))
                 .map(invoice -> invoice.replaceLines(List.of(rental)).open())
-                .flatMap(repository::save);
+                .flatMap(repository::saveOpenedWithOutbox);
     }
 
     public record Command(RentalDetails details) {
