@@ -73,7 +73,7 @@ class TransactionalInboxRetryKafkaIntegrationTest {
                         + consumer.firstRetryDelayMillis() + "ms");
 
         long processedEvents = pgPool.withConnection(connection ->
-                connection.query("""
+                connection.preparedQuery("""
                                 SELECT COUNT(*)
                                 FROM processed_event
                                 WHERE event_id = $1
