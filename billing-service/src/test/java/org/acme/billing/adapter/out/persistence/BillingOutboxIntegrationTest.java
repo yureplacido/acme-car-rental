@@ -57,7 +57,7 @@ class BillingOutboxIntegrationTest {
                                                 LocalDate.of(2026, 9, 28),
                                                 new Money(new BigDecimal("120.00"), "BRL"),
                                                 "ABC-1234")))),
-                assertNotNull);
+                opened -> assertNotNull(opened.id()));
 
         asserter.<Row>assertThat(
                 () -> pgPool.withConnection(connection ->
