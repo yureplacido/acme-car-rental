@@ -7,6 +7,10 @@ import java.util.Optional;
 
 public interface InvoiceRepository {
     Uni<Invoice> save(Invoice invoice);
-    Uni<Invoice> saveOpenedWithOutbox(Invoice invoice);
+
+    default Uni<Invoice> saveOpenedWithOutbox(Invoice invoice) {
+        return save(invoice);
+    }
+
     Uni<Optional<Invoice>> findByReservationId(String reservationId);
 }

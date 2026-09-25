@@ -11,12 +11,14 @@ import org.acme.billing.domain.model.Money;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @QuarkusTest
 class BillingOutboxIntegrationTest {
@@ -55,33 +57,35 @@ class BillingOutboxIntegrationTest {
                 .await().indefinitely();
 
         Row row = pgPool.withConnection(connection ->
-                connection.preparedQuery("""
-                                SELECT i.status,
-                                       o.event_id,
-                                       o.event_type,
-                                       o.aggregate_id,
-                                       o.published_at,
-                                       o.attempts
-                                FROM invoice i
-                                JOIN outbox_event o
-                                  ON o.aggregate_id = i.id::text
-                                WHERE i.reservation_id = $1
-                                """)
-                        .execute(io.vertx.mutiny.sqlclient.Tuple.of(reservationId))
-                        .map(rows -> {
-                            var iterator = rows.iterator();
-                            if (!iterator.hasNext()) {
-                                return null;
-                            }
-                            var item = iterator.next();
-                            return new Row(
-                                    item.getString("status"),
-                                    item.getString("event_id"),
-                                    item.getString("event_type"),
-                                    item.getString("aggregate_id"),
-                                    item.getInstant("published_at"),
-                                    item.getInteger("attempts"));
-                        }))
+                        connection.preparedQuery("""
+                                        SELECT i.status,
+                                               o.event_id,
+                                               o.event_type,
+                                               o.aggregate_id,
+                                               o.published_at,
+                                               o.attempts
+                                        FROM invoice i
+                                        JOIN outbox_event o
+                                          ON o.aggregate_id = i.id::text
+                                        WHERE i.reservation_id = $1
+                                        """)
+                                .execute(io.vertx.mutiny.sqlclient.Tuple.of(reservationId))
+                                .map(rows -> {
+                                    var iterator = rows.iterator();
+                                    if (!iterator.hasNext()) {
+                                        return null;
+                                    }
+                                    var item = iterator.next();
+                                    return new Row(
+                                            item.getString("status"),
+                                            item.getString("event_id"),
+                                            item.getString("event_type"),
+                                            item.getString("aggregate_id"),
+                                            item.getOffsetDateTime("published_at") != null
+                                                    ? item.getOffsetDateTime("published_at").toInstant()
+                                                    : null,
+                                            item.getInteger("attempts"));
+                                }))
                 .await().indefinitely();
 
         assertNotNull(row);
@@ -89,7 +93,7 @@ class BillingOutboxIntegrationTest {
         assertNotNull(row.eventId());
         assertEquals("InvoiceOpened", row.eventType());
         assertNotNull(row.aggregateId());
-        assertEquals(null, row.publishedAt());
+        assertNull(row.publishedAt());
         assertEquals(0, row.attempts());
     }
 
@@ -98,7 +102,7 @@ class BillingOutboxIntegrationTest {
             String eventId,
             String eventType,
             String aggregateId,
-            java.time.Instant publishedAt,
+            Instant publishedAt,
             Integer attempts) {
     }
 }
