@@ -52,6 +52,18 @@ class TransactionalInboxRetryKafkaIntegrationTest {
         }
     }
 
+    private long countProcessedEvents(UUID eventId) {
+        return pgPool.withConnection(connection ->
+                connection.preparedQuery("""
+                                SELECT COUNT(*)
+                                FROM processed_event
+                                WHERE event_id = $1
+                                """)
+                        .execute(io.vertx.mutiny.sqlclient.Tuple.of(eventId.toString()))
+                        .map(rows -> rows.iterator().next().getLong(0)))
+                .await().indefinitely();
+    }
+
     @Test
     void shouldRollbackInboxClaimAndProcessSuccessfullyOnDelayedRetry()
             throws Exception {
@@ -66,21 +78,21 @@ class TransactionalInboxRetryKafkaIntegrationTest {
 
         consumer.success().get(30, TimeUnit.SECONDS);
 
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        long processedEvents;
+        do {
+            processedEvents = countProcessedEvents(eventId);
+            if (processedEvents == 1L) {
+                break;
+            }
+            Thread.sleep(50);
+        } while (System.nanoTime() < deadline);
+
         assertEquals(2, consumer.attempts());
         assertEquals(1, consumer.successfulEffects());
         assertTrue(consumer.firstRetryDelayMillis() >= 800,
                 "Expected delayed retry >= 800ms, but was "
                         + consumer.firstRetryDelayMillis() + "ms");
-
-        long processedEvents = pgPool.withConnection(connection ->
-                connection.preparedQuery("""
-                                SELECT COUNT(*)
-                                FROM processed_event
-                                WHERE event_id = $1
-                                """)
-                        .execute(io.vertx.mutiny.sqlclient.Tuple.of(eventId.toString()))
-                        .map(rows -> rows.iterator().next().getLong(0)))
-                .await().indefinitely();
 
         assertEquals(1L, processedEvents);
     }
