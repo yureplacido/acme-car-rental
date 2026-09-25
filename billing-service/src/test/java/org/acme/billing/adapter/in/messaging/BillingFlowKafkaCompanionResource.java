@@ -20,6 +20,10 @@ public class BillingFlowKafkaCompanionResource extends KafkaCompanionResource {
             createTopicIfMissing("rental-completed-retry_5000");
             createTopicIfMissing("rental-completed-retry_15000");
             createTopicIfMissing("rental-completed-dlq");
+            createTopicIfMissing("transactional-inbox-retry-test");
+            createTopicIfMissing("transactional-inbox-retry-test-retry_1000");
+            createTopicIfMissing("transactional-inbox-retry-test-retry_5000");
+            createTopicIfMissing("transactional-inbox-retry-test-retry_15000");
         }
         return props;
     }
