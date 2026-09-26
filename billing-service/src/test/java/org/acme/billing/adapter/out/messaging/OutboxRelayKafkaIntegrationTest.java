@@ -12,12 +12,15 @@ import org.acme.billing.application.usecase.CreateInvoice;
 import org.acme.billing.application.usecase.OpenInvoiceForRental;
 import org.acme.billing.domain.model.InvoiceLine;
 import org.acme.billing.domain.model.Money;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.common.TopicPartition;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -67,12 +70,17 @@ class OutboxRelayKafkaIntegrationTest {
                                                 "ABC-1234")))),
                 opened -> assertNotNull(opened.id()));
 
+        TopicPartition partition = KafkaCompanion.tp(TOPIC, 0);
+        long nextOffset = companion.offsets()
+                .get(partition, OffsetSpec.latest())
+                .offset();
+
         asserter.execute(() -> relay.relay());
 
         asserter.assertThat(
                 () -> io.smallrye.mutiny.Uni.createFrom()
                         .item(() -> companion.consumeStrings()
-                                .fromTopics(TOPIC, 1, Duration.ofSeconds(5))
+                                .fromOffsets(Map.of(partition, nextOffset), Duration.ofSeconds(5))
                                 .awaitRecords(1)
                                 .getRecords()
                                 .get(0))
