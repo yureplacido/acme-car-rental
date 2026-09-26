@@ -12,13 +12,14 @@ import org.acme.billing.application.usecase.CreateInvoice;
 import org.acme.billing.application.usecase.OpenInvoiceForRental;
 import org.acme.billing.domain.model.InvoiceLine;
 import org.acme.billing.domain.model.Money;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -40,6 +41,12 @@ class OutboxRelayKafkaIntegrationTest {
 
     @Inject
     OutboxRelay relay;
+
+    @BeforeEach
+    void setUp() {
+        companion.topics().deleteAndWait(TOPIC);
+        companion.topics().createAndWait(TOPIC, 1);
+    }
 
     @Test
     @RunOnVertxContext
@@ -72,7 +79,7 @@ class OutboxRelayKafkaIntegrationTest {
         asserter.assertThat(
                 () -> io.smallrye.mutiny.Uni.createFrom()
                         .item(() -> companion.consumeStrings()
-                                .fromTopics(TOPIC, 1, java.time.Duration.ofSeconds(5))
+                                .fromTopics(TOPIC, 1, Duration.ofSeconds(5))
                                 .awaitRecords(1)
                                 .getRecords()
                                 .get(0))
