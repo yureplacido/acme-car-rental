@@ -11,16 +11,16 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 @ApplicationScoped
 public class KafkaEventPublisher implements EventPublisher {
 
-    private final MutinyEmitter<KafkaRecord<String, String>> emitter;
+    private final MutinyEmitter<String> emitter;
 
     public KafkaEventPublisher(
-            @Channel("invoice-opened-out") MutinyEmitter<KafkaRecord<String, String>> emitter) {
+            @Channel("invoice-opened-out") MutinyEmitter<String> emitter) {
         this.emitter = emitter;
     }
 
     @Override
     public Uni<Void> publish(OutboxEvent event) {
-        return emitter.send(
+        return emitter.sendMessage(
                 KafkaRecord.<String, String>of(
                         event.aggregateId(),
                         event.payload()));
