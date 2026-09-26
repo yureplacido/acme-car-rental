@@ -94,6 +94,15 @@ Notas de escopo:
 - [ ] Observabilidade
 - [ ] Resiliência distribuída
 
+## Base de estudo
+
+- [x] `docs/knowledge/` criada para os capítulos já implementados (cap. 1-9)
+- [x] Documento de padrão de testes do projeto (`knowledge/04-estrategia-de-testes-do-projeto.md`)
+- [x] Exemplos didáticos contrários ao domínio (`knowledge/10-exemplos-contrarios-ao-dominio.md`)
+- [x] Registro de armadilhas reais (`knowledge/11-armadilhas-e-licoes.md`)
+- [x] Template para novos capítulos (`knowledge/12-modelo-para-novos-capitulos.md`)
+- [ ] Preencher com o cap. 10 (cloud-native patterns / health / metrics) quando implementado
+
 ## Regra de evolução
 
 ```

@@ -1,0 +1,55 @@
+package io.smallrye.reactive.messaging.kafka.impl;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+import org.eclipse.microprofile.reactive.messaging.spi.Connector;
+
+import io.smallrye.reactive.messaging.kafka.KafkaClientService;
+import io.smallrye.reactive.messaging.kafka.KafkaConnector;
+import io.smallrye.reactive.messaging.kafka.KafkaConsumer;
+import io.smallrye.reactive.messaging.kafka.KafkaProducer;
+import io.smallrye.reactive.messaging.kafka.KafkaShareConsumer;
+
+@ApplicationScoped
+public class KafkaClientServiceImpl implements KafkaClientService {
+
+    @Inject
+    @Connector(KafkaConnector.CONNECTOR_NAME)
+    KafkaConnector connector;
+
+    @Override
+    public <K, V> List<KafkaConsumer<K, V>> getConsumers(String channel) {
+        return connector.getConsumers(Objects.requireNonNull(channel));
+    }
+
+    @Override
+    public <K, V> List<KafkaShareConsumer<K, V>> getShareConsumers(String channel) {
+        return connector.getShareConsumers(Objects.requireNonNull(channel));
+    }
+
+    @Override
+    public <K, V> KafkaProducer<K, V> getProducer(String channel) {
+        return connector.getProducer(Objects.requireNonNull(channel));
+    }
+
+    @Override
+    public Set<String> getConsumerChannels() {
+        return connector.getConsumerChannels();
+    }
+
+    @Override
+    public Set<String> getShareConsumerChannels() {
+        return connector.getShareConsumerChannels();
+    }
+
+    @Override
+    public Set<String> getProducerChannels() {
+        return connector.getProducerChannels();
+    }
+
+}
