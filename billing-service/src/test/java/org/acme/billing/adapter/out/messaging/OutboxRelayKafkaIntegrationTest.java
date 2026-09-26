@@ -70,20 +70,13 @@ class OutboxRelayKafkaIntegrationTest {
         asserter.execute(() -> relay.relay());
 
         asserter.assertThat(
-                () -> companion.consumeStrings()
-                        .fromTopics(TOPIC)
-                        .awaitingRecords(1)
-                        .getRecords()
-                        .onItem()
-                        .transform(record -> record)
-                        .collect()
-                        .first()
-                        .onItem()
-                        .transform(record -> {
-                            assertEquals(reservationId, record.key());
-                            assertNotNull(record.value());
-                            return record;
-                        }),
+                () -> io.smallrye.mutiny.Uni.createFrom()
+                        .item(() -> companion.consumeStrings()
+                                .fromTopics(TOPIC, 1, java.time.Duration.ofSeconds(5))
+                                .awaitRecords(1)
+                                .getRecords()
+                                .get(0))
+                        .runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultExecutor()),
                 record -> {
                     assertEquals(reservationId, record.key());
                     assertNotNull(record.value());
