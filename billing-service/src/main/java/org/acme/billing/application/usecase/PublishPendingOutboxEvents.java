@@ -1,5 +1,6 @@
 package org.acme.billing.application.usecase;
 
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.billing.application.model.OutboxEvent;
@@ -34,8 +35,16 @@ public class PublishPendingOutboxEvents {
     }
 
     private Uni<Void> publishSequentially(List<OutboxEvent> events) {
-        return Uni.createFrom().voidItem()
-                .onItem().transformToUniAndConcatenate(ignored -> Uni.createFrom().item(events))
+        return Multi.createFrom().iterable(events)
+                .onItem().transformToUniAndConcatenate(this::publishOne)
+                .collect().last()
                 .replaceWithVoid();
+    }
+
+    private Uni<Void> publishOne(OutboxEvent event) {
+        return eventPublisher.publish(event)
+                .flatMap(ignored -> outboxEventStore.markPublished(event, Instant.now()))
+                .onFailure()
+                .call(ignored -> outboxEventStore.incrementAttempts(event));
     }
 }
