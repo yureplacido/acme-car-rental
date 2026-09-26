@@ -6,6 +6,7 @@ import io.quarkus.test.kafka.InjectKafkaCompanion;
 import io.quarkus.test.vertx.RunOnVertxContext;
 import io.quarkus.test.vertx.UniAsserter;
 import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
+import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.inject.Inject;
 import org.acme.billing.adapter.in.messaging.BillingFlowKafkaCompanionResource;
 import org.acme.billing.application.usecase.CreateInvoice;
@@ -42,10 +43,15 @@ class OutboxRelayKafkaIntegrationTest {
     @Inject
     OutboxRelay relay;
 
+    @Inject
+    PgPool pgPool;
+
     @BeforeEach
     void setUp() {
         companion.topics().deleteAndWait(TOPIC);
         companion.topics().createAndWait(TOPIC, 1);
+        pgPool.query("delete from outbox_event where published_at is null")
+                .executeAndAwait();
     }
 
     @Test
