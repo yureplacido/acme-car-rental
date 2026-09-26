@@ -50,6 +50,7 @@ Estas páginas existem para tornar essas divergências **explícitas e reutiliz�
 | 10 | [Exemplos contrários ao domínio](./10-exemplos-contrarios-ao-dominio.md) | todos | **estudo comparativo**: o código "errado" e por quê |
 | 11 | [Armadilhas e lições](./11-armadilhas-e-licoes.md) | todos | erros reais, diagnóstico e prevenção |
 | 12 | [Modelo para novos capítulos](./12-modelo-para-novos-capitulos.md) | — | **template** para documentar o próximo capítulo |
+| 13 | [Transactional Outbox na prática](./13-transactional-outbox.md) | 9 + implementação | **outbox, relay, at-least-once, scheduler e testes E2E** |
 
 ## Mapa capítulo → documento
 
@@ -65,6 +66,7 @@ Estas páginas existem para tornar essas divergências **explícitas e reutiliz�
 | 8 | Reactive programming | [07](./07-programacao-reativa.md) | [architecture.md](../architecture.md) |
 | 9 | Quarkus messaging | [08](./08-messaging-reativo.md) + [09](./09-padroes-de-resiliencia-em-messaging.md) | [adr/](../adr/README.md), [contracts.md](../contracts.md) |
 | 10+ | Cloud-native, observabilidade, extensões | [12](./12-modelo-para-novos-capitulos.md) (template; capítulos ainda não escritos) | [roadmap.md](../roadmap.md) |
+| Outbox | Transactional Outbox + relay | [13](./13-transactional-outbox.md) | [adr/](../adr/README.md), [contracts.md](../contracts.md) |
 
 ## Versão de referência
 
