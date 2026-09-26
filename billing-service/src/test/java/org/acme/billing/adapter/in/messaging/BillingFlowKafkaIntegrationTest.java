@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
-@QuarkusTestResource(BillingFlowKafkaCompanionResource.class)
+@QuarkusTestResource(value = BillingKafkaCompanionResource.class, restrictToAnnotatedClass = false)
 class BillingFlowKafkaIntegrationTest {
 
     private static final String RESERVATION_CONFIRMED_TOPIC = "reservation-confirmed";

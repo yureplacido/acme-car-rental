@@ -5,7 +5,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.kafka.InjectKafkaCompanion;
 import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
-import io.quarkus.test.kafka.KafkaCompanionResource;
 import org.acme.billing.application.event.VehicleRegistered;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
-@QuarkusTestResource(KafkaCompanionResource.class)
+@QuarkusTestResource(value = BillingKafkaCompanionResource.class, restrictToAnnotatedClass = false)
 class DelayedRetryKafkaIntegrationTest {
 
     private static final String SOURCE_TOPIC = "retry-test";
