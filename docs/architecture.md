@@ -189,6 +189,14 @@ PostgreSQL (DRAFT→OPEN), aplicando idempotência via `TransactionalInboxProces
 (ADR 005); retry via `delayed-retry-topic`
 (ADR 002) e DLQ (ADR 003).
 
+🔴 **Produtor ausente:** `reservation-service` e `rental-service` **não publicam**
+`reservation-confirmed` nem `rental-completed` — não há `mp.messaging.*` nem bean emissor
+nesses serviços. Hoje o único produtor desses dois tópicos é o harness de teste
+(`BillingFlowKafkaIntegrationTest`). O diagrama acima descreve a **intenção**; o lado
+produtor está 🔜. `inventory-service` produz `vehicle-registered` de verdade, e
+`billing-service` produz `invoice-opened` pela outbox transacional
+(`OutboxRelay` → `InvoiceOpenedKafkaPublisher` → tópico `invoice-opened`).
+
 ## Users BFF
 
 ~~~text

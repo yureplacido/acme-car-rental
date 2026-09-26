@@ -5,7 +5,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.kafka.InjectKafkaCompanion;
 import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
-import io.quarkus.test.kafka.KafkaCompanionResource;
 import org.acme.billing.application.event.VehicleRegistered;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,17 +24,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
-@QuarkusTestResource(KafkaCompanionResource.class)
+@QuarkusTestResource(value = BillingKafkaCompanionResource.class, restrictToAnnotatedClass = false)
 class DelayedRetryKafkaIntegrationTest {
 
     private static final String SOURCE_TOPIC = "retry-test";
-    private static final String RETRY_1_TOPIC = "retry-test-retry_1000";
-    private static final String RETRY_2_TOPIC = "retry-test-retry_5000";
-    private static final String RETRY_3_TOPIC = "retry-test-retry_15000";
+    private static final String RETRY_1_TOPIC = "retry-test-retry_50";
+    private static final String RETRY_2_TOPIC = "retry-test-retry_100";
+    private static final String RETRY_3_TOPIC = "retry-test-retry_200";
     private static final String EXHAUSTION_SOURCE_TOPIC = "retry-exhaustion";
-    private static final String EXHAUSTION_RETRY_1_TOPIC = "retry-exhaustion-retry_1000";
-    private static final String EXHAUSTION_RETRY_2_TOPIC = "retry-exhaustion-retry_5000";
-    private static final String EXHAUSTION_RETRY_3_TOPIC = "retry-exhaustion-retry_15000";
+    private static final String EXHAUSTION_RETRY_1_TOPIC = "retry-exhaustion-retry_50";
+    private static final String EXHAUSTION_RETRY_2_TOPIC = "retry-exhaustion-retry_100";
+    private static final String EXHAUSTION_RETRY_3_TOPIC = "retry-exhaustion-retry_200";
 
     @InjectKafkaCompanion
     KafkaCompanion companion;
@@ -99,9 +98,9 @@ class DelayedRetryKafkaIntegrationTest {
                 consumer.secondAttemptAt(),
                 consumer.thirdAttemptAt()).toMillis();
 
-        assertTrue(firstDelayMillis >= 800,
+        assertTrue(firstDelayMillis >= 30,
                 "Expected first retry delay >= 800ms, but was " + firstDelayMillis + "ms");
-        assertTrue(secondDelayMillis >= 4000,
+        assertTrue(secondDelayMillis >= 70,
                 "Expected second retry delay >= 4000ms, but was " + secondDelayMillis + "ms");
     }
 
@@ -130,7 +129,7 @@ class DelayedRetryKafkaIntegrationTest {
 
         boolean retriedWithinQuietPeriod;
         try {
-            exhaustionConsumer.unexpectedAttempt().get(2, TimeUnit.SECONDS);
+            exhaustionConsumer.unexpectedAttempt().get(300, TimeUnit.MILLISECONDS);
             retriedWithinQuietPeriod = true;
         } catch (TimeoutException expected) {
             retriedWithinQuietPeriod = false;

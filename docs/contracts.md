@@ -52,7 +52,14 @@ Campos aditivos (cap.7, refinamento do domínio) — números novos, sem quebra 
 
 Consumidores hoje: `inventory-service` (server) e `inventory-cli` (client).
 
-**Instalação** (não há reactor — instale antes de compilar consumidores):
+**Instalação.** `inventory-proto` é o **primeiro módulo do reactor** (`pom.xml` raiz), então
+o build agregado resolve o artefato sem instalação manual:
+
+```
+./mvnw -pl inventory-cli -am test    # '-am' também constrói o inventory-proto
+```
+
+Se você quiser trabalhar **só** no contrato, isolado do reactor:
 
 ```
 cd inventory-proto && ./mvnw install -DskipTests
@@ -149,8 +156,15 @@ Regras de evolução:
 - ✅ **Eventos de cobrança (Reservation/Rental → Billing)**: ver `ReservationConfirmed`/`RentalCompleted`
   em `billing-service` (`application/event`); consumidos nos tópicos `reservation-confirmed`/`rental-completed`
   (canal `reservation-confirmed-in`/`rental-completed-in`, group `billing-service`). As regras de evolução acima se aplicam; cada consumidor usa `TransactionalInboxProcessor` para claim + efeito na mesma transação, além de retry (delayed-retry-topic) + DLQ.
-- 🔜 **Saída de fatura do Billing** (ex.: evento de invoice emitida para consumo de outros contextos) —
-  registrar aqui quando surgir.
+- ✅ **`InvoiceOpened` (Billing → outros contextos)**: evento em
+  `billing-service/.../application/event/InvoiceOpened.java`, publicado por
+  `InvoiceOpenedKafkaPublisher` no canal `invoice-opened-out` (tópico `invoice-opened`),
+  chave = `aggregateId` (o `invoiceId`) para preservar ordenação por agregado.
+  A publicação é **at-least-once**: vem do relay da outbox transacional
+  (`OutboxRelay` → `OutboxEventStore` → `EventPublisher`), então o consumidor **deve** ser
+  idempotente por `eventId`. Consumidor: 🔜 nenhum contexto consome este evento hoje —
+  o único produtor em execução é o relay.
+  Evidência: `OutboxRelayKafkaIntegrationTest`, `BillingOutboxIntegrationTest`.
 
 ---
 

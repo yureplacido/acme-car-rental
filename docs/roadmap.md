@@ -75,10 +75,12 @@ Notas de escopo:
 - Retry é configurado na infraestrutura Kafka (`delayed-retry-topic`, `max-retries=3`, atrasos 1s/5s/15s);
   decisão em `docs/adr/002-messaging-retry-policy.md`. Após o esgotamento, o record vai para a DLQ
   `vehicle-registered-dlq` (decisão em `docs/adr/003-dead-letter-queue.md`). Eventos corruptos também
-  percorrem a política: o decorator de idempotência repassa ao consumer (sem claim) o que não consegue
-  extrair `eventId`; a falha ocorre no consumer e segue retry até a DLQ; validado por teste de integração
-  (`DlqKafkaIntegrationTest`, canal de teste `dlq-test-in`) e E2E no stack (`SRMSG18278` encadeado até
-  `vehicle-registered-dlq`).
+  percorrem a política: o consumer (que desserializa inline, sem decorator) falha ao não conseguir extrair
+  `eventId`; a falha segue retry até a DLQ. Evidência atual: `DlqKafkaIntegrationTest` prova a **estratégia**
+  do SmallRye no canal sintético `dlq-test-in` (o `DlqTestConsumer` sempre nacka, sem passar pelo consumer
+  real), e `shouldConfigureDeadLetterTopicOnRealVehicleRegisteredChannel` prova a **configuração** do canal
+  real. **Dívida:** falta um teste no canal real `vehicle-registered-in` que produza um payload inválido e
+  comprove retry → `vehicle-registered-dlq` de ponta a ponta.
 - O stack docker provisiona Kafka via `others/docker-compose.yml` (serviços `kafka` e `kafka-init`,
   broker `apache/kafka:3.9.1`). Ferramentas de operação: `docker exec acme-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 ...`.
   A imagem é **`3.9.1` e não `3.9.0`** por causa do bug **KAFKA-18281**: com KRaft 3.9.0 o broker
@@ -93,6 +95,16 @@ Notas de escopo:
 - [ ] Kubernetes/OpenShift
 - [ ] Observabilidade
 - [ ] Resiliência distribuída
+
+## Base de estudo
+
+- [x] `docs/knowledge/` criada para os capítulos já implementados (cap. 1-9, 13 documentos)
+- [x] `knowledge/13-transactional-outbox.md`: estudo da outbox transacional do cap. 9
+- [x] Documento de padrão de testes do projeto (`knowledge/04-estrategia-de-testes-do-projeto.md`)
+- [x] Exemplos didáticos contrários ao domínio (`knowledge/10-exemplos-contrarios-ao-dominio.md`)
+- [x] Registro de armadilhas reais (`knowledge/11-armadilhas-e-licoes.md`)
+- [x] Template para novos capítulos (`knowledge/12-modelo-para-novos-capitulos.md`)
+- [ ] Preencher com o cap. 10 (cloud-native patterns / health / metrics) quando implementado
 
 ## Regra de evolução
 

@@ -176,6 +176,23 @@ Retry de processamento é tratado na infraestrutura de messaging (estratégia `d
 Kafka, `max-retries=3`; ver ADR 002) e a DLQ após o esgotamento (ADR 003). O inbox durável usa
 `PostgresProcessedEventStore` com claim atômico (`INSERT ... ON CONFLICT DO NOTHING`; ver ADR 005).
 
+**Outbox transacional (implementada).** A abertura da fatura grava o efeito de negócio **e** o
+evento a publicar na mesma transação; a publicação em si é assíncrona:
+
+| Peça | Caminho |
+|---|---|
+| Caso de uso | `application/usecase/PublishPendingOutboxEvents.java` |
+| Porta de saída | `application/port/out/OutboxEventStore.java`, `application/port/out/EventPublisher.java` |
+| Modelo de aplicação | `application/model/OutboxEvent.java` |
+| Persistência | `adapter/out/persistence/PanacheOutboxEventStore.java`, `adapter/out/persistence/OutboxEventEntity.java` |
+| Relay | `adapter/out/messaging/OutboxRelay.java` (`@Scheduled(every="5s")`) |
+| Publicador | `adapter/out/messaging/InvoiceOpenedKafkaPublisher.java` (canal `invoice-opened-out`, tópico `invoice-opened`) |
+
+Evidência: `PublishPendingOutboxEventsTest` (aplicação, JUnit puro),
+`BillingOutboxIntegrationTest.shouldCommitInvoiceAndOutboxTogetherWhenInvoiceIsOpened`
+(os dois commits na mesma transação) e `OutboxRelayKafkaIntegrationTest` (relay → Kafka).
+Contrato do evento em [contracts.md](./contracts.md). Decisões: ADR 004 e ADR 008.
+
 ## users-service
 
 **Role:** Web BFF.

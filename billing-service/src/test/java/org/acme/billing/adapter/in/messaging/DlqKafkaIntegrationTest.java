@@ -3,7 +3,6 @@ package org.acme.billing.adapter.in.messaging;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.kafka.InjectKafkaCompanion;
-import io.quarkus.test.kafka.KafkaCompanionResource;
 import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -22,13 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
-@QuarkusTestResource(KafkaCompanionResource.class)
+@QuarkusTestResource(value = BillingKafkaCompanionResource.class, restrictToAnnotatedClass = false)
 class DlqKafkaIntegrationTest {
 
     private static final String SOURCE_TOPIC = "dlq-test";
-    private static final String RETRY_1_TOPIC = "dlq-test-retry_1000";
-    private static final String RETRY_2_TOPIC = "dlq-test-retry_5000";
-    private static final String RETRY_3_TOPIC = "dlq-test-retry_15000";
+    private static final String RETRY_1_TOPIC = "dlq-test-retry_50";
+    private static final String RETRY_2_TOPIC = "dlq-test-retry_100";
+    private static final String RETRY_3_TOPIC = "dlq-test-retry_200";
     private static final String DLQ_TOPIC = "dlq-test-dlq";
     private static final String CORRUPT_KEY = "corrupt-key";
     private static final String CORRUPT_PAYLOAD =
@@ -77,14 +76,14 @@ class DlqKafkaIntegrationTest {
                         CORRUPT_PAYLOAD))
                 .awaitCompletion();
 
-        consumer.exhausted().get(60, TimeUnit.SECONDS);
+        consumer.exhausted().get(10, TimeUnit.SECONDS);
 
         assertEquals(4, consumer.attempts(),
                 "the record must be retried max-retries times before reaching the dead-letter topic");
 
         boolean retriedAfterDeadLetter;
         try {
-            consumer.unexpectedAttempt().get(2, TimeUnit.SECONDS);
+            consumer.unexpectedAttempt().get(300, TimeUnit.MILLISECONDS);
             retriedAfterDeadLetter = true;
         } catch (java.util.concurrent.TimeoutException expected) {
             retriedAfterDeadLetter = false;
@@ -94,7 +93,7 @@ class DlqKafkaIntegrationTest {
         assertEquals(4, consumer.attempts());
 
         var dlqRecords = companion.consumeStrings()
-                .fromTopics(DLQ_TOPIC, 1, Duration.ofSeconds(90))
+                .fromTopics(DLQ_TOPIC, 1, Duration.ofSeconds(10))
                 .awaitRecords(1)
                 .getRecords();
 

@@ -1,6 +1,9 @@
 # Testes — ACME Car Rental
 
 > Estratégia única para todo o repositório. Cada serviço aplica as camadas de teste de acordo com seu papel.
+> Para o **porquê** de cada regra (e as lições das armadilhas reais), ver a base de estudo:
+> [knowledge/04-estrategia-de-testes-do-projeto.md](./knowledge/04-estrategia-de-testes-do-projeto.md)
+> e [knowledge/11-armadilhas-e-licoes.md](./knowledge/11-armadilhas-e-licoes.md).
 
 ## Pirâmide de testes
 
@@ -65,5 +68,7 @@ Prefira nomes como shouldRejectReservationWhenVehicleIsAlreadyReserved e evite n
 
 ## Reactive testing
 Testes reativos devem provar comportamento da pipeline. Não use await().indefinitely() para esconder um contrato assíncrono em código que deveria permanecer não bloqueante.
+
+Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é proibido await().indefinitely(): o await bloqueia a thread que precisa entregar o item, gerando deadlock. Nesses casos use UniAsserter/AssertSubscriber, ou isole a operação bloqueante com runSubscriptionOn(...).runSubscriptionOnIn(workerThread). Ver docs/knowledge/04-estrategia-de-testes-do-projeto.md §5.
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.

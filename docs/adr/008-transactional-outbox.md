@@ -1,6 +1,6 @@
 # ADR 008 — Outbox transacional para publicação de eventos
 
-- **Status:** Proposed
+- **Status:** Accepted / implementada (mesma implementação da ADR 004; evidência e discussão na ADR 004)
 - **Data:** 2026-09-24
 - **Contexto:** Capítulo 9 — Quarkus Messaging
 - **Escopo:** billing-service e futuros produtores que precisem publicar eventos derivados de estado persistente

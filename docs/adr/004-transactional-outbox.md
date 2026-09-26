@@ -1,6 +1,6 @@
 # ADR 004 — Transactional outbox nos produtores de eventos de negócio
 
-- **Status:** Accepted (implementação prevista no Capítulo 9)
+- **Status:** Accepted / implementada (evidência: `BillingOutboxIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `PublishPendingOutboxEventsTest`)
 - **Data:** 2026-09-24
 - **Contexto:** Capítulo 9 — Quarkus messaging; pareado com ADR 005 (inbox durável)
 - **Escopo:** produtores de eventos de integração cuja publicação precisa ser consistente com a escrita de negócio

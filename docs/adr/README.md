@@ -11,9 +11,15 @@ As ADRs também são material de estudo: devem explicar **por que** uma decisão
 | 1 | [ADR 001 — Idempotência transversal no pipeline de mensagens](./001-messaging-idempotency-middleware.md) | decisão histórica de deduplicação por `eventId` | Superseded |
 | 2 | [ADR 002 — Política de retry para consumo de mensagens](./002-messaging-retry-policy.md) | novas tentativas após `NACK` | Accepted / implementada |
 | 3 | [ADR 003 — Dead Letter Queue (DLQ)](./003-dead-letter-queue.md) | destino após esgotar tentativas | Accepted / implementada |
-| 4 | [ADR 004 — Transactional outbox](./004-transactional-outbox.md) | consistência entre persistência de negócio e publicação de eventos | Accepted / a implementar (Cap. 9, billing flow) |
+| 4 | [ADR 004 — Transactional outbox](./004-transactional-outbox.md) | consistência entre persistência de negócio e publicação de eventos | Accepted / implementada |
 | 5 | [ADR 005 — Inbox durável](./005-durable-inbox.md) | idempotência durável associada ao efeito de negócio | Accepted / implementada |
 | 7 | [ADR 007 — Inbox transacional com o efeito de negócio](./007-transactional-inbox.md) | claim + efeito na mesma transação | Accepted / implementada |
+| 8 | [ADR 008 — Transactional outbox (versão final)](./008-transactional-outbox.md) | outbox transacional, substitui a ADR 004 | Accepted / implementada |
+| — | [ADR 001b — Import massivo reativo de veículos](./001-reactive-inventory-bulk-import.md) | backpressure e cancelamento no import | Proposed |
+
+> ⚠️ **Colisão de numeração:** existem dois ADR com prefixo `001-`
+> (`001-messaging-idempotency-middleware` e `001-reactive-inventory-bulk-import`).
+> **Sempre referencie uma ADR pelo nome do arquivo**, nunca apenas pelo número.
 
 ### Fundamentos que antecedem essas decisões
 

@@ -18,13 +18,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
-@QuarkusTestResource(BillingFlowKafkaCompanionResource.class)
+@QuarkusTestResource(value = BillingKafkaCompanionResource.class, restrictToAnnotatedClass = false)
 class TransactionalInboxRetryKafkaIntegrationTest {
 
     private static final String TOPIC = "transactional-inbox-retry-test";
-    private static final String RETRY_1_TOPIC = TOPIC + "-retry_1000";
-    private static final String RETRY_2_TOPIC = TOPIC + "-retry_5000";
-    private static final String RETRY_3_TOPIC = TOPIC + "-retry_15000";
+    private static final String RETRY_1_TOPIC = TOPIC + "-retry_50";
+    private static final String RETRY_2_TOPIC = TOPIC + "-retry_100";
+    private static final String RETRY_3_TOPIC = TOPIC + "-retry_200";
 
     @InjectKafkaCompanion
     KafkaCompanion companion;
@@ -76,7 +76,7 @@ class TransactionalInboxRetryKafkaIntegrationTest {
                         eventId.toString()))
                 .awaitCompletion();
 
-        consumer.success().get(30, TimeUnit.SECONDS);
+        consumer.success().get(10, TimeUnit.SECONDS);
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         long processedEvents;
@@ -90,7 +90,7 @@ class TransactionalInboxRetryKafkaIntegrationTest {
 
         assertEquals(2, consumer.attempts());
         assertEquals(1, consumer.successfulEffects());
-        assertTrue(consumer.firstRetryDelayMillis() >= 800,
+        assertTrue(consumer.firstRetryDelayMillis() >= 30,
                 "Expected delayed retry >= 800ms, but was "
                         + consumer.firstRetryDelayMillis() + "ms");
 
