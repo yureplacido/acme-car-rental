@@ -6,14 +6,12 @@ import io.quarkus.test.kafka.InjectKafkaCompanion;
 import io.quarkus.test.vertx.RunOnVertxContext;
 import io.quarkus.test.vertx.UniAsserter;
 import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
-import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.inject.Inject;
 import org.acme.billing.adapter.in.messaging.BillingFlowKafkaCompanionResource;
 import org.acme.billing.application.usecase.CreateInvoice;
 import org.acme.billing.application.usecase.OpenInvoiceForRental;
 import org.acme.billing.domain.model.InvoiceLine;
 import org.acme.billing.domain.model.Money;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -42,16 +40,6 @@ class OutboxRelayKafkaIntegrationTest {
 
     @Inject
     OutboxRelay relay;
-
-    @Inject
-    PgPool pgPool;
-
-    @BeforeEach
-    void setUp() {
-        companion.topics().clear(TOPIC);
-        pgPool.query("delete from outbox_event where published_at is null")
-                .executeAndAwait();
-    }
 
     @Test
     @RunOnVertxContext
