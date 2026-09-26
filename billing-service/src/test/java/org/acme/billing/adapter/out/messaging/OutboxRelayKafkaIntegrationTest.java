@@ -48,8 +48,7 @@ class OutboxRelayKafkaIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        companion.topics().deleteAndWait(TOPIC);
-        companion.topics().createAndWait(TOPIC, 1);
+        companion.topics().clear(TOPIC);
         pgPool.query("delete from outbox_event where published_at is null")
                 .executeAndAwait();
     }
