@@ -10,6 +10,7 @@ public class BillingFlowKafkaCompanionResource extends KafkaCompanionResource {
     public Map<String, String> start() {
         Map<String, String> props = super.start();
         if (kafkaCompanion != null) {
+            createTopicIfMissing("invoice-opened");
             createTopicIfMissing("reservation-confirmed");
             createTopicIfMissing("reservation-confirmed-retry_1000");
             createTopicIfMissing("reservation-confirmed-retry_5000");
