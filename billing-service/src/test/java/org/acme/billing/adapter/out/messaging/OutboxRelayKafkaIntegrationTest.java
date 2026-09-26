@@ -71,20 +71,22 @@ class OutboxRelayKafkaIntegrationTest {
                 opened -> assertNotNull(opened.id()));
 
         TopicPartition partition = KafkaCompanion.tp(TOPIC, 0);
-        long nextOffset = companion.offsets()
-                .get(partition, OffsetSpec.latest())
-                .offset();
-
-        asserter.execute(() -> relay.relay());
 
         asserter.assertThat(
                 () -> io.smallrye.mutiny.Uni.createFrom()
-                        .item(() -> companion.consumeStrings()
-                                .fromOffsets(Map.of(partition, nextOffset), Duration.ofSeconds(5))
-                                .awaitRecords(1)
-                                .getRecords()
-                                .get(0))
-                        .runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultExecutor()),
+                        .item(() -> companion.offsets()
+                                .get(partition, OffsetSpec.latest())
+                                .offset())
+                        .runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultExecutor())
+                        .flatMap(nextOffset -> relay.relay()
+                                .replaceWith(nextOffset))
+                        .flatMap(nextOffset -> io.smallrye.mutiny.Uni.createFrom()
+                                .item(() -> companion.consumeStrings()
+                                        .fromOffsets(Map.of(partition, nextOffset), Duration.ofSeconds(5))
+                                        .awaitRecords(1)
+                                        .getRecords()
+                                        .get(0))
+                                .runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultExecutor())),
                 record -> {
                     assertEquals(reservationId, record.key());
                     assertNotNull(record.value());
