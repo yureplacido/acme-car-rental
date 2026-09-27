@@ -1,6 +1,7 @@
 package org.acme.inventory.application;
 
 import io.smallrye.mutiny.Uni;
+import org.acme.inventory.application.port.out.InventoryMetrics;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.RegisterVehicle;
 import org.acme.inventory.domain.model.Vehicle;
@@ -19,7 +20,8 @@ class RegisterVehicleTest {
     @Test
     void shouldRegisterVehicleThroughRepositoryPort() {
         FakeVehicleRepository repository = new FakeVehicleRepository();
-        RegisterVehicle useCase = new RegisterVehicle(repository);
+        FakeInventoryMetrics metrics = new FakeInventoryMetrics();
+        RegisterVehicle useCase = new RegisterVehicle(repository, event -> Uni.createFrom().voidItem(), metrics);
 
         Vehicle vehicle = useCase.handle(new RegisterVehicle.Command(
                 "abc123", "Ford", "Mustang",
@@ -30,6 +32,16 @@ class RegisterVehicleTest {
         assertEquals("ABC123", vehicle.licensePlate().value());
         assertEquals(1, repository.saved.size());
         assertEquals("Ford", repository.saved.getFirst().specifications().manufacturer());
+        assertEquals(1, metrics.vehicleRegisteredCount);
+    }
+
+    static class FakeInventoryMetrics implements InventoryMetrics {
+        int vehicleRegisteredCount;
+
+        @Override
+        public void vehicleRegistered() {
+            vehicleRegisteredCount++;
+        }
     }
 
     static class FakeVehicleRepository implements VehicleRepository {
