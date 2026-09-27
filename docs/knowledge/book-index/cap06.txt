@@ -1,0 +1,40 @@
+# Capitulo 6 - Exposing and securing web applications
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 169-196 | impressas 143-170
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap06.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Developing a basic secured web application with HTML
+- Creating a more advanced HTMX-based UI
+- Propagating the security context for calls between a web application and a REST service
+- Exploring other alternatives for frontend development
+
+## Secoes
+
+6.1 Creating a secured web application                                    p. 145
+  6.1.1 Creating a simple HTML page                                         p. 146
+  6.1.2 Adding security to the application                                  p. 148
+6.2 Creating a UI for managing car reservations                           p. 151
+  6.2.1 Updates to the Reservation service needed by the Users service      p. 152
+  6.2.2 Preparing backend parts in the Users service to be used by the UI   p. 153
+  6.2.3 Creating the UI using Qute, HTMX, and a REST backend                p. 155
+  6.2.4 Trying the application                                              p. 164
+6.3 Other security features of Quarkus                                    p. 165
+6.4 Running in production mode                                            p. 166
+  6.4.1 Running Keycloak and PostgreSQL as containers                       p. 166
+  6.4.2 Wiring the services to use Keycloak                                 p. 168
+6.5 Next steps                                                            p. 169
+Summary                                                                   p. 169
+
+## Termos citados (contagem no capitulo)
+
+  `LocalDate` (26)  `TemplateInstance` (13)  `JavaScript` (11)  `SecurityContext` (9)  `@Path` (9)  `MediaType` (8)
+  `@GET` (7)  `ReservationsResource` (7)  `@RestQuery` (6)  `@Produces` (5)  `@AccessToken` (4)  `@Inject` (4)
+  `quarkus.oidc.application-type` (4)  `ReservationResource` (4)  `ReservationsClient` (4)  `@CheckedTemplate` (4)  `quarkus.oidc.logout.path` (3)  `@POST` (3)
+  `RestResponse` (3)  `@RestForm` (3)  `quarkus.oidc.token-state-manager.split-tokens` (3)  `quarkus.http.auth.permission.all-resources.paths` (2)  `quarkus.http.auth.permission.all-resources.policy` (2)  `RestQuery` (2)

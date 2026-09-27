@@ -1,0 +1,50 @@
+# Capitulo 9 - Quarkus messaging
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 256-296 | impressas 230-270
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap09.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Learning about MicroProfile Reactive Messaging
+- Defining Reactive systems
+- Utilizing reactive messaging in Quarkus
+- Exploring Kafka and RabbitMQ broker integrations in Quarkus
+- Reactive messaging in car rental
+
+## Secoes
+
+9.1 Car rental messaging integrations                            p. 231
+9.2 Reactive systems                                             p. 231
+9.3 MicroProfile Reactive Messaging                              p. 233
+  9.3.1 Synchronous vs. asynchronous distributed communication     p. 233
+  9.3.2 Reactive messaging API                                     p. 234
+  9.3.3 Message acknowledgments                                    p. 237
+  9.3.4 Integrating imperative code with reactive messaging        p. 238
+9.4 Introducing messaging in Reservation                         p. 240
+9.5 Connectors                                                   p. 244
+  9.5.1 What is a connector?                                       p. 245
+  9.5.2 Connector configuration                                    p. 246
+9.6 Quarkus messaging with Kafka connector                       p. 247
+  9.6.1 Kafka integration in the Rental service                    p. 247
+  9.6.2 Testing messaging with Kafka                               p. 251
+9.7 Quarkus messaging with RabbitMQ                              p. 253
+  9.7.1 Testing messaging with RabbitMQ                            p. 256
+9.8 Car rental Billing service                                   p. 258
+  9.8.1 Messaging in the Billing service                           p. 259
+  9.8.2 Consuming RabbitMQ messages from the Reservation service   p. 259
+  9.8.3 Producing confirmations to the Rental service              p. 263
+  9.8.4 Rental service invoice confirmations                       p. 264
+9.9 Next steps                                                   p. 268
+Summary                                                          p. 269
+
+## Termos citados (contagem no capitulo)
+
+  `@Incoming` (23)  `MicroProfile` (20)  `SmallRye` (16)  `BillingService` (16)  `LocalDate` (15)  `InvoiceAdjust` (13)
+  `@Channel` (12)  `@Outgoing` (11)  `InvoiceConfirmation` (11)  `CompletionStage` (9)  `ReservationResource` (9)  `ReservationClient` (9)
+  `@ApplicationScoped` (8)  `@Inject` (7)  `RentalResource` (7)  `PaymentRequester` (7)  `MutinyEmitter` (6)  `JsonObject` (6)
+  `ReservationInvoice` (6)  `@Acknowledgment` (5)  `@Path` (5)  `MediaType` (5)  `@POST` (4)  `RentalResourceTest` (4)

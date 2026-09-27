@@ -24,3 +24,8 @@ Thumbs.db
 # Third-party source dumps. Descompactados de um jar de fonte para estudo,
 # nunca versionados: nao sao modulo do build e poluem a busca no editor.
 msg/
+
+# Texto integral de obras de terceiros, gerado por tools/book-index/extract.py
+# a partir de um PDF local. Obra comercial protegida por direitos autorais:
+# o que se versiona e o indice (docs/knowledge/book-index/), nao o livro.
+book-text/

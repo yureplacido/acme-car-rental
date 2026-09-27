@@ -1,0 +1,24 @@
+# Index
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 405-417 | impressas 379-391
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/index.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- (o livro nao traz o bloco 'This chapter covers' aqui)
+
+## Secoes
+
+(sem secoes no outline do PDF)
+
+## Termos citados (contagem no capitulo)
+
+  `OpenShift` (11)  `MicroProfile` (5)  `SmallRye` (4)  `@Path` (3)  `@PostConstruct` (3)  `@Incoming` (3)
+  `CarInventory` (3)  `InsertCarRequest` (3)  `OpenTelemetry` (3)  `QuarkusTransaction` (3)  `@Singleton` (2)  `BillingService` (2)
+  `GreetingResource` (2)  `InventoryService` (2)  `InvoiceAdjust` (2)  `RentalClient` (2)  `@Outgoing` (1)  `@AccessToken` (1)
+  `@Acknowledgment` (1)  `@Alternative` (1)  `@POST` (1)  `@ApplicationScoped` (1)  `@Blocking` (1)  `@Channel` (1)

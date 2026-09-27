@@ -1,0 +1,42 @@
+# Capitulo 3 - Enhancing developer productivity with Quarkus
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 83-106 | impressas 57-80
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap03.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Speeding up application development with Quarkus’s Dev mode
+- Configuration mechanisms of Quarkus applications
+- Experimenting with Dev UI to get insights into a running application
+- Automatically running development instances of remote services using Dev Services
+- Adding continuous testing into your application development workflow
+
+## Secoes
+
+3.1 Development mode                                                           p. 58
+  3.1.1 Trying live coding with the Quarkus project                              p. 59
+  3.1.2 How does it work?                                                        p. 61
+3.2 Application configuration                                                  p. 62
+  3.2.1 Experimenting with application configuration                             p. 63
+  3.2.2 Configuration profiles                                                   p. 63
+  3.2.3 Overriding application.properties                                        p. 64
+3.3 Dev UI                                                                     p. 65
+  3.3.1 Experimenting with Dev UI                                                p. 66
+3.4 Dev Services                                                               p. 69
+  3.4.1 Securing the Quarkus application using OpenID Connect and Dev Services   p. 70
+3.5 Continuous testing                                                         p. 74
+  3.5.1 Testing the Quarkus in Action project                                    p. 75
+3.6 Next steps                                                                 p. 78
+Summary                                                                        p. 78
+
+## Termos citados (contagem no capitulo)
+
+  `GreetingResource` (11)  `GreetingResourceTest` (5)  `@GET` (3)  `@Produces` (3)  `MediaType` (3)  `MicroProfile` (2)
+  `quarkus.http.port` (2)  `quarkus.oidc.auth-server-url` (2)  `SecurityContext` (2)  `JavaScript` (1)  `RuntimeUpdatesProcessor` (1)  `DskipTests` (1)
+  `RuntimeException` (1)  `quarkus.live-reload.instrumentation` (1)  `ConfigProperty` (1)  `@ConfigProperty` (1)  `quarkus.log.console.darken` (1)  `@Singleton` (1)
+  `HashiCorp` (1)  `KeycloakDevServicesProcessor` (1)  `quarkus.oidc.application-type` (1)  `quarkus.oidc.client-id` (1)  `quarkus.oidc.credentials.secret` (1)  `quarkus.oidc.enabled` (1)

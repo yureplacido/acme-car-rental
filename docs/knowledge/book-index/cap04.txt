@@ -1,0 +1,46 @@
+# Capitulo 4 - Handling communications
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 109-154 | impressas 83-128
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap04.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Exposing and consuming APIs using the REST paradigm
+- GraphQL as an alternative to the REST paradigm
+- gRPC and Protocol Buffers as yet another way to expose and consume APIs
+
+## Secoes
+
+4.1 Developing REST-based Quarkus applications                       p. 85
+4.2 Car rental Reservation service                                   p. 86
+  4.2.1 Checking car availability                                      p. 87
+  4.2.2 Making a reservation                                           p. 92
+  4.2.3 Experimenting with the exposed REST API using the Swagger UI   p. 92
+4.3 Using the REST client                                            p. 96
+4.4 Developing Quarkus applications with GraphQL                     p. 100
+4.5 Car Rental Inventory service                                     p. 101
+  4.5.1 Exposing the Inventory service over GraphQL                    p. 101
+  4.5.2 Invoking GraphQL operations using the UI                       p. 104
+  4.5.3 Reviewing the GraphQL schema                                   p. 108
+  4.5.4 Consuming the Inventory service using a GraphQL client         p. 109
+4.6 Developing Quarkus services with gRPC                            p. 113
+  4.6.1 Understanding when to use gRPC                                 p. 113
+  4.6.2 Protocol Buffers                                               p. 114
+4.7 Adding gRPC support to your project                              p. 115
+4.8 Implementing a gRPC service using Quarkus                        p. 118
+  4.8.1 Working with gRPC and streams                                  p. 121
+  4.8.2 Using a gRPC client with Quarkus                               p. 123
+4.9 Next steps                                                       p. 127
+Summary                                                              p. 128
+
+## Termos citados (contagem no capitulo)
+
+  `InventoryService` (20)  `CarResponse` (19)  `InsertCarRequest` (18)  `ReservationResource` (17)  `InventoryClient` (15)  `LocalDate` (15)
+  `@Path` (14)  `ReservationsRepository` (13)  `CarInventory` (11)  `RemoveCarRequest` (11)  `AtomicLong` (10)  `RentalClient` (9)
+  `@Override` (8)  `MediaType` (8)  `@POST` (7)  `InMemoryInventoryClient` (7)  `MicroProfile` (6)  `@Produces` (5)
+  `SmallRye` (5)  `GrpcInventoryService` (5)  `@Consumes` (4)  `CopyOnWriteArrayList` (4)  `CarInput` (4)  `@GrpcClient` (4)

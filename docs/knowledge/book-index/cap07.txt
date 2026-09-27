@@ -1,0 +1,48 @@
+# Capitulo 7 - Database access
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 197-239 | impressas 171-213
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap07.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Learning how to connect Quarkus application to the database
+- Introducing Hibernate object-relational mapping with Panache
+- Explaining Quarkus approaches to the database access
+- Integrating reactive database access to Quarkus applications
+
+## Secoes
+
+7.1 Panache                                                         p. 172
+  7.1.1 Active record pattern                                         p. 172
+  7.1.2 Getting started with Panache                                  p. 173
+  7.1.3 Using Panache in the Reservation service                      p. 177
+7.2 Panache repository pattern                                      p. 182
+  7.2.1 Utilizing repository pattern with MySQL                       p. 182
+  7.2.2 Using the repository pattern in Inventory                     p. 185
+7.3 Traditional ORM/JPA data access                                 p. 190
+7.4 REST Data                                                       p. 191
+7.5 Transactions                                                    p. 194
+  7.5.1 Declarative transactions                                      p. 195
+  7.5.2 Manual handling with QuarkusTransaction                       p. 196
+  7.5.3 Transactions with Panache                                     p. 197
+7.6 Panache with NoSQL                                              p. 197
+  7.6.1 Utilizing MongoDB with Panache                                p. 198
+  7.6.2 Using the Panache MongoDB in Rental service                   p. 200
+  7.6.3 Adjusting Reservation service to the Rental service updates   p. 203
+7.7 Reactive data access                                            p. 204
+  7.7.1 Using Hibernate Reactive with Panache                         p. 205
+  7.7.2 Reservation service updates for Hibernate Reactive usage      p. 206
+7.8 Next steps                                                      p. 212
+Summary                                                             p. 212
+
+## Termos citados (contagem no capitulo)
+
+  `LocalDate` (25)  `QuarkusTransaction` (16)  `@Transactional` (15)  `CarRepository` (14)  `ReservationResource` (13)  `@Path` (13)
+  `PanacheEntity` (11)  `PanacheEntityResource` (9)  `ReservationCrudResource` (9)  `@GET` (7)  `TxType` (7)  `EntityManager` (6)
+  `RentalClient` (6)  `@POST` (6)  `@RestQuery` (6)  `ReservationPersistenceTest` (6)  `PanacheMongoEntity` (6)  `@Entity` (5)
+  `MediaType` (5)  `ChronoUnit` (5)  `GrpcInventoryService` (5)  `@Override` (4)  `InventoryClient` (4)  `@Inject` (4)

@@ -1,0 +1,51 @@
+# Capitulo 11 - Quarkus applications in the cloud
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 330-377 | impressas 304-351
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap11.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Running Acme Car Rental services in production mode
+- Containerizing Quarkus applications
+- Deploying Quarkus in the cloud (Kubernetes and OpenShift)
+- Creating serverless application deployments with Quarkus
+- Constructing Acme Car Rental production in the OpenShift platform
+
+## Secoes
+
+11.1 Car rental production                                           p. 305
+  11.1.1 Externalizing providers for independent deployment            p. 306
+11.2 Building and pushing container images                           p. 312
+  11.2.1 Building images with Quarkus without extensions               p. 313
+  11.2.2 Building and pushing images with Quarkus extensions           p. 314
+  11.2.3 Image customizations                                          p. 315
+  11.2.4 Pushing car rental images to quay.io                          p. 316
+11.3 Kubernetes and OpenShift integration                            p. 318
+  11.3.1 Generating Kubernetes resources                               p. 319
+  11.3.2 Customizing generated manifests                               p. 319
+  11.3.3 Deploying Quarkus applications on Kubernetes                  p. 320
+  11.3.4 Deploying Quarkus applications on OpenShift                   p. 324
+11.4 Kubernetes and OpenShift clients                                p. 329
+11.5 Serverless application with Quarkus                             p. 330
+  11.5.1 Serverless architecture                                       p. 330
+  11.5.2 Funqy                                                         p. 331
+  11.5.3 Car statistics application with Knative                       p. 332
+  11.5.4 Car statistics Knative deployment                             p. 334
+11.6 Deploying car rental in the cloud                               p. 338
+  11.6.1 Setting up OpenShift Sandbox                                  p. 338
+  11.6.2 Car rental infrastructure deployment with OpenShift Sandbox   p. 340
+  11.6.3 Car rental services deployment with OpenShift Sandbox         p. 345
+11.7 Next steps                                                      p. 349
+Summary                                                              p. 351
+
+## Termos citados (contagem no capitulo)
+
+  `OpenShift` (127)  `quarkus.container-image.group` (9)  `ReservationsClient` (7)  `@RegisterRestClient` (6)  `BuildConfig` (6)  `quarkus.container-image.registry` (5)
+  `quarkus.container-image.tag` (4)  `ServiceMonitor` (4)  `ImageStream` (4)  `ImageStreamTag` (4)  `DevSandbox` (4)  `ConfigMaps` (4)
+  `@Path` (3)  `quarkus.container-image.build` (3)  `quarkus.container.image.docker.common.deployment` (3)  `CommonProcessor` (3)  `quarkus.container-image.push` (3)  `quarkus.container-image` (3)
+  `quarkus.kubernetes.namespace` (3)  `@Funq` (3)  `CarStatistics` (3)  `quarkus.openshift.env.vars.quarkus-otel-exporter-otlp-endpoint` (3)  `@AccessToken` (2)  `quarkus.datasource.db-kind` (2)

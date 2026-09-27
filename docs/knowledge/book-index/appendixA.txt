@@ -1,0 +1,25 @@
+# appendix A Alternative languages and build tooling
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 395-398 | impressas 369-372
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/appendixA.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- (o livro nao traz o bloco 'This chapter covers' aqui)
+
+## Secoes
+
+A.1.1 Creating Quarkus Gradle projects   p. 369
+A.1.2 Quarkus with Gradle                p. 370
+A.2.1 Kotlin allOpen                     p. 371
+A.2.2 Kotlin coroutines                  p. 371
+
+## Termos citados (contagem no capitulo)
+
+  `DprojectGroupId` (1)  `DprojectArtifactId` (1)  `DbuildTool` (1)  `GreetingResource` (1)  `ApplicationScoped` (1)  `quarkus.test.junit` (1)
+  `QuarkusTest` (1)
