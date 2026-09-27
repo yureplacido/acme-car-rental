@@ -35,7 +35,7 @@ class BusinessMetricsIntegrationTest {
                 .post("/graphql")
                 .then()
                 .statusCode(200)
-                .body(containsString("licensePlateNumber"));
+                .body(containsString("plateNumber"));
 
         String afterMetrics = given()
                 .when()
