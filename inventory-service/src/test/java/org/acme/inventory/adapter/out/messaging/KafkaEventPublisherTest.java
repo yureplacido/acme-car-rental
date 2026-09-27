@@ -72,25 +72,29 @@ class KafkaEventPublisherTest {
 
         @Override
         public <M extends Message<? extends String>> void send(M message) {
-            sentMessage = message;
+            sentMessage = Message.of(message.getPayload());
         }
 
         @Override
         public <M extends Message<? extends String>> Uni<Void> sendMessage(M message) {
-            sentMessage = message;
+            sentMessage = copyMessage(message);
             return Uni.createFrom().voidItem();
         }
 
         @Override
         public <M extends Message<? extends String>> void sendMessageAndAwait(M message) {
-            sentMessage = message;
+            sentMessage = copyMessage(message);
         }
 
         @Override
         public <M extends Message<? extends String>> Cancellable sendMessageAndForget(M message) {
-            sentMessage = message;
+            sentMessage = copyMessage(message);
             return () -> {
             };
+        }
+
+        private Message<String> copyMessage(Message<? extends String> message) {
+            return Message.of(message.getPayload(), message.getMetadata());
         }
 
         @Override
