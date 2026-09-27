@@ -44,7 +44,7 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [x] Cap. 6 — Web, OIDC e segurança
 - [x] Cap. 7 — Database access
 - [ ] Cap. 8 — Reactive programming
-- [ ] Cap. 9 — Quarkus Messaging
+- [x] Cap. 9 — Quarkus Messaging
 
 ## Cap. 8 — Reactive programming
 
@@ -71,6 +71,8 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [x] Kafka provisionado no stack docker (broker KRaft + tópicos via `kafka-init`)
 - [x] Dead-letter strategy (ADR 003)
 - [x] Outbox/inbox quando o domínio exigir consistência entre DB e eventos
+- [ ] Testar `KafkaEventPublisher` contra broker Kafka real (payload + key de partição)
+- [ ] Provar payload inválido no canal real `vehicle-registered-in` → retry → `vehicle-registered-dlq`
 
 Notas de escopo:
 
@@ -118,22 +120,7 @@ Notas de escopo:
   para DBeaver/CLI não dependerem de porta sorteada. No `%test` a porta continua aleatória, porque
   dois builds simultâneos não podem disputá-la. Tabela, regra de formação dos números e credenciais
   em [deployment.md → Portas de desenvolvimento](deployment.md#portas-de-desenvolvimento-dev-services-com-porta-fixa).
-- **Dívida (achada em 2026-09-27, cap.9):** o caminho de publicação de evento do
-  `inventory-service` está quebrado no `HEAD` por dois bugs anteriores a este trabalho e que
-  nenhum teste cobria (o publisher é testado com emitter mockado, sem broker):
-  1. `VehicleEntity.condition` é gerado sem escape (`condition` é palavra reservada do MySQL):
-     a mutation `register` falha com `SQLGrammarException` (errorCode 1064) — presente desde
-     o commit `7d8a954`.
-  2. `KafkaEventPublisher` (commit `d34f9b2`, "Feat/kafka partition key") envia
-     `KafkaRecord<String,String>` num canal que declara `key.serializer`/`value.serializer`
-     explícitos: o SmallRye tenta serializar o wrapper do record e o send falha com
-     `SerializationException: Can't convert value of class OutgoingKafkaRecord`. O `billing-service`
-     envia `Record<String,String>` no mesmo padrão de config e funciona.
-  Com ambos corrigidos em um worktree descartável, o publish E2E foi provado: mutation
-  `register` → `vehicle-registered` com chave de partição `vehicleId` no broker do compose.
-  **Falta:** corrigir na árvore principal com TDD (teste de integração do publisher contra
-  broker real) antes de reaproveitar o cap.9.
-- A decisão arquitetural da fronteira transacional está registrada em `docs/adr/007-transactional-inbox.md`.
+- **Pendências de evidência do cap. 9:** a implementação do publisher e a estratégia de DLQ estão corrigidas/configuradas, mas ainda faltam duas provas de integração contra infraestrutura real: `KafkaEventPublisher` publicando no broker com a chave `vehicleId`, e payload inválido percorrendo o canal real `vehicle-registered-in` até `vehicle-registered-dlq` após os retries.\n- A decisão arquitetural da fronteira transacional está registrada em `docs/adr/007-transactional-inbox.md`.
 - Contrato documentado em `docs/contracts.md` (seção `VehicleRegistered (Kafka)`).
 
 ## Part 3 — Cloud and beyond
@@ -145,21 +132,15 @@ Notas de escopo:
 
 ## Cap. 10 — Cloud-native patterns
 
-> O livro tem **seis** pilares neste capítulo (10.1–10.7, p. 273–303):
-> MicroProfile/SmallRye, health, metrics, tracing, fault tolerance e service
-> discovery. Onde o assunto está: `docs/knowledge/book-index/cap10.txt`.
->
-> Hoje não há **nenhuma** dependência de health, metrics, tracing ou fault
-> tolerance nos 5 módulos: este capítulo parte do zero.
+> O capítulo está sendo implementado incrementalmente contra Quarkus 3.39.3.
+> As evidências já concluídas abaixo estão mergeadas; os itens restantes continuam
+> como trabalho explícito do capítulo.
 
-- [ ] Decidir MicroProfile antes de abstração própria: health, metrics, tracing e
-      fault tolerance vêm de SmallRye, não de código do projeto — evidência: ADR
-- [ ] Health de aplicação expondo liveness, readiness e startup como grupos
-      distintos, com semântica diferente por grupo [3.39.3] — evidência: teste por serviço
-- [ ] Health check de dependência (DB, broker) na semântica correta: dependência
-      externa caída derruba readiness, não liveness
-- [ ] Métricas HTTP e de runtime coletáveis fora do processo [3.39.3] — evidência: teste
-- [ ] Métrica de negócio como valor de domínio (gauge), não só contador de infra
+- [x] Decidir MicroProfile/SmallRye antes de abstração própria: health e metrics usam as extensões nativas do Quarkus/SmallRye; abstrações próprias só existem quando representam uma porta da aplicação
+- [x] Health de aplicação expondo liveness, readiness e startup como grupos distintos, com testes por serviço [3.39.3]
+- [x] Health de dependências na semântica correta: checks nativos do Quarkus/SmallRye participam do readiness quando aplicável
+- [x] Métricas HTTP e de runtime coletáveis em `/q/metrics` [3.39.3] — evidência no Inventory
+- [x] Métrica de negócio de Inventory para veículos registrados, exposta como contador Prometheus e isolada atrás de uma porta da aplicação
 - [ ] Métrica do pipeline Kafka e do relay da outbox: lag, falhas, retries
 - [ ] Tracing de requisição ponta a ponta, com propagação de contexto através
       do Kafka [3.39.3] — evidência: teste de integração assegurando a propagação
@@ -223,7 +204,7 @@ Conceitos do capítulo que **não** usamos:
 - [x] Escopo do cap. 10 conferido contra o livro: o capítulo tem **seis** pilares
       (health, metrics, tracing, fault tolerance, service discovery, SmallRye/MP),
       não só health e metrics
-- [ ] Preencher com o cap. 10 (cloud-native patterns / health / metrics) quando implementado
+- [ ] Completar os documentos de estudo do cap. 10 à medida que cada capacidade for fechada
 
 ## Regra de evolução
 
