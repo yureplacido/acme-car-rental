@@ -2,6 +2,19 @@
 
 > Cada item é uma evidência executável no repositório, não apenas um tópico lido.
 
+## Como ler este roadmap
+
+O livro é escrito contra **Quarkus 3.15.1 / MicroProfile 6.1**. Este repositório
+está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
+
+- **item de roadmap = capacidade + evidência**, não o passo do livro;
+- a API concreta (`artifactId`, propriedade, comportamento) é decidida na
+  implementação e verificada contra 3.39.3 — regra 16 do [AGENTS.md](../AGENTS.md);
+- `[3.39.3]` num item marca exatamente isso: o que o livro usou pode ter mudado;
+- o mapa de onde o livro trata cada assunto está em
+  [knowledge/book-index/](knowledge/book-index/README.md) — o sumário navegável,
+  com página. O texto do livro em si não está no repositório.
+
 ## Foundation
 
 - [x] Padronizar módulos independentes sem reactor
@@ -91,23 +104,77 @@ Notas de escopo:
 
 ## Part 3 — Cloud and beyond
 
-- [ ] Cap. 10 — Cloud-native patterns, Health e Metrics
-- [ ] Native build e testes integration
-- [ ] Kubernetes/OpenShift
-- [ ] Observabilidade
-- [ ] Resiliência distribuída
+- [ ] Cap. 10 — Health, metrics, tracing, fault tolerance e service discovery
+- [ ] Cap. 11 — Imagem de container, Kubernetes/OpenShift e deploy real
+- [ ] Cap. 12 — Custom Quarkus extensions
+- [ ] Native build e testes de integração em todos os módulos
 
-## Cap. 10 — Cloud-native patterns, Health e Metrics
+## Cap. 10 — Cloud-native patterns
 
-- [ ] Health endpoint básico
-- [ ] Liveness e readiness
-- [ ] Health checks de dependências
-- [ ] Métricas HTTP e de runtime
-- [ ] Métricas de negócio
-- [ ] Métricas do pipeline Kafka / Outbox
-- [ ] Configuração cloud-native e comportamento stateless
-- [ ] Graceful shutdown
-- [ ] Evidência de execução/testes para health e metrics
+> O livro tem **seis** pilares neste capítulo (10.1–10.7, p. 273–303):
+> MicroProfile/SmallRye, health, metrics, tracing, fault tolerance e service
+> discovery. Onde o assunto está: `docs/knowledge/book-index/cap10.txt`.
+>
+> Hoje não há **nenhuma** dependência de health, metrics, tracing ou fault
+> tolerance nos 5 módulos: este capítulo parte do zero.
+
+- [ ] Decidir MicroProfile antes de abstração própria: health, metrics, tracing e
+      fault tolerance vêm de SmallRye, não de código do projeto — evidência: ADR
+- [ ] Health de aplicação expondo liveness, readiness e startup como grupos
+      distintos, com semântica diferente por grupo [3.39.3] — evidência: teste por serviço
+- [ ] Health check de dependência (DB, broker) na semântica correta: dependência
+      externa caída derruba readiness, não liveness
+- [ ] Métricas HTTP e de runtime coletáveis fora do processo [3.39.3] — evidência: teste
+- [ ] Métrica de negócio como valor de domínio (gauge), não só contador de infra
+- [ ] Métrica do pipeline Kafka e do relay da outbox: lag, falhas, retries
+- [ ] Tracing de requisição ponta a ponta, com propagação de contexto através
+      do Kafka [3.39.3] — evidência: teste de integração assegurando a propagação
+- [ ] Fault tolerance em chamada externa com timeout, retry e fallback explícitos,
+      sem retry cego [3.39.3] — evidência: teste do cenário de falha
+- [ ] Service discovery desacoplando localização de serviço da configuração
+- [ ] Configuração cloud-native: a mesma imagem sobe em qualquer ambiente,
+      comportamento stateless entre instâncias
+- [ ] Graceful shutdown drenando requisição in-flight e outbox pendente
+
+## Cap. 11 — Quarkus applications in the cloud
+
+> O livro (11.1–11.7, p. 304–351) cobre config externalizada, imagem de container,
+> Kubernetes/OpenShift, clients de cluster, serverless e deploy no OpenShift
+> Sandbox. Onde o assunto está: `docs/knowledge/book-index/cap11.txt`.
+
+- [ ] Configuração externalizada por ambiente: mesma imagem em dev, staging e
+      prod, sem rebuild [3.39.3] — evidência: dois ambientes com a mesma imagem
+- [ ] Imagem de container reproduzível para os 5 módulos, com tag imutável
+      [3.39.3] — evidência: build local e digest registrado
+- [ ] Manifests Kubernetes versionados no repositório, com customização
+      declarativa de recursos, probes e config [3.39.3]
+- [ ] Probes de liveness/readiness reaproveitando o health do cap. 10, com a
+      mesma configuração valendo em JVM e nativo
+- [ ] Deploy do Acme em cluster real (OpenShift Sandbox), com no mínimo dois
+      serviços e o pipeline Kafka junto — evidência: URL respondendo
+- [ ] Registrar o custo de manter o cluster como parte da evidência de teste
+
+Conceitos do capítulo que **não** usamos:
+
+| Conceito | Por que não usamos | Quando reavaliar |
+|---|---|---|
+| Clients Kubernetes/OpenShift (11.4) | O projeto não gerencia recursos de cluster, só consome | se surgir necessidade de operator |
+| Serverless com Funqy/Knative (11.5) | Os casos de uso são contínuos e com estado; operar serverless custa mais do que rende | se aparecer workload event-driven isolado |
+| Push para registry próprio (11.2.4) | Depende de credencial de terceiro no ambiente de build | quando existir registry do time |
+
+## Cap. 12 — Custom Quarkus extensions
+
+> O livro (12.1–12.5, p. 352–368) cobre motivação, módulos, processors/recorders/
+> build items, Dev Services, Dev UI, modo nativo e testes de extensão. Onde o
+> assunto está: `docs/knowledge/book-index/cap12.txt`.
+
+- [ ] 🔜 Decidir qual extensão o projeto realmente precisa — o livro constrói uma
+      extensão de estatísticas; só criamos uma se o domínio pedir
+- [ ] Extensão com model de configuração próprio, sem contaminar os módulos de domínio
+- [ ] Build step, recorder e processor em módulo próprio, com o código de build
+      fora do domínio e da aplicação
+- [ ] Comportamento correto em dev mode (Dev Services, Dev UI) **e** em nativo
+- [ ] Testes da extensão: unitário do recorder e de integração do artefato
 
 ## Base de estudo
 
@@ -117,6 +184,11 @@ Notas de escopo:
 - [x] Exemplos didáticos contrários ao domínio (`knowledge/10-exemplos-contrarios-ao-dominio.md`)
 - [x] Registro de armadilhas reais (`knowledge/11-armadilhas-e-licoes.md`)
 - [x] Template para novos capítulos (`knowledge/12-modelo-para-novos-capitulos.md`)
+- [x] Índice navegável do livro por capítulo, com página
+      (`knowledge/book-index/`, 20 arquivos, gerado por `tools/book-index/extract.py`)
+- [x] Escopo do cap. 10 conferido contra o livro: o capítulo tem **seis** pilares
+      (health, metrics, tracing, fault tolerance, service discovery, SmallRye/MP),
+      não só health e metrics
 - [ ] Preencher com o cap. 10 (cloud-native patterns / health / metrics) quando implementado
 
 ## Regra de evolução
