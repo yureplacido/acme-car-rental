@@ -46,10 +46,12 @@ class HealthEndpointTest {
 
     @Test
     void shouldExposeHttpAndJvmMetrics() throws Exception {
-        var healthResponse = get(metricsUrl);
-        assertEquals(200, healthResponse.statusCode());
-        assertTrue(healthResponse.body().contains("http_server_requests_seconds"), healthResponse.body());
-        assertTrue(healthResponse.body().contains("jvm_"), healthResponse.body());
+        assertHealth(livenessUrl);
+
+        var metricsResponse = get(metricsUrl);
+        assertEquals(200, metricsResponse.statusCode());
+        assertTrue(metricsResponse.body().contains("http_server_requests_seconds"), metricsResponse.body());
+        assertTrue(metricsResponse.body().contains("jvm_"), metricsResponse.body());
     }
 
     private HttpResponse<String> get(URI uri) throws Exception {
