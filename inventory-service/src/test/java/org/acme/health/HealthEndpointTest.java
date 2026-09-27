@@ -50,7 +50,7 @@ class HealthEndpointTest {
 
         var metricsResponse = get(metricsUrl);
         assertEquals(200, metricsResponse.statusCode());
-        assertTrue(metricsResponse.body().contains("http_server_requests_seconds"), metricsResponse.body());
+        assertTrue(metricsResponse.body().contains("http_server_active_connections"), metricsResponse.body());
         assertTrue(metricsResponse.body().contains("jvm_"), metricsResponse.body());
     }
 
