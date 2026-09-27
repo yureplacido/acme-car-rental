@@ -25,12 +25,13 @@ Use `clean` after any refactor that deletes classes: Maven does not remove orpha
 channel/topic that is not in the code. See
 [docs/knowledge/11 §16](../docs/knowledge/11-armadilhas-e-licoes.md).
 
-Messaging needs the compose broker (`others/docker-compose.yml`); it advertises
-`localhost:9092` for the host and `kafka:29092` for containers:
-
-```shell script
-cd ../others && docker compose up -d kafka kafka-init
-```
+The MySQL Dev Service listens on the fixed port `33306` in dev mode (DBeaver:
+`jdbc:mysql://localhost:33306/quarkus`, user `user`, password `pass`), and no Docker is
+needed. Messaging follows the same rule: with no `kafka.bootstrap.servers` in `%dev`, the
+Quarkus 3.39.3 Kafka Dev Service starts a shared broker on `39092` and creates the
+`vehicle-registered` topic; containers (`%docker`) and the packaged jar (`%prod`) talk to the
+broker from `others/docker-compose.yml`. Full map in
+[docs/deployment.md](../docs/deployment.md#portas-de-desenvolvimento-dev-services-com-porta-fixa).
 
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
 

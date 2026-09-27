@@ -449,15 +449,18 @@ KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092   # nome de container
 
 `kafka` só resolve **dentro** da rede do compose. O JVM no host resolve `localhost`, nunca
 `kafka` (`getent hosts kafka` → falha). Ou seja: `bootstrap.servers` sozinho **nunca** tornou
-o broker do compose usável a partir do host — o Dev Services do Kafka também não entra,
-porque o `kafka.bootstrap.servers` está sempre definido.
+o broker do compose usável a partir do host. E o atalho "subir um broker só pra mim" não
+existia: o `kafka.bootstrap.servers` sem perfil estava sempre definido, e é justamente a
+ausência dele que habilita o Kafka Dev Service.
 
-**Correção.** Dois listeners no serviço `kafka` (ver [deployment.md](../deployment.md)):
+**Correção.** Duas saídas, e elas se aplicam a casos diferentes:
 
-| Listener | Endereço anunciado | Cliente |
-|---|---|---|
-| `INTERNAL` | `kafka:29092` | containers do compose (`%docker.kafka.bootstrap.servers`) |
-| `EXTERNAL` | `localhost:9092` | host/IntelliJ, dev mode, CLI (`kafka.bootstrap.servers`) |
+1. **Dev mode puro (IntelliJ, sem Docker)**: o `quarkus-kafka-client` do 3.39.3 tem Kafka Dev
+   Service. Sem `kafka.bootstrap.servers` no perfil `dev`, ele sobe o broker (compartilhado entre
+   os serviços, `shared=true`) e injeta o bootstrap. É o caminho que o repositório usa hoje
+   (`%dev.quarkus.kafka.devservices.port=39092`).
+2. **Container ↔ host no mesmo broker**: dois listeners no serviço `kafka` do compose
+   (ver [deployment.md](../deployment.md)) — é o que `%docker` e `%prod` usam:
 
 ```yaml
 KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
@@ -466,13 +469,22 @@ KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EX
 KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
 ```
 
+| Listener | Endereço anunciado | Cliente |
+|---|---|---|
+| `INTERNAL` | `kafka:29092` | containers do compose (`%docker.kafka.bootstrap.servers`) |
+| `EXTERNAL` | `localhost:9092` | jar no host (`%prod.kafka.bootstrap.servers`) e CLI |
+
 **Prevenção.**
 
 - [x] Listeners documentados em [deployment.md](../deployment.md) com o mapa cliente→porta.
+- [x] Dev mode não depende do compose: Kafka Dev Service com porta fixa (39092), para o
+      `UnknownHostException` não existir no caminho do dia a dia.
 - [x] Todo canal declara `topic` **e** `group.id` explicitamente: canal sem `topic` usa o
       nome do canal como tópico (foi exatamente o que a §16 expôs).
 - [ ] Ao mudar listener, revalidar com o app **no host** — não basta o container subir
       saudável (o healthcheck usa bootstrap, que ignora o endereço anunciado).
+- [ ] ⚠️ Misturar os dois brokers quebra o fluxo: dev fala com 39092, container com 29092.
+      Nenhum evento atravessa. Escolha um dos dois por execução.
 
 **lição.** O bootstrap é o endereço de **descoberta**; o metadata seguinte troca o host pelo
 **anunciado**. Broker em container que precisa servir o host tem que anunciar **dois**

@@ -94,13 +94,18 @@ Notas de escopo:
   real), e `shouldConfigureDeadLetterTopicOnRealVehicleRegisteredChannel` prova a **configuração** do canal
   real. **Dívida:** falta um teste no canal real `vehicle-registered-in` que produza um payload inválido e
   comprove retry → `vehicle-registered-dlq` de ponta a ponta.
-- O stack docker provisiona Kafka via `others/docker-compose.yml` (serviços `kafka` e `kafka-init`,
-  broker `apache/kafka:3.9.1`). O broker anuncia **dois** listeners — `kafka:29092` (INTERNAL, containers,
-  `%docker.kafka.bootstrap.servers`) e `localhost:9092` (EXTERNAL, host/IntelliJ,
-  `kafka.bootstrap.servers`) — para o mesmo broker servir as duas redes. O `kafka-init` é a fonte
-  única dos tópicos, inclusive os de `reservation-confirmed`, `rental-completed` e `invoice-opened`
-  do cap.10, e usa `--bootstrap-server kafka:29092`. Ferramentas de operação:
-  `docker exec acme-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 ...`.
+- **Broker de dev = Kafka Dev Service do Quarkus 3.39.3** (`%dev.quarkus.kafka.devservices.port=39092`,
+  `shared=true` entre os serviços, tópicos via `topic-partitions`); **broker de container/prod =
+  `others/docker-compose.yml`** (serviços `kafka` e `kafka-init`, `apache/kafka:3.9.1`), que anuncia
+  **dois** listeners — `kafka:29092` (INTERNAL, containers, `%docker.kafka.bootstrap.servers`) e
+  `localhost:9092` (EXTERNAL, jar no host, `%prod.kafka.bootstrap.servers`). O `kafka-init` é a fonte
+  única dos tópicos no compose, inclusive os de `reservation-confirmed`, `rental-completed` e
+  `invoice-opened` do cap.10, e usa `--bootstrap-server kafka:29092`. Nos testes quem fornece o
+  broker é o `KafkaCompanionResource` (`%test.quarkus.kafka.devservices.enabled=false`). Ferramentas
+  de operação: `docker exec acme-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 ...`
+  (compose) ou o container do Dev Service em `39092`.
+  **Dívida de operação:** misturar os dois brokers (app no host + container) não compartilha evento —
+  para fluxo monolítico de mensageria use o compose nos dois lados ou o Dev Service nos dois.
   A imagem é **`3.9.1` e não `3.9.0`** por causa do bug **KAFKA-18281**: com KRaft 3.9.0 o broker
   validava listeners não-advertised (ex.: `CONTROLLER`) contra `advertised.listeners` e o `0.0.0.0`
   causava falha de inicialização/healthcheck com a nossa configuração — corrigido em 3.9.1.
@@ -108,6 +113,11 @@ Notas de escopo:
   pré-requisito `inventory-proto install`) em [deployment.md](deployment.md#kafka-cap9);
   armadilhas em [knowledge/11 §15](knowledge/11-armadilhas-e-licoes.md) e
   [§16](knowledge/11-armadilhas-e-licoes.md).
+- **Portas de dev previsíveis**: todos os Dev Services têm porta fixa **apenas no `%dev`**
+  (MySQL `33306`, Postgres `55432`/`55433`, Mongo `37017`, Keycloak `38180`/`38181`, Kafka `39092`),
+  para DBeaver/CLI não dependerem de porta sorteada. No `%test` a porta continua aleatória, porque
+  dois builds simultâneos não podem disputá-la. Tabela, regra de formação dos números e credenciais
+  em [deployment.md → Portas de desenvolvimento](deployment.md#portas-de-desenvolvimento-dev-services-com-porta-fixa).
 - **Dívida (achada em 2026-09-27, cap.9):** o caminho de publicação de evento do
   `inventory-service` está quebrado no `HEAD` por dois bugs anteriores a este trabalho e que
   nenhum teste cobria (o publisher é testado com emitter mockado, sem broker):
