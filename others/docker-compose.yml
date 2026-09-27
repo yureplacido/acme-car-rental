@@ -234,6 +234,9 @@ services:
 
   # Provisiona os tópicos de messaging antes dos serviços iniciarem
   # (one-shot; inventory/billing dependem de service_completed_successfully).
+  # Lista = fonte única de verdade dos tópicos: qualquer canal novo
+  # (evento + retries + DLQ) entra aqui, para host (IntelliJ) e containers
+  # compartilharem o mesmo broker sem criação manual.
   kafka-init:
     container_name: acme-kafka-init
     image: apache/kafka:3.9.1
@@ -250,7 +253,18 @@ services:
           vehicle-registered-retry_1000 \
           vehicle-registered-retry_5000 \
           vehicle-registered-retry_15000 \
-          vehicle-registered-dlq; do
+          vehicle-registered-dlq \
+          reservation-confirmed \
+          reservation-confirmed-retry_1000 \
+          reservation-confirmed-retry_5000 \
+          reservation-confirmed-retry_15000 \
+          reservation-confirmed-dlq \
+          rental-completed \
+          rental-completed-retry_1000 \
+          rental-completed-retry_5000 \
+          rental-completed-retry_15000 \
+          rental-completed-dlq \
+          invoice-opened; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 \
             --create --if-not-exists --topic "$$t" --partitions 1 --replication-factor 1
         done
