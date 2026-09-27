@@ -28,7 +28,7 @@ public class KafkaEventPublisher implements EventPublisher {
     public Uni<Void> publish(VehicleRegistered event) {
         return Uni.createFrom()
                 .item(() -> serialize(event))
-                .flatMap(payload -> emitter.send(
+                .flatMap(payload -> emitter.sendMessage(
                         Message.of(payload)
                                 .addMetadata(OutgoingKafkaRecordMetadata.<String>builder()
                                         .withKey(event.vehicleId().value().toString())
