@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 class BusinessMetricsIntegrationTest {
@@ -25,7 +24,7 @@ class BusinessMetricsIntegrationTest {
 
         String mutation = """
                 {
-                  "query": "mutation { register(input: { licensePlateNumber: \"OBS%s\", manufacturer: \"Ford\", model: \"Mustang\", category: \"SUV\", year: 2025, color: \"black\", seats: 5, dailyRate: 149.90, currency: \"BRL\" }) { id licensePlateNumber } }"
+                  "query": "mutation { register(input: { plateNumber: \"OBS%s\", manufacturer: \"Ford\", model: \"Mustang\", category: \"SUV\", year: 2025, color: \"black\", seats: 5, dailyRate: 149.90, currency: \"BRL\" }) { id licensePlateNumber } }"
                 }
                 """.formatted(System.nanoTime());
 
