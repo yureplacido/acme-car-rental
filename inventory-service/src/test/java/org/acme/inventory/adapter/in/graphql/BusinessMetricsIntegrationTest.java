@@ -24,7 +24,7 @@ class BusinessMetricsIntegrationTest {
 
         String mutation = """
                 {
-                  "query": "mutation { register(input: { plateNumber: \"OBS%s\", manufacturer: \"Ford\", model: \"Mustang\", category: \"SUV\", year: 2025, color: \"black\", seats: 5, dailyRate: 149.90, currency: \"BRL\" }) { id licensePlateNumber } }"
+                  "query": "mutation { register(input: { plateNumber: \"OBS%s\", manufacturer: \"Ford\", model: \"Mustang\", category: \"SUV\", year: 2025, color: \"black\", seats: 5, dailyRate: 149.90, currency: \"BRL\" }) { id plateNumber } }"
                 }
                 """.formatted(System.nanoTime());
 
