@@ -40,6 +40,6 @@ class HealthEndpointTest {
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
         assertEquals(200, response.statusCode());
-        assertTrue(response.body().contains(""status":"UP""), response.body());
+        assertTrue(response.body().contains("\"status\":\"UP\""), response.body());
     }
 }
