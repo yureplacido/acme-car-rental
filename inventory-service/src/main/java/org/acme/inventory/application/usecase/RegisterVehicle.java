@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.acme.inventory.application.port.out.EventPublisher;
+import org.acme.inventory.application.port.out.InventoryMetrics;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.domain.event.VehicleRegistered;
 import org.acme.inventory.domain.model.FuelType;
@@ -22,11 +23,18 @@ public class RegisterVehicle {
 
     private final VehicleRepository repository;
     private final EventPublisher eventPublisher;
+    private final InventoryMetrics metrics;
 
     @Inject
-    public RegisterVehicle(VehicleRepository repository, EventPublisher eventPublisher) {
+    public RegisterVehicle(VehicleRepository repository, EventPublisher eventPublisher, InventoryMetrics metrics) {
         this.repository = repository;
         this.eventPublisher = eventPublisher;
+        this.metrics = metrics;
+    }
+
+    public RegisterVehicle(VehicleRepository repository, EventPublisher eventPublisher) {
+        this(repository, eventPublisher, () -> {
+        });
     }
 
     public RegisterVehicle(VehicleRepository repository) {
@@ -56,7 +64,8 @@ public class RegisterVehicle {
                 .call(savedVehicle -> eventPublisher.publish(
                         VehicleRegistered.from(
                                 savedVehicle.id(),
-                                savedVehicle.licensePlate().value())));
+                                savedVehicle.licensePlate().value())))
+                .invoke(ignored -> metrics.vehicleRegistered());
     }
 
     public record Command(

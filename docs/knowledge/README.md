@@ -51,6 +51,7 @@ Estas páginas existem para tornar essas divergências **explícitas e reutiliz�
 | 11 | [Armadilhas e lições](./11-armadilhas-e-licoes.md) | todos | erros reais, diagnóstico e prevenção |
 | 12 | [Modelo para novos capítulos](./12-modelo-para-novos-capitulos.md) | — | **template** para documentar o próximo capítulo |
 | 13 | [Transactional Outbox na prática](./13-transactional-outbox.md) | 9 + implementação | **outbox, relay, at-least-once, scheduler e testes E2E** |
+| — | [Índice do livro](./book-index/README.md) | 1–12 | **onde o assunto está**, com página. Não contém o texto da obra |
 
 ## Mapa capítulo → documento
 
@@ -66,6 +67,9 @@ Estas páginas existem para tornar essas divergências **explícitas e reutiliz�
 | 8 | Reactive programming | [07](./07-programacao-reativa.md) | [architecture.md](../architecture.md) |
 | 9 | Quarkus messaging | [08](./08-messaging-reativo.md) + [09](./09-padroes-de-resiliencia-em-messaging.md) | [adr/](../adr/README.md), [contracts.md](../contracts.md) |
 | 10+ | Cloud-native, observabilidade, extensões | [12](./12-modelo-para-novos-capitulos.md) (template; capítulos ainda não escritos) | [roadmap.md](../roadmap.md) |
+| 10 | Health, metrics, tracing, FT, service discovery | [book-index/cap10.txt](./book-index/cap10.txt) (onde o livro trata) | [roadmap.md](../roadmap.md) |
+| 11 | Cloud, Kubernetes/OpenShift, serverless | [book-index/cap11.txt](./book-index/cap11.txt) | [deployment.md](../deployment.md) |
+| 12 | Custom extensions | [book-index/cap12.txt](./book-index/cap12.txt) | [roadmap.md](../roadmap.md) |
 | Outbox | Transactional Outbox + relay | [13](./13-transactional-outbox.md) | [adr/](../adr/README.md), [contracts.md](../contracts.md) |
 
 ## Versão de referência
@@ -75,10 +79,25 @@ Tudo aqui foi escrito contra:
 - **Java 21**
 - **Quarkus 3.39.3** (fixado em `quarkus.platform.version`)
 
+> ⚠️ O **livro** é de outra versão: *Quarkus in Action* usa **Quarkus 3.15.1 /
+> MicroProfile 6.1**. Nenhum item de roadmap é uma transcrição de capítulo —
+> ver [roadmap.md](../roadmap.md) § "Como ler este roadmap".
+
 Toda API ou propriedade **sensível à versão** foi conferida no artefato real do
 `~/.m2` ou na documentação oficial antes de ser afirmada aqui. Exemplos já
 verificados: `quarkus-junit-mockito`, `Acknowledgment.Strategy`,
 `quarkus.test.continuous-testing`, `io.quarkus.test.kafka.KafkaCompanionResource`.
+
+## Onde o livro trata cada assunto
+
+[book-index/](./book-index/README.md) é o sumário navegável do livro, por
+capítulo, com número de página. Serve para responder *"onde eu leio sobre X?"*
+antes de implementar.
+
+O **texto integral não está no repositório** — é obra comercial. Ele é gerado
+localmente em `book-text/` (ignorado pelo git) por
+`tools/book-index/extract.py`; o que se versiona é só o índice. A regra é a
+mesma de [12](./12-modelo-para-novos-capitulos.md): **síntese, não transcrição**.
 
 ## Como manter
 
@@ -87,8 +106,11 @@ verificados: `quarkus-junit-mockito`, `Acknowledgment.Strategy`,
 3. Toda armadilha vira entrada em [11-armadilhas-e-licoes.md](./11-armadilhas-e-licoes.md) assim que for diagnosticada — não quando for resolvida.
 4. Nenhum exemplo de código entra aqui sem indicar se é **real** ou **didático**.
 5. Se o código e o documento divergirem, o código vence — corrija o documento no mesmo commit.
+6. Para refazer o índice do livro: `tools/book-index/extract.py <pdf>` e commitar
+   **só** `book-index/`. Nunca versionar `book-text/`.
 
 ---
 
-_Última atualização: 2026-09-26 (cap. 1–9 do livro; base criada a partir das correções de
-testes do `billing-service` e da leitura dos capítulos 3, 5, 7, 8 e 9)._
+_Última atualização: 2026-09-26 (cap. 1–9 do livro documentados; cap. 10–12 com escopo
+conferido contra o livro e roadmap em nível de capacidade; base criada a partir das
+correções de testes do `billing-service` e da leitura dos capítulos 3, 5, 7, 8 e 9)._

@@ -113,6 +113,6 @@ class OutboxRelayKafkaIntegrationTest {
                         records -> records.select().where(record -> invoiceId.equals(record.key())))
                 .awaitRecords(1, PUBLISH_TIMEOUT)
                 .getRecords()
-                .get(0);
+                .getFirst();
     }
 }

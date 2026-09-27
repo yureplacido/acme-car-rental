@@ -1,0 +1,47 @@
+# Capitulo 10 - Cloud-native application patterns
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 299-329 | impressas 273-303
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap10.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Introducing the MicroProfile set of specifications for cloud-native Java applications
+- Monitoring the status and health of applications
+- Collecting and visualizing application metrics
+- Tracing requests within and across services
+- Adding fault tolerance capabilities to applications
+
+## Secoes
+
+10.1 MicroProfile, SmallRye, and Quarkus           p. 275
+  10.1.1 What is SmallRye?                           p. 275
+10.2 Monitoring application health                 p. 276
+  10.2.1 Monitoring the health of car rental         p. 277
+10.3 Application metrics                           p. 282
+  10.3.1 Micrometer                                  p. 282
+  10.3.2 Metric types                                p. 282
+  10.3.3 Metric dimensionality                       p. 283
+  10.3.4 The programming model                       p. 284
+  10.3.5 Prometheus and Grafana                      p. 285
+  10.3.6 Monitoring metrics of car rental            p. 285
+10.4 Tracing                                       p. 290
+  10.4.1 OpenTelemetry                               p. 291
+  10.4.2 Adding tracing capabilities to car rental   p. 293
+10.5 Fault tolerance                               p. 297
+  10.5.1 Adding fault tolerance to car rental        p. 298
+  10.5.2 Alternative fault tolerance approaches      p. 300
+10.6 Service discovery                             p. 301
+10.7 Next steps                                    p. 302
+Summary                                            p. 302
+
+## Termos citados (contagem no capitulo)
+
+  `MicroProfile` (36)  `OpenTelemetry` (24)  `SmallRye` (20)  `@Retry` (5)  `MeterRegistry` (4)  `HealthCheck` (3)
+  `HealthCheckResponse` (3)  `@Counted` (3)  `ReservationResource` (3)  `OpenTracing` (2)  `quarkus.datasource.devservices.port` (2)  `CarCountCheck` (2)
+  `CarRepository` (2)  `@Inject` (2)  `OrderDetais` (2)  `@Singleton` (2)  `LocalDate` (2)  `InventoryService` (1)
+  `DataSource` (1)  `@Wellness` (1)  `@Override` (1)  `@PostCon` (1)  `OpenCensus` (1)  `ReservationsResource` (1)

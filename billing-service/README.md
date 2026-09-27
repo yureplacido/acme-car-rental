@@ -12,6 +12,13 @@ You can run your application in dev mode that enables live coding using:
 ./mvnw quarkus:dev
 ```
 
+Messaging needs no Docker in dev mode: with no `kafka.bootstrap.servers` in the `%dev` profile,
+the Quarkus 3.39.3 Kafka Dev Service starts a shared broker on the fixed port `39092` and creates
+the topics this service needs (event + retries + DLQ). The tests use the Kafka companion instead
+(`%test.quarkus.kafka.devservices.enabled=false`). Containers (`%docker`) and the packaged jar
+(`%prod`) talk to the broker from `others/docker-compose.yml`. Full map in
+[docs/deployment.md](../docs/deployment.md#kafka-cap9).
+
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
 
 ## Packaging and running the application

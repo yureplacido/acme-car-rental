@@ -1,0 +1,49 @@
+# Capitulo 12 - Custom Quarkus extensions
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 378-394 | impressas 352-368
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap12.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Why you would want to create a custom Quarkus extension
+- Explaining the concepts and the structure of an extension
+- A practical example of building and using an extension
+- Writing automated tests for an extension
+
+## Secoes
+
+12.1 Motivation to create custom extensions       p. 353
+  12.1.1 Initialization                             p. 353
+  12.1.2 Build-time steps and bytecode generation   p. 353
+  12.1.3 Configuration                              p. 355
+  12.1.4 Dependency injection                       p. 355
+  12.1.5 Dev mode shutdown hooks                    p. 356
+  12.1.6 Dev Services                               p. 356
+  12.1.7 Dev UI                                     p. 356
+  12.1.8 Native mode                                p. 356
+12.2 Extension concepts and structure             p. 357
+  12.2.1 Modules                                    p. 357
+  12.2.2 Processors and recorders                   p. 357
+  12.2.3 Build items                                p. 358
+12.3 Creating an extension                        p. 359
+  12.3.1 Creating the project                       p. 359
+  12.3.2 Extending the configuration model          p. 359
+  12.3.3 Creating the HTTP handler                  p. 360
+  12.3.4 Creating the recorder                      p. 362
+  12.3.5 Creating the processor                     p. 362
+  12.3.6 Trying out the extension                   p. 364
+12.4 Testing an extension                         p. 365
+12.5 Next steps                                   p. 367
+Summary                                           p. 367
+
+## Termos citados (contagem no capitulo)
+
+  `RoutingContext` (8)  `quarkus.metadata.path` (7)  `QuarkusUnitTest` (6)  `MetadataHandler` (5)  `@Name` (4)  `MetadataExtensionConfig` (4)
+  `MetadataExtensionRecorder` (4)  `quarkus.runtime.annotations` (3)  `RouteBuildItem` (3)  `@RegisterExtension` (3)  `RestAssured` (3)  `MetadataExtensionConfigTest` (3)
+  `MyPersonType` (2)  `BirthDate` (2)  `AnnotationInstance` (2)  `@BuildStep` (2)  `ConfigPhase` (2)  `MetadataExtensionProcessor` (2)
+  `@Record` (2)  `ApplicationInfoBuildItem` (2)  `AppModelProviderBuildItem` (2)  `MetadataExtensionTest` (2)  `@Test` (2)  `SmallRye` (1)

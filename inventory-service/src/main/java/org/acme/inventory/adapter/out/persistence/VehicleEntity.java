@@ -1,5 +1,6 @@
 package org.acme.inventory.adapter.out.persistence;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -16,7 +17,7 @@ import org.acme.inventory.domain.model.VehicleStatus;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "cars")
+@Table(name = "vehicles")
 public class VehicleEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,7 +34,10 @@ public class VehicleEntity {
     public Transmission transmission;
     @Enumerated(EnumType.STRING)
     public FuelType fuelType;
+    // "condition" e palavra reservada no MySQL: sem as crases o DDL falha com 1064 e,
+    // pior, o Hibernate Reactive so registra WARN (HR000021) e a aplicacao sobe sem schema.
     @Enumerated(EnumType.STRING)
+    @Column(name = "`condition`")
     public VehicleCondition condition;
 
     public Integer year;

@@ -191,12 +191,16 @@ services:
 
   # ---------------- messaging ----------------
 
-  # Cap.9 - Kafka KRaft single-node. Na rede default do compose, os serviços
-  # resolvem `kafka` pelo nome (kafka.bootstrap.servers %docker) no porto 9092.
-  # Ferramentas no host usam docker exec (ex.: docker exec acme-kafka kafka-topics.sh
-  # --bootstrap-server kafka:9092 ...). auto-create desligado: os tópicos de
-  # messaging são provisionados via kafka-init (ADR 002 — retry não é mecanismo
-  # de criação automática de recursos).
+  # Cap.9 - Kafka KRaft single-node com DOIS listeners, para o mesmo broker servir
+  # aos containers do compose e aos serviços que rodam no host (IntelliJ/dev mode):
+  #   INTERNAL kafka:29092  → rede do compose (kafka.bootstrap.servers %docker)
+  #   EXTERNAL localhost:9092 → host, JDK/CLI (kafka.bootstrap.servers padrão)
+  # O listener anunciado (advertised.listeners) precisa ser alcançável por CADA
+  # cliente: com um único PLAINTEXT://kafka:9092, quem roda no host quebra com
+  # UnknownHostException depois do bootstrap. Ferramentas no host usam
+  # --bootstrap-server localhost:9092 (ou docker exec ... kafka:29092).
+  # auto-create desligado: os tópicos de messaging são provisionados via kafka-init
+  # (ADR 002 — retry não é mecanismo de criação automática de recursos).
 
   kafka:
     container_name: acme-kafka
@@ -209,11 +213,11 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -230,6 +234,9 @@ services:
 
   # Provisiona os tópicos de messaging antes dos serviços iniciarem
   # (one-shot; inventory/billing dependem de service_completed_successfully).
+  # Lista = fonte única de verdade dos tópicos: qualquer canal novo
+  # (evento + retries + DLQ) entra aqui, para host (IntelliJ) e containers
+  # compartilharem o mesmo broker sem criação manual.
   kafka-init:
     container_name: acme-kafka-init
     image: apache/kafka:3.9.1
@@ -246,8 +253,19 @@ services:
           vehicle-registered-retry_1000 \
           vehicle-registered-retry_5000 \
           vehicle-registered-retry_15000 \
-          vehicle-registered-dlq; do
-          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+          vehicle-registered-dlq \
+          reservation-confirmed \
+          reservation-confirmed-retry_1000 \
+          reservation-confirmed-retry_5000 \
+          reservation-confirmed-retry_15000 \
+          reservation-confirmed-dlq \
+          rental-completed \
+          rental-completed-retry_1000 \
+          rental-completed-retry_5000 \
+          rental-completed-retry_15000 \
+          rental-completed-dlq \
+          invoice-opened; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 \
             --create --if-not-exists --topic "$$t" --partitions 1 --replication-factor 1
         done
         echo "messaging topics provisioned"

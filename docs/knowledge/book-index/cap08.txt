@@ -1,0 +1,41 @@
+# Capitulo 8 - Reactive programming
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 240-255 | impressas 214-229
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap08.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Learning what reactive programming is
+- Identifying why we want to write reactive code
+- Explaining SmallRye Mutiny as the reactive library used in Quarkus
+- Analyzing how the reactive paradigm integrates into the Quarkus architecture
+
+## Secoes
+
+8.1 Being reactive                      p. 215
+  8.1.1 Handling of I/O operations        p. 215
+  8.1.2 Writing reactive code             p. 217
+8.2 Mutiny                              p. 218
+  8.2.1 Reactive streams                  p. 218
+  8.2.2 Mutiny API                        p. 219
+8.3 Reactive engine                     p. 222
+8.4 Making Car Rental reactive          p. 222
+  8.4.1 Reservation service               p. 222
+  8.4.2 Inventory service                 p. 224
+8.5 Virtual threads with project Loom   p. 225
+  8.5.1 Project Loom in Quarkus           p. 226
+  8.5.2 Problems with project Loom        p. 227
+8.6 Next steps                          p. 228
+Summary                                 p. 229
+
+## Termos citados (contagem no capitulo)
+
+  `CarResponse` (7)  `@Blocking` (6)  `InsertCarRequest` (4)  `ThreadLocal` (4)  `SmallRye` (3)  `@RunOnVirtualThread` (3)
+  `JavaDoc` (2)  `@NonBlocking` (2)  `@Nonblocking` (1)  `ReservationResource` (1)  `@Consumes` (1)  `MediaType` (1)
+  `@POST` (1)  `@WithTransaction` (1)  `BlockedThreadChecker` (1)  `VertxException` (1)  `InventoryService` (1)  `RemoveCarRequest` (1)
+  `GrpcInventoryService` (1)  `@Override` (1)  `QuarkusTransaction` (1)  `@GET` (1)  `@Path` (1)  `MicroProfile` (1)

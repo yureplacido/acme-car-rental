@@ -6,11 +6,32 @@ If you want to learn more about Quarkus, please visit its website: <https://quar
 
 ## Running the application in dev mode
 
+The gRPC contract is a standalone module, so install it in the local repository first
+(this mirrors what the `Dockerfile` does inside the image build):
+
+```shell script
+./mvnw -q -f ../inventory-proto/pom.xml install -DskipTests
+```
+
 You can run your application in dev mode that enables live coding using:
 
 ```shell script
-./mvnw quarkus:dev
+./mvnw clean quarkus:dev
 ```
+
+Use `clean` after any refactor that deletes classes: Maven does not remove orphaned
+`.class` files from `target/classes`, and dev mode registers the leftover beans (e.g. an
+`@Incoming` consumer whose class no longer exists in the source), which shows up as a
+channel/topic that is not in the code. See
+[docs/knowledge/11 §16](../docs/knowledge/11-armadilhas-e-licoes.md).
+
+The MySQL Dev Service listens on the fixed port `33306` in dev mode (DBeaver:
+`jdbc:mysql://localhost:33306/quarkus`, user `user`, password `pass`), and no Docker is
+needed. Messaging follows the same rule: with no `kafka.bootstrap.servers` in `%dev`, the
+Quarkus 3.39.3 Kafka Dev Service starts a shared broker on `39092` and creates the
+`vehicle-registered` topic; containers (`%docker`) and the packaged jar (`%prod`) talk to the
+broker from `others/docker-compose.yml`. Full map in
+[docs/deployment.md](../docs/deployment.md#portas-de-desenvolvimento-dev-services-com-porta-fixa).
 
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
 

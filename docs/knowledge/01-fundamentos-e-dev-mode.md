@@ -63,7 +63,7 @@ Perfis embutidos: `dev` (dev mode), `test` (rodando testes), `prod` (default for
 ```properties
 # inventory-service/src/main/resources/application.properties
 kafka.bootstrap.servers=localhost:9092
-%docker.kafka.bootstrap.servers=kafka:9092
+%docker.kafka.bootstrap.servers=kafka:29092
 %prod.kafka.bootstrap.servers=localhost:9092
 ```
 
@@ -82,17 +82,28 @@ Dev Services sobe dependências reais em container **sem configuração**. A reg
 | `reservation-service` | PostgreSQL | sem URL → Dev Service | `vertx-reactive:postgresql://...` |
 | `rental-service` | MongoDB | sem connection-string → Dev Service | `mongodb://...:27017` |
 
-⚠️ **Kafka NÃO tem Dev Service no Quarkus.** Verificado no 3.39.3: existem
-`quarkus-devservices-postgresql`, `-mysql`, `-mariadb`, `-mongodb` (dentro da extensão
-Mongo), `-keycloak` e `-oidc`, mas **não existe `quarkus-devservices-kafka`**. O Strimzi é usado por Testcontainers, não pelo
-mecanismo de Dev Services. Por isso `inventory-service` e `billing-service` **declaram
-explicitamente**:
+⚠️ **Kafka tem Dev Service no 3.39.3 — este doc estava errado antes.** Não existe um módulo
+`quarkus-devservices-kafka`, mas a extensão `quarkus-kafka-client` **embutiu** o
+`DevServicesKafkaProcessor` (provider padrão `upstream-kafka-native`, `shared=true` entre
+serviços). Sem `kafka.bootstrap.servers` no perfil ativo, ele sobe um broker e injeta o
+bootstrap; é possível fixar a porta (`quarkus.kafka.devservices.port`) e criar tópicos
+(`quarkus.kafka.devservices.topic-partitions.<tópico>=N`).
+
+No nosso dev mode, `inventory-service` e `billing-service` **não declaram** bootstrap e usam o
+Dev Service com porta fixa `39092`; `%docker`/`%prod` continuam apontando para o broker do
+compose. Nos testes quem fornece o broker é o `KafkaCompanionResource`, então
+`%test.quarkus.kafka.devservices.enabled=false`:
 
 ```properties
-kafka.bootstrap.servers=localhost:9092
-%docker.kafka.bootstrap.servers=kafka:9092
+# dev: sem bootstrap -> Kafka Dev Service (porta fixa 39092)
+%dev.quarkus.kafka.devservices.port=39092
+%docker.kafka.bootstrap.servers=kafka:29092
 %prod.kafka.bootstrap.servers=localhost:9092
 ```
+
+`9092` (host) e `29092` (rede do compose) são os dois listeners anunciados pelo broker KRaft
+do compose; `39092` é o broker do Dev Service, que só existe no dev mode. Ver
+[deployment.md → Kafka](../deployment.md#kafka-cap9).
 
 E o broker de teste vem de outro caminho: `quarkus-test-kafka-companion` +
 `BillingKafkaCompanionResource` — ver [08-messaging-reativo.md](./08-messaging-reativo.md).

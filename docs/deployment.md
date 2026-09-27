@@ -1,6 +1,7 @@
 # Deploy / Ambiente
 
-> **Última atualização:** 2026-09-20 (cap.7 - perfis do compose) · **Fonte da verdade:** o código.
+> **Última atualização:** 2026-09-27 (cap.9 - listeners do broker, tópicos e fluxo dev) ·
+> **Fonte da verdade:** o código.
 
 Três modos de execução:
 
@@ -21,13 +22,12 @@ Três modos de execução:
 Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-service`,
 `rental-service`, `inventory-service`, `billing-service` + bancos do cap.7
 (`reservation-postgres`, `inventory-mysql`, `rental-mongo`) + **`keycloak`**, **`postgres`**
-(cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft `apache/kafka:3.9.1`) e
-**`kafka-init`** (provisiona os tópicos `vehicle-registered`, os retry
-`vehicle-registered-retry_1000/5000/15000` e a DLQ `vehicle-registered-dlq` antes de
-`inventory-service`/`billing-service` via
+(cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft `apache/kafka:3.9.1`, **dois
+listeners**: `INTERNAL` e `EXTERNAL` — ver [Kafka](#kafka-cap9)) e **`kafka-init`**
+(provisiona os tópicos antes de `inventory-service`/`billing-service` via
 `depends_on: service_completed_successfully`; `KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`).
 Os serviços de messaging usam o perfil `QUARKUS_PROFILE=docker` com
-`%docker.kafka.bootstrap.servers=kafka:9092`.
+`%docker.kafka.bootstrap.servers=kafka:29092`.
 
 ### Perfis
 
@@ -66,6 +66,140 @@ docker compose up -d --profile all
 cd others
 docker compose up -d
 ```
+
+### Portas de desenvolvimento (Dev Services com porta fixa)
+
+Rodando o serviço no IntelliJ (`./mvnw quarkus:dev`), o Quarkus sobe as dependências em
+container (Dev Services) **sem porta declarada** — e aí a porta é sorteada a cada start, o que
+obriga a caçar o número no log/`docker ps` toda vez que você abre o DBeaver. Para tornar isso
+previsível, todas as portas de dev são fixas **apenas no perfil `%dev`**.
+
+| Serviço | Dependência | Porta padrão | Porta no dev | Credenciais / database |
+|---|---|---|---|---|
+| `inventory-service` | MySQL | 3306 | **33306** | `user` / `pass` / `quarkus` |
+| `reservation-service` | PostgreSQL | 5432 | **55432** | `quarkus` / `quarkus` / `quarkus` |
+| `billing-service` | PostgreSQL | 5432 | **55433** | `quarkus` / `quarkus` / `quarkus` |
+| `rental-service` | MongoDB | 27017 | **37017** | sem auth / `rental` |
+| `users-service` | Keycloak (OIDC) | 8180 | **38180** | — |
+| `reservation-service` | Keycloak (OIDC) | 8180 | **38181** | — |
+| `inventory` + `billing` | Kafka | 9092 | **39092** | — |
+
+Por que fora do `%dev` a porta volta a ser aleatória: o `%test` precisa disso para dois builds
+rodando ao mesmo tempo não disputarem a mesma porta (mesma lógica do
+`-Dquarkus.http.test-port=0` em `.mvn/maven.config`).
+
+Regras que geraram os números:
+
+- **Primeiro dígito duplicado** quando o resultado cabe em 65535: `3306→33306`, `5432→55432`.
+- **Prefixo 3** quando duplicar passaria de 65535: Keycloak `8180→38180` (`88180` é inválido),
+  Kafka `9092→39092` (`99092` é inválido), Mongo `27017→37017` (`227017` é inválido).
+  O Docker recusa a criação do container com `invalid port specification` quando o valor passa
+  de 65535, então esse teto não é só convenção.
+- **Portas distintas por serviço** quando o tipo é o mesmo (Postgres: 55432/55433; Keycloak:
+  38180/38181). Se os dois serviços disputassem a mesma porta, o segundo cairia numa aleatória
+  com warning — justamente o que estamos tentando evitar.
+
+Consequências práticas:
+
+- DBeaver/CLI: `jdbc:mysql://localhost:33306/quarkus` (MySQL 9 do Dev Services usa
+  `caching_sha2_password` → sempre `?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC`).
+- `%prod` e `%docker` **não** mudaram: continuam apontando para a infra real (3306/5432/27017 e
+  `kafka:29092`). Para apontar um jar para o banco de dev, sobrescreva a URL:
+  `-Dquarkus.datasource.reactive.url=mysql://localhost:33306/quarkus`.
+- O container do Dev Services é reaproveitado enquanto o JVM vive: os dados sobrevivem a um
+  restart do dev mode (e somem quando o processo morre).
+
+### Kafka (cap.9)
+
+Há **dois** brokers, um por modo de execução:
+
+| Modo | Broker | Porta (host) | Config |
+|---|---|---|---|
+| dev (IntelliJ, sem Docker) | **Kafka Dev Service** do Quarkus 3.39.3, compartilhado entre os serviços | `39092` | sem `kafka.bootstrap.servers`; `%dev.quarkus.kafka.devservices.*` |
+| teste | Kafka companion (`quarkus-test-kafka-companion`) | aleatória | `%test.quarkus.kafka.devservices.enabled=false` |
+| containers / jar no host | broker do `others/docker-compose.yml` | `9092` (host), `29092` (rede do compose) | `%prod` / `%docker.kafka.bootstrap.servers` |
+
+> ⚠️ **Misturar host e container não compartilha evento**: o app no IntelliJ fala com o broker do
+> Dev Service (39092) e o container fala com o broker do compose (29092). Para um fluxo
+> monolítico de mensageria, use o compose para os dois lados (ou o Dev Service para os dois).
+
+No dev, os tópicos são criados pelo próprio Dev Service
+(`quarkus.kafka.devservices.topic-partitions.<tópico>=N`), espelhando o `kafka-init` do compose:
+
+```properties
+%dev.quarkus.kafka.devservices.port=39092
+%dev.quarkus.kafka.devservices.topic-partitions.vehicle-registered=1
+%test.quarkus.kafka.devservices.enabled=false
+```
+
+Inspecionar o broker de dev (o CLI roda **no container**, para não depender de broker no host).
+Repare no `9092`: dentro do container a porta interna é 9092, e o mapeamento para o host é
+`9092 -> 39092` (`docker port <container>` mostra os dois lados).
+
+```bash
+docker ps | grep -i kafka          # descobre o nome do container do Dev Service
+docker exec <container> /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+```
+
+#### Broker do compose (containers e jar no host)
+
+O broker do compose anuncia **dois** listeners, porque o mesmo Kafka é usado por containers e
+por JVMs no host:
+
+| Listener | Porta | Endereço anunciado | Quem conecta |
+|---|---|---|---|
+| `INTERNAL` | `29092` | `kafka:29092` | containers do compose → `%docker.kafka.bootstrap.servers` |
+| `EXTERNAL` | `9092` | `localhost:9092` | jar no host (`%prod`) e CLI → `kafka.bootstrap.servers` |
+
+Config no serviço `kafka` (KRaft, sem ZooKeeper):
+
+```yaml
+KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+```
+
+> ⚠️ `kafka.bootstrap.servers` **só** resolve a descoberta. O endereço usado na conexão é o
+> **anunciado** no metadata. Por isso o mesmo broker que é saudável para o compose quebrava
+> o app no host com `UnknownHostException: kafka`. Armadilha completa em
+> [knowledge/11 §15](knowledge/11-armadilhas-e-licoes.md).
+
+**Tópicos provisionados** (única fonte: serviço `kafka-init`, `--bootstrap-server
+kafka:29092`; nunca `kafka-topics` manual):
+
+| Tópico | Retries / DLQ | Serviço |
+|---|---|---|
+| `vehicle-registered` | `vehicle-registered-retry_1000/5000/15000`, `vehicle-registered-dlq` | inventory → billing |
+| `reservation-confirmed` | `reservation-confirmed-retry_1000/5000/15000`, `reservation-confirmed-dlq` | reservation → rental |
+| `rental-completed` | `rental-completed-retry_1000/5000/15000`, `rental-completed-dlq` | rental → billing |
+| `invoice-opened` | — | billing (saída) |
+
+**Inspecionar** (o CLI roda **no container**, para não depender de broker local):
+
+```bash
+cd others
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 --list
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic vehicle-registered --from-beginning
+```
+
+**Fluxo local recomendado (serviço no IntelliJ):**
+
+```bash
+# 1. contrato standalone no repositório local (o serviço depende dele)
+./mvnw -q -f inventory-proto/pom.xml install -DskipTests
+
+# 2. dev mode com classpath limpo (ver knowledge/11 §16). Banco e Kafka sobem
+#    sozinhos com as portas fixas da tabela acima — sem Docker.
+cd inventory-service && ./mvnw clean quarkus:dev
+```
+
+O `clean` importa: refactor que apaga classes deixa `.class` órfãos em `target/classes`, e o
+dev mode registra beans que não existem mais no código (ex.: um consumer `@Incoming` que
+cria tópico com o nome do canal). Foi esse resíduo que gerou o `UNKNOWN_TOPIC_OR_PARTITION`
+de `vehicle-registered-in` no `inventory-service` depois do cap.9.
 
 ## Keycloak + PostgreSQL (produção — cap.6.4)
 

@@ -1,0 +1,36 @@
+# Capitulo 5 - Testing Quarkus applications
+
+> Quarkus in Action (Martin Štefanko, Jan Martiška, MANNING Publications, 2025)
+> PDF paginas 155-168 | impressas 129-142
+> Versoes: Quarkus 3.15.1 / MicroProfile 6.1 (livro) x 3.39.3 (repositorio)
+> Texto integral: `book-text/cap05.txt` (local, fora do git)
+
+Indice gerado por `tools/book-index/extract.py`. Nao contem o texto do
+livro: contem onde o assunto esta, para saber qual arquivo abrir.
+
+## O que este capitulo cobre
+
+- Discovering how Quarkus testing integrates with JUnit
+- Developing tests that can execute with a traditional JVM as well as a native binary
+- Using testing profiles to run tests with different configurations
+- Creating testing mocks of remote services
+
+## Secoes
+
+5.1 Writing tests                                            p. 130
+  5.1.1 Writing a simple test for the Reservation repository   p. 130
+5.2 Native testing                                           p. 132
+  5.2.1 Writing a test for the Reservation resource            p. 133
+5.3 Mocking                                                  p. 136
+  5.3.1 Mocking by replacing implementations                   p. 136
+  5.3.2 Mocking with Mockito                                   p. 137
+5.4 Testing profiles                                         p. 140
+5.5 Next steps                                               p. 142
+Summary                                                      p. 142
+
+## Termos citados (contagem no capitulo)
+
+  `ReservationResource` (13)  `RestAssured` (12)  `LocalDate` (8)  `ReservationRepositoryTest` (7)  `@QuarkusTest` (7)  `@QuarkusIntegrationTest` (7)
+  `ReservationResourceTest` (7)  `@TestHTTPEndpoint` (5)  `ReservationsRepository` (4)  `quarkus.test.junit` (4)  `@Test` (4)  `MockInventoryClient` (4)
+  `QuarkusTestProfile` (4)  `InMemoryReservationsRepository` (3)  `ChronoUnit` (3)  `ContentType` (3)  `@TestHTTPResource` (3)  `@Alternative` (3)
+  `@Override` (3)  `@TestProfile` (3)  `QuarkusTestResourceLifecycleManager` (2)  `QuarkusTest` (2)  `@DisabledOnIntegrationTest` (2)  `DisabledOnIntegrationTest` (2)

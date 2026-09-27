@@ -20,6 +20,7 @@ independentes, cada um no seu próprio módulo Maven (mentalidade de microservic
 | [ddd-tdd-standards.md](./ddd-tdd-standards.md) | Padrão arquitetural obrigatório do repositório |
 | [roadmap.md](./roadmap.md) | Evolução por capítulo e evidências executáveis |
 | [knowledge/](./knowledge/README.md) | **Base de estudo** por capítulo do livro: conceito, padrão do projeto e lições |
+| [knowledge/book-index/](./knowledge/book-index/README.md) | **Onde o livro trata cada assunto**, por capítulo e página (o texto do livro não está no repo) |
 
 ## Legenda de status
 
@@ -48,7 +49,18 @@ capítulo, atualize as páginas indicadas e marque o item no [roadmap.md](./road
 | 7 | Database access | `services.md` (repositórios), `contracts.md`, `roadmap.md` | `knowledge/06-persistencia-transacoes-e-nosql.md` |
 | 8 | Reactive programming | `architecture.md`, `services.md` | `knowledge/07-programacao-reativa.md` |
 | 9 | Quarkus messaging | `services.md` (billing), `contracts.md`, `roadmap.md`, `adr/` | `knowledge/08-messaging-reativo.md`, `knowledge/09-padroes-de-resiliencia-em-messaging.md`, `knowledge/13-transactional-outbox.md` |
-| 10-12 | Cloud-native / cloud / extensões | `deployment.md`, `roadmap.md` | `knowledge/12-modelo-para-novos-capitulos.md` |
+| 10 | Cloud-native patterns (health, metrics, tracing, FT, service discovery) | `roadmap.md`, `services.md` | `knowledge/book-index/cap10.txt` |
+| 11 | Cloud, Kubernetes/OpenShift, serverless | `deployment.md`, `roadmap.md` | `knowledge/book-index/cap11.txt` |
+| 12 | Custom Quarkus extensions | `roadmap.md` | `knowledge/book-index/cap12.txt` |
+
+> ⚠️ **O livro é de outra versão.** *Quarkus in Action* usa **Quarkus 3.15.1 /
+> MicroProfile 6.1**; este repositório está em **3.39.3**. Por isso o roadmap
+> registra **capacidade + evidência**, e não o passo do livro — ver
+> [roadmap.md](./roadmap.md) § "Como ler este roadmap".
+>
+> O texto do livro **não está neste repositório** (obra comercial). O sumário
+> navegável por capítulo, com página, está em
+> [knowledge/book-index/](./knowledge/book-index/README.md).
 
 ## Como trabalhar com OpenCode
 
@@ -75,7 +87,10 @@ páginas de arquitetura.
 4. Decisões novas entram em `architecture.md` → "Decisões (ADR-lite)".
 5. Novo capítulo lido → preencher `knowledge/12-modelo-para-novos-capitulos.md` e adicionar
    a linha nos dois mapas acima.
+6. Mudança no sumário do livro → regenerar `knowledge/book-index/` com
+   `tools/book-index/extract.py` e commitar só o índice.
 
 ---
 
-_Última atualização: 2026-09-26 (base `docs/knowledge/` criada para cap.1-9)._
+_Última atualização: 2026-09-26 (base `docs/knowledge/` para cap.1-9; cap.10-12 com escopo
+conferido contra o livro; índice navegável do livro em `knowledge/book-index/`)._
