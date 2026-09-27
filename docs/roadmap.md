@@ -91,10 +91,23 @@ Notas de escopo:
 
 ## Part 3 — Cloud and beyond
 
+- [ ] Cap. 10 — Cloud-native patterns, Health e Metrics
 - [ ] Native build e testes integration
 - [ ] Kubernetes/OpenShift
 - [ ] Observabilidade
 - [ ] Resiliência distribuída
+
+## Cap. 10 — Cloud-native patterns, Health e Metrics
+
+- [ ] Health endpoint básico
+- [ ] Liveness e readiness
+- [ ] Health checks de dependências
+- [ ] Métricas HTTP e de runtime
+- [ ] Métricas de negócio
+- [ ] Métricas do pipeline Kafka / Outbox
+- [ ] Configuração cloud-native e comportamento stateless
+- [ ] Graceful shutdown
+- [ ] Evidência de execução/testes para health e metrics
 
 ## Base de estudo
 
