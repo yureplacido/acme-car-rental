@@ -22,15 +22,12 @@ class BusinessMetricsIntegrationTest {
 
         double before = counterValue(beforeMetrics);
 
-        String mutation = """
-                {
-                  "query": "mutation { register(input: { plateNumber: \"OBS%s\", manufacturer: \"Ford\", model: \"Mustang\", category: \"SUV\", year: 2025, color: \"black\", seats: 5, dailyRate: 149.90, currency: \"BRL\" }) { id plateNumber } }"
-                }
-                """.formatted(System.nanoTime());
+        String plate = "OBS" + System.nanoTime();
+        String graphqlQuery = "mutation { register(input: { plateNumber: \"" + plate + "\", manufacturer: \"Ford\", model: \"Mustang\", category: \"SUV\", year: 2025, color: \"black\", seats: 5, dailyRate: 149.90, currency: \"BRL\" }) { id plateNumber } }";
 
         given()
                 .contentType("application/json")
-                .body(mutation)
+                .body(new java.util.HashMap<String, Object>() {{ put("query", graphqlQuery); }})
                 .when()
                 .post("/graphql")
                 .then()
