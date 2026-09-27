@@ -26,6 +26,9 @@ class HealthEndpointTest {
     @TestHTTPResource("/q/health/started")
     URI startupUrl;
 
+    @TestHTTPResource("/q/metrics")
+    URI metricsUrl;
+
     @Test
     void shouldExposeLiveness() throws Exception {
         assertHealth(livenessUrl);
@@ -39,6 +42,22 @@ class HealthEndpointTest {
     @Test
     void shouldExposeStartup() throws Exception {
         assertHealth(startupUrl);
+    }
+
+    @Test
+    void shouldExposeHttpAndJvmMetrics() throws Exception {
+        var healthResponse = get(metricsUrl);
+        assertEquals(200, healthResponse.statusCode());
+        assertTrue(healthResponse.body().contains("http_server_requests_seconds"), healthResponse.body());
+        assertTrue(healthResponse.body().contains("jvm_"), healthResponse.body());
+    }
+
+    private HttpResponse<String> get(URI uri) throws Exception {
+        var request = HttpRequest.newBuilder()
+                .uri(uri)
+                .GET()
+                .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private void assertHealth(URI uri) throws Exception {
