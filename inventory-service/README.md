@@ -6,10 +6,30 @@ If you want to learn more about Quarkus, please visit its website: <https://quar
 
 ## Running the application in dev mode
 
+The gRPC contract is a standalone module, so install it in the local repository first
+(this mirrors what the `Dockerfile` does inside the image build):
+
+```shell script
+./mvnw -q -f ../inventory-proto/pom.xml install -DskipTests
+```
+
 You can run your application in dev mode that enables live coding using:
 
 ```shell script
-./mvnw quarkus:dev
+./mvnw clean quarkus:dev
+```
+
+Use `clean` after any refactor that deletes classes: Maven does not remove orphaned
+`.class` files from `target/classes`, and dev mode registers the leftover beans (e.g. an
+`@Incoming` consumer whose class no longer exists in the source), which shows up as a
+channel/topic that is not in the code. See
+[docs/knowledge/11 §16](../docs/knowledge/11-armadilhas-e-licoes.md).
+
+Messaging needs the compose broker (`others/docker-compose.yml`); it advertises
+`localhost:9092` for the host and `kafka:29092` for containers:
+
+```shell script
+cd ../others && docker compose up -d kafka kafka-init
 ```
 
 > **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.

@@ -418,6 +418,8 @@ correlação (id único, offset, chave) a limpeza destrutiva.
 | Dependência não sobe | versão do broker | §8 |
 | Porta ocupada | `test-port` fixo | §9 |
 | Dependência Maven não resolve | artifactId relocado | §10 |
+| `UnknownHostException: kafka` no app do host | `advertised.listeners` só interno | §15 |
+| Consumer de um canal que não existe no código | classe órfã em `target/classes` | §16 |
 
 **Veja também:** [04-estrategia-de-testes-do-projeto.md](./04-estrategia-de-testes-do-projeto.md) ·
 [08-messaging-reativo.md](./08-messaging-reativo.md) ·
@@ -425,5 +427,106 @@ correlação (id único, offset, chave) a limpeza destrutiva.
 
 ---
 
-_Última atualização: 2026-09-26 (12 armadilhas + receita e índice, extraídas dos commits de correção do
-`billing-service` e do `roadmap`)._
+## 15. `advertised.listeners` só interno quebra o app que roda no host
+
+**Sintoma.** `inventory-service` no IntelliJ (`./mvnw quarkus:dev`) loga duas coisas que
+parecem contraditórias:
+
+```text
+WARN NetworkClient The metadata response ... {vehicle-registered-in=UNKNOWN_TOPIC_OR_PARTITION}
+WARN NetworkClient Error connecting to node kafka:9092 ... java.net.UnknownHostException: kafka
+```
+
+O `kafka.bootstrap.servers=localhost:9092` está no `application.properties`, então o
+bootstrap funciona — a **primeira** linha é resposta de metadata do broker. A segunda é a
+consequência: depois do metadata, o cliente usa o endereço **anunciado**, não o configurado.
+
+**Causa.** O broker anunciava um único listener:
+
+```yaml
+KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092   # nome de container
+```
+
+`kafka` só resolve **dentro** da rede do compose. O JVM no host resolve `localhost`, nunca
+`kafka` (`getent hosts kafka` → falha). Ou seja: `bootstrap.servers` sozinho **nunca** tornou
+o broker do compose usável a partir do host — o Dev Services do Kafka também não entra,
+porque o `kafka.bootstrap.servers` está sempre definido.
+
+**Correção.** Dois listeners no serviço `kafka` (ver [deployment.md](../deployment.md)):
+
+| Listener | Endereço anunciado | Cliente |
+|---|---|---|
+| `INTERNAL` | `kafka:29092` | containers do compose (`%docker.kafka.bootstrap.servers`) |
+| `EXTERNAL` | `localhost:9092` | host/IntelliJ, dev mode, CLI (`kafka.bootstrap.servers`) |
+
+```yaml
+KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+```
+
+**Prevenção.**
+
+- [x] Listeners documentados em [deployment.md](../deployment.md) com o mapa cliente→porta.
+- [x] Todo canal declara `topic` **e** `group.id` explicitamente: canal sem `topic` usa o
+      nome do canal como tópico (foi exatamente o que a §16 expôs).
+- [ ] Ao mudar listener, revalidar com o app **no host** — não basta o container subir
+      saudável (o healthcheck usa bootstrap, que ignora o endereço anunciado).
+
+**lição.** O bootstrap é o endereço de **descoberta**; o metadata seguinte troca o host pelo
+**anunciado**. Broker em container que precisa servir o host tem que anunciar **dois**
+endereços, um por rede de clientes.
+
+---
+
+## 16. Classe órfã em `target/classes` cria um consumer que não existe no código
+
+**Sintoma.** Depois do commit `1cb0b59` (consumer `vehicle-registered-in` movido do
+`inventory-service` para o `billing-service`), o `inventory-service` no dev mode continuou
+criando um consumer `kafka-consumer-vehicle-registered-in`, com `groupId=inventory-service`
+(nome da aplicação) e erro `UNKNOWN_TOPIC_OR_PARTITION` para o tópico `vehicle-registered-in`
+— que não existe no broker (o broker tem `vehicle-registered`). Nenhum desses nomes aparece
+no código do serviço.
+
+**Causa.** `mvn` **não** apaga classes que deixaram de ter fonte. Depois do refactor,
+`inventory-service/target/classes/org/acme/inventory/adapter/in/messaging/KafkaVehicleRegisteredConsumer.class`
+continuou no classpath, e o dev mode lê `target/classes`. O bean CDI com `@Incoming` foi
+descoberto como se ainda existisse. Sem `mp.messaging.incoming.vehicle-registered-in.*` na
+config, o SmallRye aplicou os defaults: **topic = nome do canal** e **group = nome da app**.
+
+**Correção.** `mvn clean` (ou `clean quarkus:dev`) depois de refactor que apaga classes.
+No caso, as órfãs eram `KafkaVehicleRegisteredConsumer`, `ConsumeVehicleRegistered`,
+`ProcessedEventStore` e `InMemoryProcessedEventStore`.
+
+Como achar órfãs antes de subir:
+
+```bash
+for f in $(find inventory-service/target/classes -name "*.class" \
+    | sed 's|inventory-service/target/classes/||; s|\.class$||'); do
+  p="inventory-service/src/main/java/$f.java"
+  [ -f "$p" ] || echo "STALE: $f"
+done
+```
+
+(Classes internas de Lombok/records — `$Builder`, `$Command`, `$1` — **não** são órfãs:
+são geradas sem arquivo `.java` correspondente.)
+
+**Prevenção.**
+
+- [x] Fluxo local documentado como `clean quarkus:dev` em [deployment.md](../deployment.md).
+- [x] Todo canal de messaging declara `topic` e `group.id` — assim um canal inesperado
+      não nasce silenciosamente com o nome do canal como tópico (§15).
+- [ ] `mvn package` sem `clean` também empacota classe órfã: o `Dockerfile` do
+      `inventory-service` compila dentro da imagem (alvo limpo), mas build local de
+      `quarkus-app` precisa de `clean`.
+
+**lição.** `target/` é estado, e estado sobrevive a refactor. Sintoma de "classe que o código
+não tem" é quase sempre `target/classes` — e o modo de falha mais insidioso é o *default* do
+framework (canal sem `topic` vira tópico com o nome do canal), que ainda parece "algo do
+Kafka está errado".
+
+---
+
+_Última atualização: 2026-09-27 (16 armadilhas + receita e índice; §15 `advertised.listeners`
+e §16 classe órfã em `target/classes`, ambas do cap.9)._

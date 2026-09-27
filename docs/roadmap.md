@@ -95,10 +95,34 @@ Notas de escopo:
   real. **Dívida:** falta um teste no canal real `vehicle-registered-in` que produza um payload inválido e
   comprove retry → `vehicle-registered-dlq` de ponta a ponta.
 - O stack docker provisiona Kafka via `others/docker-compose.yml` (serviços `kafka` e `kafka-init`,
-  broker `apache/kafka:3.9.1`). Ferramentas de operação: `docker exec acme-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 ...`.
+  broker `apache/kafka:3.9.1`). O broker anuncia **dois** listeners — `kafka:29092` (INTERNAL, containers,
+  `%docker.kafka.bootstrap.servers`) e `localhost:9092` (EXTERNAL, host/IntelliJ,
+  `kafka.bootstrap.servers`) — para o mesmo broker servir as duas redes. O `kafka-init` é a fonte
+  única dos tópicos, inclusive os de `reservation-confirmed`, `rental-completed` e `invoice-opened`
+  do cap.10, e usa `--bootstrap-server kafka:29092`. Ferramentas de operação:
+  `docker exec acme-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 ...`.
   A imagem é **`3.9.1` e não `3.9.0`** por causa do bug **KAFKA-18281**: com KRaft 3.9.0 o broker
   validava listeners não-advertised (ex.: `CONTROLLER`) contra `advertised.listeners` e o `0.0.0.0`
   causava falha de inicialização/healthcheck com a nossa configuração — corrigido em 3.9.1.
+  Detalhes do mapa cliente→porta e do fluxo local (incluindo o `clean` obrigatório e o
+  pré-requisito `inventory-proto install`) em [deployment.md](deployment.md#kafka-cap9);
+  armadilhas em [knowledge/11 §15](knowledge/11-armadilhas-e-licoes.md) e
+  [§16](knowledge/11-armadilhas-e-licoes.md).
+- **Dívida (achada em 2026-09-27, cap.9):** o caminho de publicação de evento do
+  `inventory-service` está quebrado no `HEAD` por dois bugs anteriores a este trabalho e que
+  nenhum teste cobria (o publisher é testado com emitter mockado, sem broker):
+  1. `VehicleEntity.condition` é gerado sem escape (`condition` é palavra reservada do MySQL):
+     a mutation `register` falha com `SQLGrammarException` (errorCode 1064) — presente desde
+     o commit `7d8a954`.
+  2. `KafkaEventPublisher` (commit `d34f9b2`, "Feat/kafka partition key") envia
+     `KafkaRecord<String,String>` num canal que declara `key.serializer`/`value.serializer`
+     explícitos: o SmallRye tenta serializar o wrapper do record e o send falha com
+     `SerializationException: Can't convert value of class OutgoingKafkaRecord`. O `billing-service`
+     envia `Record<String,String>` no mesmo padrão de config e funciona.
+  Com ambos corrigidos em um worktree descartável, o publish E2E foi provado: mutation
+  `register` → `vehicle-registered` com chave de partição `vehicleId` no broker do compose.
+  **Falta:** corrigir na árvore principal com TDD (teste de integração do publisher contra
+  broker real) antes de reaproveitar o cap.9.
 - A decisão arquitetural da fronteira transacional está registrada em `docs/adr/007-transactional-inbox.md`.
 - Contrato documentado em `docs/contracts.md` (seção `VehicleRegistered (Kafka)`).
 

@@ -63,7 +63,7 @@ Perfis embutidos: `dev` (dev mode), `test` (rodando testes), `prod` (default for
 ```properties
 # inventory-service/src/main/resources/application.properties
 kafka.bootstrap.servers=localhost:9092
-%docker.kafka.bootstrap.servers=kafka:9092
+%docker.kafka.bootstrap.servers=kafka:29092
 %prod.kafka.bootstrap.servers=localhost:9092
 ```
 
@@ -90,9 +90,13 @@ explicitamente**:
 
 ```properties
 kafka.bootstrap.servers=localhost:9092
-%docker.kafka.bootstrap.servers=kafka:9092
+%docker.kafka.bootstrap.servers=kafka:29092
 %prod.kafka.bootstrap.servers=localhost:9092
 ```
+
+`9092` (host) e `29092` (rede do compose) são os dois listeners anunciados pelo broker KRaft
+do compose — o mesmo broker atende o JVM do host e os containers. Ver
+[deployment.md → Kafka](../deployment.md#kafka-cap9).
 
 E o broker de teste vem de outro caminho: `quarkus-test-kafka-companion` +
 `BillingKafkaCompanionResource` — ver [08-messaging-reativo.md](./08-messaging-reativo.md).

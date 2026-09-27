@@ -1,6 +1,7 @@
 # Deploy / Ambiente
 
-> **Última atualização:** 2026-09-20 (cap.7 - perfis do compose) · **Fonte da verdade:** o código.
+> **Última atualização:** 2026-09-27 (cap.9 - listeners do broker, tópicos e fluxo dev) ·
+> **Fonte da verdade:** o código.
 
 Três modos de execução:
 
@@ -21,13 +22,12 @@ Três modos de execução:
 Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-service`,
 `rental-service`, `inventory-service`, `billing-service` + bancos do cap.7
 (`reservation-postgres`, `inventory-mysql`, `rental-mongo`) + **`keycloak`**, **`postgres`**
-(cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft `apache/kafka:3.9.1`) e
-**`kafka-init`** (provisiona os tópicos `vehicle-registered`, os retry
-`vehicle-registered-retry_1000/5000/15000` e a DLQ `vehicle-registered-dlq` antes de
-`inventory-service`/`billing-service` via
+(cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft `apache/kafka:3.9.1`, **dois
+listeners**: `INTERNAL` e `EXTERNAL` — ver [Kafka](#kafka-cap9)) e **`kafka-init`**
+(provisiona os tópicos antes de `inventory-service`/`billing-service` via
 `depends_on: service_completed_successfully`; `KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`).
 Os serviços de messaging usam o perfil `QUARKUS_PROFILE=docker` com
-`%docker.kafka.bootstrap.servers=kafka:9092`.
+`%docker.kafka.bootstrap.servers=kafka:29092`.
 
 ### Perfis
 
@@ -66,6 +66,68 @@ docker compose up -d --profile all
 cd others
 docker compose up -d
 ```
+
+### Kafka (cap.9)
+
+O broker do compose serve **dois públicos**, porque o mesmo Kafka é usado por containers e
+por JVMs no host (dev mode/IntelliJ):
+
+| Listener | Porta | Endereço anunciado | Quem conecta |
+|---|---|---|---|
+| `INTERNAL` | `29092` | `kafka:29092` | containers do compose → `%docker.kafka.bootstrap.servers` |
+| `EXTERNAL` | `9092` | `localhost:9092` | host/IntelliJ, dev mode e CLI → `kafka.bootstrap.servers` |
+
+Config no serviço `kafka` (KRaft, sem ZooKeeper):
+
+```yaml
+KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+```
+
+> ⚠️ `kafka.bootstrap.servers` **só** resolve a descoberta. O endereço usado na conexão é o
+> **anunciado** no metadata. Por isso o mesmo broker que é saudável para o compose quebrava
+> o app no host com `UnknownHostException: kafka`. Armadilha completa em
+> [knowledge/11 §15](knowledge/11-armadilhas-e-licoes.md).
+
+**Tópicos provisionados** (única fonte: serviço `kafka-init`, `--bootstrap-server
+kafka:29092`; nunca `kafka-topics` manual):
+
+| Tópico | Retries / DLQ | Serviço |
+|---|---|---|
+| `vehicle-registered` | `vehicle-registered-retry_1000/5000/15000`, `vehicle-registered-dlq` | inventory → billing |
+| `reservation-confirmed` | `reservation-confirmed-retry_1000/5000/15000`, `reservation-confirmed-dlq` | reservation → rental |
+| `rental-completed` | `rental-completed-retry_1000/5000/15000`, `rental-completed-dlq` | rental → billing |
+| `invoice-opened` | — | billing (saída) |
+
+**Inspecionar** (o CLI roda **no container**, para não depender de broker local):
+
+```bash
+cd others
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 --list
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic vehicle-registered --from-beginning
+```
+
+**Fluxo local recomendado (serviço no IntelliJ + broker do compose):**
+
+```bash
+# 1. contrato standalone no repositório local (o serviço depende dele)
+./mvnw -q -f inventory-proto/pom.xml install -DskipTests
+
+# 2. broker + tópicos
+cd others && docker compose up -d kafka kafka-init && cd ..
+
+# 3. dev mode com classpath limpo (ver knowledge/11 §16)
+cd inventory-service && ./mvnw clean quarkus:dev
+```
+
+O `clean` importa: refactor que apaga classes deixa `.class` órfãos em `target/classes`, e o
+dev mode registra beans que não existem mais no código (ex.: um consumer `@Incoming` que
+cria tópico com o nome do canal). Foi esse resíduo que gerou o `UNKNOWN_TOPIC_OR_PARTITION`
+de `vehicle-registered-in` no `inventory-service` depois do cap.9.
 
 ## Keycloak + PostgreSQL (produção — cap.6.4)
 
