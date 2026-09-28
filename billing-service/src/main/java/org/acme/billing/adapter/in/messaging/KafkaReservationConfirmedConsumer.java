@@ -1,7 +1,5 @@
 package org.acme.billing.adapter.in.messaging;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -23,32 +21,32 @@ public class KafkaReservationConfirmedConsumer {
 
     private static final Logger LOG = Logger.getLogger(KafkaReservationConfirmedConsumer.class);
 
-    private final ObjectMapper objectMapper;
+    private final EventJsonCodec codec;
     private final ConsumeReservationConfirmed consumer;
     private final InboundEventProcessor inboxProcessor;
 
     @Inject
     public KafkaReservationConfirmedConsumer(
-            ObjectMapper objectMapper,
+            EventJsonCodec codec,
             CreateInvoice createInvoice,
             InboundEventProcessor inboxProcessor) {
         this(
-                objectMapper,
+                codec,
                 event -> createInvoice.handle(toCommand(event)).replaceWithVoid(),
                 inboxProcessor);
     }
 
     KafkaReservationConfirmedConsumer(
-            ObjectMapper objectMapper,
+            EventJsonCodec codec,
             Function<ReservationConfirmed, Uni<Void>> handler) {
-        this(objectMapper, handler, (eventId, effect) -> effect.get());
+        this(codec, handler, (eventId, effect) -> effect.get());
     }
 
     KafkaReservationConfirmedConsumer(
-            ObjectMapper objectMapper,
+            EventJsonCodec codec,
             Function<ReservationConfirmed, Uni<Void>> handler,
             InboundEventProcessor inboxProcessor) {
-        this.objectMapper = objectMapper;
+        this.codec = codec;
         this.consumer = new ConsumeReservationConfirmed(handler);
         this.inboxProcessor = inboxProcessor;
     }
@@ -68,13 +66,8 @@ public class KafkaReservationConfirmedConsumer {
     }
 
     private ReservationConfirmed deserialize(String payload) {
-        ReservationConfirmed event;
-        try {
-            event = objectMapper.readValue(payload, ReservationConfirmed.class);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException(
-                    "Could not deserialize ReservationConfirmed event", e);
-        }
+        ReservationConfirmed event = codec.decode(payload, ReservationConfirmed.class);
+
         if (event.eventId() == null || event.reservationId() == null
                 || event.dailyRate() == null || event.from() == null || event.to() == null) {
             throw new IllegalArgumentException(

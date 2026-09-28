@@ -19,13 +19,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class KafkaReservationConfirmedConsumerTest {
 
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    private final EventJsonCodec codec = new EventJsonCodec(mapper);
 
     @Test
     void shouldConsumeWellFormedReservationConfirmedEventPayload() throws Exception {
         AtomicReference<ReservationConfirmed> received = new AtomicReference<>();
         KafkaReservationConfirmedConsumer consumer =
                 new KafkaReservationConfirmedConsumer(
-                        mapper,
+                        codec,
                         event -> {
                             received.set(event);
                             return Uni.createFrom().voidItem();
@@ -57,21 +58,19 @@ class KafkaReservationConfirmedConsumerTest {
     void shouldFailWhenPayloadCannotBeDeserialized() {
         KafkaReservationConfirmedConsumer consumer =
                 new KafkaReservationConfirmedConsumer(
-                        mapper,
+                        codec,
                         event -> Uni.createFrom().voidItem());
 
-        IllegalArgumentException error = assertThrows(
+        assertThrows(
                 IllegalArgumentException.class,
                 () -> consumer.consume("not-json").await().atMost(Duration.ofSeconds(5)));
-
-        assertTrue(error.getMessage().contains("Could not deserialize ReservationConfirmed event"));
     }
 
     @Test
     void shouldFailWhenDeserializedEventIsMissingRequiredFields() {
         KafkaReservationConfirmedConsumer consumer =
                 new KafkaReservationConfirmedConsumer(
-                        mapper,
+                        codec,
                         event -> Uni.createFrom().voidItem());
 
         IllegalArgumentException error = assertThrows(

@@ -27,7 +27,9 @@ class RegisterVehicleTimeoutTest {
     @Test
     void shouldFailWhenReactiveOperationExceedsDeadline() {
         SlowVehicleRepository repository = new SlowVehicleRepository();
-        RegisterVehicle registerVehicle = new RegisterVehicle(repository);
+        RegisterVehicle registerVehicle = new RegisterVehicle(
+                repository,
+                event -> Uni.createFrom().voidItem());
 
         Uni<Vehicle> operation = registerVehicle.handle(command())
                 .ifNoItem().after(DEADLINE)

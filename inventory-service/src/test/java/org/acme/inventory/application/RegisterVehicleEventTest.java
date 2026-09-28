@@ -48,7 +48,7 @@ class RegisterVehicleEventTest {
         assertEquals("ABC123", event.licensePlate());
     }
 
-    static class RecordingEventPublisher implements EventPublisher {
+    static class RecordingEventPublisher implements EventPublisher<VehicleRegistered> {
 
         final List<VehicleRegistered> events = new ArrayList<>();
 

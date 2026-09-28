@@ -151,3 +151,5 @@ Esses assuntos possuem decisões próprias.
 - **ADR 002** (retry): a DLQ define o destino do record quando o retry esgota. O limite de
   tentativas continua sendo da ADR 002; esta ADR só muda o *destino* final — de "abandonar"
   para "publicar na DLQ".
+---
+_Last updated: 2026-09-27_

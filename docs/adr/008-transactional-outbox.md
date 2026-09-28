@@ -157,3 +157,6 @@ A combinação reduz as janelas de inconsistência locais, mas não transforma s
 ## Estado da decisão
 
 Esta ADR permanece **Proposed** até que a implementação mínima e os testes de integração forneçam a evidência definida acima.
+
+---
+_Last updated: 2026-09-27_

@@ -49,6 +49,8 @@ org.acme.<context>/
 ├── application/
 │   ├── usecase/
 │   ├── query/
+│   ├── event/          (contratos anti-corrupção inbound + eventos de integração)
+│   ├── model/          (modelos da aplicação, ex.: OutboxEvent, views do BFF)
 │   └── port/out/
 └── adapter/
     ├── in/
@@ -349,3 +351,6 @@ A context-specific exception is valid only when its reason is documented.
 Migration remains incremental at behavior level, but the repository must converge on the same architectural language across all business services.
 
 The special-purpose modules follow their own documented profile.
+
+---
+_Last updated: 2026-09-27_

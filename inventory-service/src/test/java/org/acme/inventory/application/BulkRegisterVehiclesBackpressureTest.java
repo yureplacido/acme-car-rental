@@ -10,8 +10,6 @@ import org.acme.inventory.domain.model.LicensePlate;
 import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
 import org.acme.inventory.domain.model.VehicleId;
-import org.acme.inventory.domain.model.VehicleSpecifications;
-import org.acme.inventory.domain.model.VehicleStatus;
 import org.acme.inventory.domain.model.Transmission;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +25,9 @@ class BulkRegisterVehiclesBackpressureTest {
     @Test
     void shouldNotEmitWithoutDownstreamDemandAndBoundUpstreamPrefetch() {
         AtomicLong upstreamRequests = new AtomicLong();
-        RegisterVehicle registerVehicle = new RegisterVehicle(new ImmediateVehicleRepository());
+        RegisterVehicle registerVehicle = new RegisterVehicle(
+                new ImmediateVehicleRepository(),
+                event -> Uni.createFrom().voidItem());
         BulkRegisterVehicles useCase = new BulkRegisterVehicles(
                 registerVehicle,
                 2);

@@ -133,7 +133,7 @@ Payload (`version = 1`):
   "eventId": "uuid",
   "version": 1,
   "occurredAt": "2026-09-21T12:00:00Z",
-  "vehicleId": 42,
+  "vehicleId": { "value": 42 },
   "licensePlate": "ABC123"
 }
 ```
@@ -152,10 +152,11 @@ Regras de evolução:
 - Pendente de pipeline (documentar quando houver): consumer/requeue da DLQ e schema registry.
 
 ## Novos contratos (futuro)
-
-- ✅ **Eventos de cobrança (Reservation/Rental → Billing)**: ver `ReservationConfirmed`/`RentalCompleted`
+ 
+- 🔜 **Eventos de cobrança (Reservation/Rental → Billing)**: `ReservationConfirmed`/`RentalCompleted`
   em `billing-service` (`application/event`); consumidos nos tópicos `reservation-confirmed`/`rental-completed`
   (canal `reservation-confirmed-in`/`rental-completed-in`, group `billing-service`). As regras de evolução acima se aplicam; cada consumidor usa `TransactionalInboxProcessor` para claim + efeito na mesma transação, além de retry (delayed-retry-topic) + DLQ.
+  **Nota:** producers em `reservation-service` e `rental-service` ainda não implementados — apenas test harness publica (`BillingFlowKafkaIntegrationTest`).
 - ✅ **`InvoiceOpened` (Billing → outros contextos)**: evento em
   `billing-service/.../application/event/InvoiceOpened.java`, publicado por
   `InvoiceOpenedKafkaPublisher` no canal `invoice-opened-out` (tópico `invoice-opened`),
@@ -169,3 +170,6 @@ Regras de evolução:
 ---
 
 _Atualize este arquivo sempre que um contrato nascer ou evoluir (veja [README.md](./README.md))._
+
+---
+_Last updated: 2026-09-27_

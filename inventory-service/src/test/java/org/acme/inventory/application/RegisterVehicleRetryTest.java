@@ -24,7 +24,9 @@ class RegisterVehicleRetryTest {
     @Test
     void shouldRetryTransientFailureAndSucceed() {
         FlakyVehicleRepository repository = new FlakyVehicleRepository(2);
-        RegisterVehicle registerVehicle = new RegisterVehicle(repository);
+        RegisterVehicle registerVehicle = new RegisterVehicle(
+                repository,
+                event -> Uni.createFrom().voidItem());
 
         Vehicle result = registerVehicle.handle(command())
                 .onFailure(IOException.class)
@@ -40,7 +42,9 @@ class RegisterVehicleRetryTest {
     @Test
     void shouldStopAfterConfiguredNumberOfRetries() {
         FlakyVehicleRepository repository = new FlakyVehicleRepository(Integer.MAX_VALUE);
-        RegisterVehicle registerVehicle = new RegisterVehicle(repository);
+        RegisterVehicle registerVehicle = new RegisterVehicle(
+                repository,
+                event -> Uni.createFrom().voidItem());
 
         UniAssertSubscriber<Vehicle> subscriber = registerVehicle.handle(command())
                 .onFailure(IOException.class)

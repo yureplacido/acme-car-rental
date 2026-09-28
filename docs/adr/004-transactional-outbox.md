@@ -104,3 +104,5 @@ e o modelo `AvailableVehicle` ganha `dailyRateAmount`/`dailyRateCurrency` (campo
   atuam no consumo, não na publicação.
 - **ADR 006 (observabilidade):** métricas do outbox (relay) e contadores de tentativas ficam
   disponíveis via Micrometer no Cap. 10.
+---
+_Last updated: 2026-09-27_

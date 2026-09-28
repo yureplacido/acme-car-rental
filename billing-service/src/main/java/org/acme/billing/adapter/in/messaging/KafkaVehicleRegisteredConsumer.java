@@ -1,7 +1,5 @@
 package org.acme.billing.adapter.in.messaging;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -17,18 +15,18 @@ public class KafkaVehicleRegisteredConsumer {
 
     private static final Logger LOG = Logger.getLogger(KafkaVehicleRegisteredConsumer.class);
 
-    private final ObjectMapper objectMapper;
+    private final EventJsonCodec codec;
     private final ConsumeVehicleRegistered consumer;
 
     @Inject
-    public KafkaVehicleRegisteredConsumer(ObjectMapper objectMapper) {
-        this(objectMapper, KafkaVehicleRegisteredConsumer::process);
+    public KafkaVehicleRegisteredConsumer(EventJsonCodec codec) {
+        this(codec, KafkaVehicleRegisteredConsumer::process);
     }
 
     KafkaVehicleRegisteredConsumer(
-            ObjectMapper objectMapper,
+            EventJsonCodec codec,
             Function<VehicleRegistered, Uni<Void>> handler) {
-        this.objectMapper = objectMapper;
+        this.codec = codec;
         this.consumer = new ConsumeVehicleRegistered(handler);
     }
 
@@ -40,13 +38,7 @@ public class KafkaVehicleRegisteredConsumer {
     }
 
     private VehicleRegistered deserialize(String payload) {
-        VehicleRegistered event;
-        try {
-            event = objectMapper.readValue(payload, VehicleRegistered.class);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException(
-                    "Could not deserialize VehicleRegistered event", e);
-        }
+        VehicleRegistered event = codec.decode(payload, VehicleRegistered.class);
 
         if (event.eventId() == null || event.vehicleId() == null) {
             throw new IllegalArgumentException(

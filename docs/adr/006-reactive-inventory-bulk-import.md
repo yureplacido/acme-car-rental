@@ -253,3 +253,6 @@ After implementation:
 None blocking for the first implementation slice.
 
 The initial concurrency value, timeout values and future retry strategy are implementation policies and can be refined after measurements.
+
+---
+_Last updated: 2026-09-27_

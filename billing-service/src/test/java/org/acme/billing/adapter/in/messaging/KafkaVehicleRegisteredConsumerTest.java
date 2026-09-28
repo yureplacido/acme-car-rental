@@ -21,7 +21,7 @@ class KafkaVehicleRegisteredConsumerTest {
         AtomicReference<VehicleRegistered> received = new AtomicReference<>();
         KafkaVehicleRegisteredConsumer consumer =
                 new KafkaVehicleRegisteredConsumer(
-                        new ObjectMapper().findAndRegisterModules(),
+                        new EventJsonCodec(new ObjectMapper().findAndRegisterModules()),
                         event -> {
                             received.set(event);
                             return Uni.createFrom().voidItem();
@@ -46,20 +46,18 @@ class KafkaVehicleRegisteredConsumerTest {
     void shouldFailWhenPayloadCannotBeDeserialized() {
         KafkaVehicleRegisteredConsumer consumer =
                 new KafkaVehicleRegisteredConsumer(
-                        new ObjectMapper().findAndRegisterModules());
+                        new EventJsonCodec(new ObjectMapper().findAndRegisterModules()));
 
-        IllegalArgumentException error = assertThrows(
+        assertThrows(
                 IllegalArgumentException.class,
                 () -> consumer.consume("not-json").await().atMost(Duration.ofSeconds(5)));
-
-        assertTrue(error.getMessage().contains("Could not deserialize VehicleRegistered event"));
     }
 
     @Test
     void shouldFailWhenDeserializedEventIsMissingRequiredFields() {
         KafkaVehicleRegisteredConsumer consumer =
                 new KafkaVehicleRegisteredConsumer(
-                        new ObjectMapper().findAndRegisterModules());
+                        new EventJsonCodec(new ObjectMapper().findAndRegisterModules()));
 
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,

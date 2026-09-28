@@ -27,7 +27,9 @@ class BulkRegisterVehiclesCancellationTest {
     void shouldPropagateCancellationToActiveOperationsAndStopNewOnes() {
         CancellationAwareVehicleRepository repository =
                 new CancellationAwareVehicleRepository();
-        RegisterVehicle registerVehicle = new RegisterVehicle(repository);
+        RegisterVehicle registerVehicle = new RegisterVehicle(
+                repository,
+                event -> Uni.createFrom().voidItem());
         BulkRegisterVehicles useCase = new BulkRegisterVehicles(registerVehicle, 2);
 
         Multi<RegisterVehicle.Command> commands = Multi.createFrom().items(
