@@ -214,7 +214,9 @@ inventory-service/src/main/java/org/acme/inventory/
     ├── in/grpc/
     ├── in/rest/
     └── out/
-        ├── messaging/KafkaEventPublisher.java   (vehicle-registered)
+        ├── messaging/
+        │   ├── VehicleRegisteredEventPublisher.java (vehicle-registered, key=vehicleId)
+        │   └── EventJsonCodec.java                  (codec JSON dos eventos)
         ├── observability/MicrometerInventoryMetrics.java
         └── persistence/
 ~~~
@@ -293,6 +295,7 @@ billing-service/src/main/java/org/acme/billing/
     │   ├── KafkaReservationConfirmedConsumer.java
     │   ├── KafkaRentalCompletedConsumer.java
     │   ├── KafkaVehicleRegisteredConsumer.java
+    │   ├── EventJsonCodec.java                  (codec JSON dos eventos)
     │   ├── InboundEventProcessor.java
     │   └── TransactionalInboxProcessor.java
     └── out/

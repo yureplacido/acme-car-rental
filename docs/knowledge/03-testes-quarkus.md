@@ -192,7 +192,7 @@ perfil derruba a instância e sobe outra. Não use perfil para "ajustar um valor
 | Conceito do livro | Existe aqui? | Onde |
 |---|---|---|
 | `@QuarkusTest` | ✅ | todos os testes de adapter |
-| Injeção de bean no teste | ✅ | `BillingFlowKafkaIntegrationTest` (o `KafkaEventPublisherTest` é JUnit puro, monta o adapter à mão) |
+| Injeção de bean no teste | ✅ | `BillingFlowKafkaIntegrationTest` (o `VehicleRegisteredEventPublisherTest` é JUnit puro, monta o adapter à mão) |
 | RestAssured | ✅ | `ReservationResourceTest`, `ReactiveExecutionResourceTest` |
 | `@TestHTTPEndpoint` | ⚠️ | não usamos — e nem `@TestHTTPResource`: a estratégia é **porta 0** (`.mvn/maven.config` + `%test`) |
 | `@Mock` (substituição de bean) | 🚧 | não adotado como padrão |

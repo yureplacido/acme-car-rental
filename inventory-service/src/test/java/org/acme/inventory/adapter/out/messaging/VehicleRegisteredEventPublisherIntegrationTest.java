@@ -7,10 +7,14 @@ import io.smallrye.reactive.messaging.kafka.companion.KafkaCompanion;
 import jakarta.inject.Inject;
 import org.acme.inventory.domain.event.VehicleRegistered;
 import org.acme.inventory.domain.model.VehicleId;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,10 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 @QuarkusTestResource(value = InventoryKafkaCompanionResource.class, restrictToAnnotatedClass = false)
-class KafkaEventPublisherIntegrationTest {
+class VehicleRegisteredEventPublisherIntegrationTest {
+
+    private static final String TOPIC = "vehicle-registered";
+    private static final Duration PUBLISH_TIMEOUT = Duration.ofSeconds(10);
 
     @Inject
-    KafkaEventPublisher publisher;
+    VehicleRegisteredEventPublisher publisher;
 
     @InjectKafkaCompanion
     KafkaCompanion companion;
@@ -35,17 +42,23 @@ class KafkaEventPublisherIntegrationTest {
                 new VehicleId(42L),
                 "ABC123");
 
+        TopicPartition partition = KafkaCompanion.tp(TOPIC, 0);
+        long fromOffset = companion.offsets().get(partition, OffsetSpec.latest()).offset();
+
         publisher.publish(event).await().indefinitely();
 
-        var records = companion.consumeStrings()
-                .fromTopics("vehicle-registered", 1, Duration.ofSeconds(10))
-                .awaitRecords(1)
-                .getRecords();
+        ConsumerRecord<String, String> record = companion.consumeStrings()
+                .fromOffsets(
+                        Map.of(partition, fromOffset),
+                        records -> records.select().where(
+                                r -> r.value().contains(event.eventId().toString())))
+                .awaitRecords(1, PUBLISH_TIMEOUT)
+                .getRecords()
+                .getFirst();
 
-        assertEquals(1, records.size());
-        assertEquals("42", records.get(0).key());
+        assertEquals("42", record.key());
 
-        String payload = records.get(0).value();
+        String payload = record.value();
         assertTrue(payload.contains("\"vehicleId\":{\"value\":42}"));
         assertTrue(payload.contains("\"licensePlate\":\"ABC123\""));
         assertTrue(payload.contains(event.eventId().toString()));

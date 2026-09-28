@@ -22,18 +22,18 @@ import java.math.BigDecimal;
 public class RegisterVehicle {
 
     private final VehicleRepository repository;
-    private final EventPublisher eventPublisher;
+    private final EventPublisher<VehicleRegistered> publisher;
     private final InventoryMetrics metrics;
 
     @Inject
-    public RegisterVehicle(VehicleRepository repository, EventPublisher eventPublisher, InventoryMetrics metrics) {
+    public RegisterVehicle(VehicleRepository repository, EventPublisher<VehicleRegistered> publisher, InventoryMetrics metrics) {
         this.repository = repository;
-        this.eventPublisher = eventPublisher;
+        this.publisher = publisher;
         this.metrics = metrics;
     }
 
-    public RegisterVehicle(VehicleRepository repository, EventPublisher eventPublisher) {
-        this(repository, eventPublisher, () -> {
+    public RegisterVehicle(VehicleRepository repository, EventPublisher<VehicleRegistered> publisher) {
+        this(repository, publisher, () -> {
         });
     }
 
@@ -61,7 +61,7 @@ public class RegisterVehicle {
                         command.currency() == null || command.currency().isBlank() ? "BRL" : command.currency()));
 
         return repository.save(vehicle)
-                .call(savedVehicle -> eventPublisher.publish(
+                .call(savedVehicle -> publisher.publish(
                         VehicleRegistered.from(
                                 savedVehicle.id(),
                                 savedVehicle.licensePlate().value())))

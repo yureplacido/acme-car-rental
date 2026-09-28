@@ -71,8 +71,8 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [x] Kafka provisionado no stack docker (broker KRaft + tópicos via `kafka-init`)
 - [x] Dead-letter strategy (ADR 003)
 - [x] Outbox/inbox quando o domínio exigir consistência entre DB e eventos
-- [ ] Testar `KafkaEventPublisher` contra broker Kafka real (payload + key de partição)
-- [ ] Provar payload inválido no canal real `vehicle-registered-in` → retry → `vehicle-registered-dlq`
+- [x] Testar `VehicleRegisteredEventPublisher` contra broker Kafka real (payload + key do registro)
+- [x] Provar payload inválido no canal real `vehicle-registered-in` → retry → `vehicle-registered-dlq`
 
 Notas de escopo:
 
@@ -120,7 +120,7 @@ Notas de escopo:
   para DBeaver/CLI não dependerem de porta sorteada. No `%test` a porta continua aleatória, porque
   dois builds simultâneos não podem disputá-la. Tabela, regra de formação dos números e credenciais
   em [deployment.md → Portas de desenvolvimento](deployment.md#portas-de-desenvolvimento-dev-services-com-porta-fixa).
-- **Pendências de evidência do cap. 9:** a implementação do publisher e a estratégia de DLQ estão corrigidas/configuradas, mas ainda faltam duas provas de integração contra infraestrutura real: `KafkaEventPublisher` publicando no broker com a chave `vehicleId`, e payload inválido percorrendo o canal real `vehicle-registered-in` até `vehicle-registered-dlq` após os retries.\n- A decisão arquitetural da fronteira transacional está registrada em `docs/adr/007-transactional-inbox.md`.
+- **Evidências do cap. 9:** o publisher `VehicleRegisteredEventPublisher` publica no broker real com a chave `vehicleId` (`VehicleRegisteredEventPublisherIntegrationTest`), e payload inválido percorre o canal real `vehicle-registered-in` até `vehicle-registered-dlq` após os retries (`DlqKafkaIntegrationTest`). A decisão arquitetural da fronteira transacional está registrada em `docs/adr/007-transactional-inbox.md`.
 - Contrato documentado em `docs/contracts.md` (seção `VehicleRegistered (Kafka)`).
 
 ## Part 3 — Cloud and beyond

@@ -1,7 +1,7 @@
 package org.acme.inventory.application;
 
-import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.BulkRegisterVehicles;
 import org.acme.inventory.application.usecase.RegisterVehicle;
@@ -27,7 +27,9 @@ class BulkRegisterVehiclesTest {
     @Test
     void shouldRegisterAllCommandsFromStream() {
         FakeVehicleRepository repository = new FakeVehicleRepository();
-        RegisterVehicle registerVehicle = new RegisterVehicle(repository);
+        RegisterVehicle registerVehicle = new RegisterVehicle(
+                repository,
+                event -> Uni.createFrom().voidItem());
         BulkRegisterVehicles useCase = new BulkRegisterVehicles(registerVehicle, 2);
 
         List<String> plates = useCase.handle(
@@ -49,7 +51,9 @@ class BulkRegisterVehiclesTest {
     @Test
     void shouldNeverExceedConfiguredConcurrency() {
         FakeVehicleRepository repository = new FakeVehicleRepository();
-        RegisterVehicle registerVehicle = new RegisterVehicle(repository);
+        RegisterVehicle registerVehicle = new RegisterVehicle(
+                repository,
+                event -> Uni.createFrom().voidItem());
         BulkRegisterVehicles useCase = new BulkRegisterVehicles(registerVehicle, 2);
 
         List<RegisterVehicle.Command> commands = List.of(

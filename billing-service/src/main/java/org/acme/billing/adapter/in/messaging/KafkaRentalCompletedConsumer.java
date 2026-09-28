@@ -1,7 +1,5 @@
 package org.acme.billing.adapter.in.messaging;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -19,32 +17,32 @@ public class KafkaRentalCompletedConsumer {
 
     private static final Logger LOG = Logger.getLogger(KafkaRentalCompletedConsumer.class);
 
-    private final ObjectMapper objectMapper;
+    private final EventJsonCodec codec;
     private final ConsumeRentalCompleted consumer;
     private final InboundEventProcessor inboxProcessor;
 
     @Inject
     public KafkaRentalCompletedConsumer(
-            ObjectMapper objectMapper,
+            EventJsonCodec codec,
             OpenInvoiceForRental openInvoiceForRental,
             InboundEventProcessor inboxProcessor) {
         this(
-                objectMapper,
+                codec,
                 event -> openInvoiceForRental.handle(toCommand(event)).replaceWithVoid(),
                 inboxProcessor);
     }
 
     KafkaRentalCompletedConsumer(
-            ObjectMapper objectMapper,
+            EventJsonCodec codec,
             Function<RentalCompleted, Uni<Void>> handler) {
-        this(objectMapper, handler, (eventId, effect) -> effect.get());
+        this(codec, handler, (eventId, effect) -> effect.get());
     }
 
     KafkaRentalCompletedConsumer(
-            ObjectMapper objectMapper,
+            EventJsonCodec codec,
             Function<RentalCompleted, Uni<Void>> handler,
             InboundEventProcessor inboxProcessor) {
-        this.objectMapper = objectMapper;
+        this.codec = codec;
         this.consumer = new ConsumeRentalCompleted(handler);
         this.inboxProcessor = inboxProcessor;
     }
@@ -64,13 +62,8 @@ public class KafkaRentalCompletedConsumer {
     }
 
     private RentalCompleted deserialize(String payload) {
-        RentalCompleted event;
-        try {
-            event = objectMapper.readValue(payload, RentalCompleted.class);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException(
-                    "Could not deserialize RentalCompleted event", e);
-        }
+        RentalCompleted event = codec.decode(payload, RentalCompleted.class);
+
         if (event.eventId() == null || event.reservationId() == null
                 || event.dailyRate() == null || event.startDate() == null || event.endDate() == null) {
             throw new IllegalArgumentException(

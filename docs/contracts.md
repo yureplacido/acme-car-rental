@@ -133,7 +133,7 @@ Payload (`version = 1`):
   "eventId": "uuid",
   "version": 1,
   "occurredAt": "2026-09-21T12:00:00Z",
-  "vehicleId": 42,
+  "vehicleId": { "value": 42 },
   "licensePlate": "ABC123"
 }
 ```
