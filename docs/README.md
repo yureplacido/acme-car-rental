@@ -120,7 +120,7 @@ Use this table to know **where to record** new learnings. When finishing a chapt
 | 7 | Database access | `services.md` (repos), `contracts.md`, `roadmap.md` | `knowledge/06-persistencia-transacoes-e-nosql.md` |
 | 8 | Reactive programming | `architecture.md`, `services.md` | `knowledge/07-programacao-reativa.md` |
 | 9 | Quarkus messaging | `services.md` (billing), `contracts.md`, `roadmap.md`, `adr/` | `knowledge/08-messaging-reativo.md`, `knowledge/09-padroes-de-resiliencia-em-messaging.md`, `knowledge/13-transactional-outbox.md` |
-| 10 | Cloud-native (health, metrics, tracing, FT, SD) | `roadmap.md`, `services.md` | `knowledge/book-index/cap10.txt` |
+| 10 | Cloud-native (health, metrics, tracing, FT, SD) | `roadmap.md`, `services.md`, `architecture.md` | `knowledge/14-cloud-native-patterns.md`, `knowledge/book-index/cap10.txt` |
 | 11 | Cloud, K8s/OpenShift, serverless | `deployment.md`, `roadmap.md` | `knowledge/book-index/cap11.txt` |
 | 12 | Custom Quarkus extensions | `roadmap.md` | `knowledge/book-index/cap12.txt` |
  

@@ -62,7 +62,8 @@ org.acme.<context>/
         ├── rest/
         ├── graphql/
         ├── grpc/
-        └── messaging/
+        ├── messaging/
+        └── observability/
 ```
 
 Only create packages that have a real responsibility. Do not create empty layers for symmetry.
@@ -219,6 +220,38 @@ Persistence entities must never become domain entities by convenience.
 
 The reactive REST Data endpoint in Reservation is an explicit framework exercise for the Database access chapter. It remains an administrative boundary and does not change the domain rule above.
 
+### Observability
+
+A business or pipeline metric is an **observable side effect**, not a business rule. The
+application declares intent through a port; measurement stays in an adapter under
+`adapter/out/observability/`.
+
+- A use case that wants to signal "this happened" receives a plain port (ex.: `OutboxMetrics`,
+  `InventoryMetrics`) and knows nothing about Micrometer — **no meter name, no units, no registry**.
+- An adapter implements the port with Micrometer (`MeterRegistry` via constructor injection,
+  `Counter` for monotonic counts, `Gauge` for current state like a backlog).
+- Meter names follow `<context>.<concern>.<event>` (event verbs), with **state/noun segments allowed
+  for gauges** (ex.: `billing.outbox.pending`) and **plural nouns for failure/error counters can be
+  written as `<concern>.<noun>` segments** (ex.: `billing.outbox.failures`) — the invariants are
+  context prefix, low cardinality and **no per-entity tags**; do not grow beyond that shape without
+  a reason.
+- Only services whose `/q/metrics` is a claimed deliverable add
+  `quarkus-micrometer-registry-prometheus`.
+
+Rules for scheduling and failure in the observability path:
+
+1. **Completion-aware scheduling.** A `@Scheduled` job that starts asynchronous work must
+   return `Uni<Void>` (like `OutboxRelay`) — never `void` — so `concurrentExecution = SKIP`
+   really means "not while running", and failures surface to the scheduler.
+2. **No silent failure.** A polled gauge whose read fails logs at WARN and counts in a
+   dedicated error counter; it must not freeze silently at the last value.
+
+**Recorded exception — the backlog sampler reads a persistence port.** Billing's
+`MicrometerOutboxMetrics` also polls the outbox backlog via `OutboxEventStore.countPending()`
+(an adapter calling an outbound port). This is the inverse of the canonical
+adapter → use case → port direction, and it is **billing-specific**: only billing owns a relay
+with a backlog. If a third service needs this shape, revisit the rule before copying it.
+
 ## 6. Context boundaries
 
 A bounded context must not import another context's:
@@ -353,4 +386,7 @@ Migration remains incremental at behavior level, but the repository must converg
 The special-purpose modules follow their own documented profile.
 
 ---
-_Last updated: 2026-09-27_
+_Last updated: 2026-09-28_
+
+Observability section added with Cap. 10 (metrics behind ports, completion-aware `@Scheduled`,
+no-silent-failure rule, and the recorded billing backlog-sampler exception).

@@ -141,7 +141,7 @@ Notas de escopo:
 - [x] Health de dependências na semântica correta: checks nativos do Quarkus/SmallRye participam do readiness quando aplicável
 - [x] Métricas HTTP e de runtime coletáveis em `/q/metrics` [3.39.3] — evidência no Inventory
 - [x] Métrica de negócio de Inventory para veículos registrados, exposta como contador Prometheus e isolada atrás de uma porta da aplicação
-- [ ] Métrica do pipeline Kafka e do relay da outbox: lag, falhas, retries
+- [x] Métrica do pipeline Kafka e do relay da outbox: lag, falhas e tempo de canal — o billing expõe `/q/metrics` (registro Prometheus) com contadores do relay (`billing.outbox.published`/`failures`/`billing.outbox.backlog.refresh.errors`), gauge de backlog (`billing.outbox.pending`), client metrics do Kafka (consumer lag, via `quarkus.micrometer.binder.kafka.enabled`) e observabilidade por canal (`quarkus.messaging.message.*`, `smallrye.messaging.observation.enabled=true`) [3.39.3]; a contagem de tentativas de uma publicação continua na coluna `attempts` da outbox (reativação do item 2), não é mentida por métrica; evidência: `OutboxMetricsIntegrationTest` (scrape real), `PublishPendingOutboxEventsTest` no caminho de falha e o teste de adapter `MicrometerOutboxMetricsTest`
 - [ ] Tracing de requisição ponta a ponta, com propagação de contexto através
       do Kafka [3.39.3] — evidência: teste de integração assegurando a propagação
 - [ ] Fault tolerance em chamada externa com timeout, retry e fallback explícitos,
@@ -225,4 +225,6 @@ Architecture + DDD + TDD + Quarkus guardians
 Use `/domain-design` antes de implementar uma feature e `/preflight` para o fluxo completo.
 
 ---
-_Last updated: 2026-09-27_
+_Last updated: 2026-09-28 (cap. 10 item 6 fechado: métricas do pipeline Kafka e relay da outbox
+no billing; `adapter/out/observability`, a porta `OutboxMetrics` e o `countPending` entram no
+padrão de referência do repositório)._
