@@ -67,6 +67,48 @@ class DlqKafkaIntegrationTest {
     }
 
     @Test
+    void shouldSendCorruptVehicleRegisteredRecordToRealDeadLetterAfterRetriesAreExhausted()
+            throws Exception {
+        String key = "real-dlq-" + System.nanoTime();
+        String payload = "{\"version\":1,\"occurredAt\":\"2026-09-23T20:00:00Z\",\"licensePlate\":\"REAL-DLQ\"}";
+
+        companion.produceStrings()
+                .fromRecords(new ProducerRecord<>(
+                        "vehicle-registered",
+                        key,
+                        payload))
+                .awaitCompletion();
+
+        var dlqRecords = companion.consumeStrings()
+                .fromTopics("vehicle-registered-dlq", 1, Duration.ofSeconds(15))
+                .awaitRecords(1)
+                .getRecords();
+
+        var record = dlqRecords.stream()
+                .filter(candidate -> key.equals(candidate.key()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "expected the real vehicle-registered record to reach vehicle-registered-dlq"));
+
+        assertEquals(payload, record.value(),
+                "the real DLQ record must preserve the original payload");
+
+        Iterable<Header> originalTopics = record.headers().headers("delayed-retry-topic");
+        String originalTopic = originalTopics.iterator().hasNext()
+                ? new String(originalTopics.iterator().next().value(), StandardCharsets.UTF_8)
+                : "";
+        assertEquals("vehicle-registered-retry_200", originalTopic,
+                "the real DLQ record must carry the last delayed-retry topic");
+
+        Iterable<Header> exceptionClasses = record.headers().headers("delayed-retry-exception-class-name");
+        String exceptionClass = exceptionClasses.iterator().hasNext()
+                ? new String(exceptionClasses.iterator().next().value(), StandardCharsets.UTF_8)
+                : "";
+        assertEquals("java.lang.IllegalArgumentException", exceptionClass,
+                "the real DLQ record must carry the last failure exception class");
+    }
+
+    @Test
     void shouldSendCorruptRecordToDeadLetterAfterRetriesAreExhausted()
             throws Exception {
         companion.produceStrings()
