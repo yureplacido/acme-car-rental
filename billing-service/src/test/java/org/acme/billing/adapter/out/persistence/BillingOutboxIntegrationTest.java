@@ -1,10 +1,14 @@
 package org.acme.billing.adapter.out.persistence;
 
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.vertx.RunOnVertxContext;
 import io.quarkus.test.vertx.UniAsserter;
 import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.inject.Inject;
+import org.acme.billing.application.event.InvoiceOpened;
+import org.acme.billing.application.model.OutboxEvent;
+import org.acme.billing.application.port.out.OutboxEventStore;
 import org.acme.billing.application.usecase.CreateInvoice;
 import org.acme.billing.application.usecase.OpenInvoiceForRental;
 import org.acme.billing.domain.model.InvoiceLine;
@@ -16,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -32,6 +37,69 @@ class BillingOutboxIntegrationTest {
 
     @Inject
     PgPool pgPool;
+
+    @Inject
+    OutboxEventStore outboxEventStore;
+
+    @Test
+    @RunOnVertxContext
+    void shouldCountOnlyEventsThatAreNotPublishedYet(UniAsserter asserter) {
+        AtomicLong baseline = new AtomicLong();
+
+        asserter.assertThat(
+                () -> outboxEventStore.countPending(),
+                pending -> baseline.set(pending));
+
+        InvoiceOpened first = event("invoice-1");
+        InvoiceOpened second = event("invoice-2");
+        InvoiceOpened third = event("invoice-3");
+
+        asserter.execute(() -> Panache.withTransaction(
+                () -> outboxEventStore.appendInvoiceOpened(first)));
+        asserter.execute(() -> Panache.withTransaction(
+                () -> outboxEventStore.appendInvoiceOpened(second)));
+        asserter.execute(() -> Panache.withTransaction(
+                () -> outboxEventStore.appendInvoiceOpened(third)));
+
+        asserter.execute(() -> outboxEventStore.markPublished(
+                toAnsweredOutboxEvent(first), Instant.now()));
+
+        asserter.assertThat(
+                () -> outboxEventStore.countPending(),
+                pending -> assertEquals(baseline.get() + 2, pending));
+
+        asserter.execute(() -> outboxEventStore.markPublished(
+                toAnsweredOutboxEvent(second), Instant.now()));
+        asserter.execute(() -> outboxEventStore.markPublished(
+                toAnsweredOutboxEvent(third), Instant.now()));
+
+        asserter.assertThat(
+                () -> outboxEventStore.countPending(),
+                pending -> assertEquals(baseline.get(), pending));
+    }
+
+    private static InvoiceOpened event(String invoiceId) {
+        return new InvoiceOpened(
+                UUID.randomUUID(),
+                1,
+                Instant.now(),
+                invoiceId,
+                "customer-1",
+                "reservation-1",
+                new BigDecimal("120.00"),
+                "BRL");
+    }
+
+    private static OutboxEvent toAnsweredOutboxEvent(InvoiceOpened event) {
+        return new OutboxEvent(
+                event.eventId(),
+                "InvoiceOpened",
+                "Invoice",
+                event.invoiceId(),
+                "{}",
+                event.occurredAt(),
+                0);
+    }
 
     @Test
     @RunOnVertxContext

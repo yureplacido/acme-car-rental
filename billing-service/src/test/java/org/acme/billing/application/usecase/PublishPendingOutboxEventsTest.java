@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Uni;
 import org.acme.billing.application.model.OutboxEvent;
 import org.acme.billing.application.port.out.EventPublisher;
 import org.acme.billing.application.port.out.OutboxEventStore;
+import org.acme.billing.application.port.out.OutboxMetrics;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -13,6 +14,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PublishPendingOutboxEventsTest {
@@ -23,23 +25,27 @@ class PublishPendingOutboxEventsTest {
         OutboxEvent second = event("second");
         FakeOutboxEventStore store = new FakeOutboxEventStore(List.of(first, second));
         FakeEventPublisher publisher = new FakeEventPublisher();
+        FakeOutboxMetrics metrics = new FakeOutboxMetrics();
 
         PublishPendingOutboxEvents useCase =
-                new PublishPendingOutboxEvents(store, publisher);
+                new PublishPendingOutboxEvents(store, publisher, metrics);
 
         useCase.handle().await().indefinitely();
 
         assertEquals(List.of(first.eventId(), second.eventId()), publisher.publishedIds);
         assertEquals(List.of(first.eventId(), second.eventId()), store.markedIds);
         assertTrue(store.incrementedIds.isEmpty());
+        assertEquals(2, metrics.relayed);
+        assertEquals(0, metrics.failed);
     }
 
     @Test
     void shouldDoNothingWhenThereAreNoPendingEvents() {
         FakeOutboxEventStore store = new FakeOutboxEventStore(List.of());
         FakeEventPublisher publisher = new FakeEventPublisher();
+        FakeOutboxMetrics metrics = new FakeOutboxMetrics();
 
-        new PublishPendingOutboxEvents(store, publisher)
+        new PublishPendingOutboxEvents(store, publisher, metrics)
                 .handle()
                 .await()
                 .indefinitely();
@@ -47,6 +53,8 @@ class PublishPendingOutboxEventsTest {
         assertTrue(publisher.publishedIds.isEmpty());
         assertTrue(store.markedIds.isEmpty());
         assertTrue(store.incrementedIds.isEmpty());
+        assertEquals(0, metrics.relayed);
+        assertEquals(0, metrics.failed);
     }
 
     @Test
@@ -59,18 +67,15 @@ class PublishPendingOutboxEventsTest {
                 new FakeOutboxEventStore(List.of(first, second, third));
         FakeEventPublisher publisher =
                 new FakeEventPublisher(second.eventId());
+        FakeOutboxMetrics metrics = new FakeOutboxMetrics();
 
-        Throwable failure = null;
-        try {
-            new PublishPendingOutboxEvents(store, publisher)
-                    .handle()
-                    .await()
-                    .indefinitely();
-        } catch (Throwable e) {
-            failure = e;
-        }
+        assertThrows(
+                IllegalStateException.class,
+                () -> new PublishPendingOutboxEvents(store, publisher, metrics)
+                        .handle()
+                        .await()
+                        .indefinitely());
 
-        assertTrue(failure != null);
         assertEquals(
                 List.of(first.eventId(), second.eventId()),
                 publisher.publishedIds);
@@ -81,6 +86,8 @@ class PublishPendingOutboxEventsTest {
                 List.of(second.eventId()),
                 store.incrementedIds);
         assertFalse(publisher.publishedIds.contains(third.eventId()));
+        assertEquals(1, metrics.relayed);
+        assertEquals(1, metrics.failed);
     }
 
     @Test
@@ -89,14 +96,16 @@ class PublishPendingOutboxEventsTest {
         OutboxEvent second = event("second");
         FakeOutboxEventStore store = new FakeOutboxEventStore(List.of(first, second));
         FakeEventPublisher publisher = new FakeEventPublisher();
+        FakeOutboxMetrics metrics = new FakeOutboxMetrics();
 
-        new PublishPendingOutboxEvents(store, publisher)
+        new PublishPendingOutboxEvents(store, publisher, metrics)
                 .handle(1)
                 .await()
                 .indefinitely();
 
         assertEquals(List.of(first.eventId()), publisher.publishedIds);
         assertEquals(1, store.lastRequestedLimit);
+        assertEquals(1, metrics.relayed);
     }
 
     private static OutboxEvent event(String aggregateId) {
@@ -108,6 +117,22 @@ class PublishPendingOutboxEventsTest {
                 "{}",
                 Instant.now(),
                 0);
+    }
+
+    private static final class FakeOutboxMetrics implements OutboxMetrics {
+
+        private int relayed;
+        private int failed;
+
+        @Override
+        public void eventRelayed() {
+            relayed++;
+        }
+
+        @Override
+        public void relayFailed() {
+            failed++;
+        }
     }
 
     private static final class FakeOutboxEventStore implements OutboxEventStore {
@@ -144,6 +169,11 @@ class PublishPendingOutboxEventsTest {
         public Uni<Void> incrementAttempts(OutboxEvent event) {
             incrementedIds.add(event.eventId());
             return Uni.createFrom().voidItem();
+        }
+
+        @Override
+        public Uni<Long> countPending() {
+            return Uni.createFrom().item((long) pending.size());
         }
     }
 

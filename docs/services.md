@@ -68,6 +68,9 @@ Inbound:
 Outbound:
 - JPA/Panache + MySQL
 - Kafka out (`EventPublisher`) → tópico `vehicle-registered` (cap.9)
+- Observability: `/q/metrics` exposto via `quarkus-micrometer-registry-prometheus`; métrica de
+  negócio atrás de porta (`InventoryMetrics` → `MicrometerInventoryMetrics`, cap. 10 item 1);
+  evidência: `HealthEndpointTest.shouldExposeHttpAndJvmMetrics`
 
 GraphQL exposes a transport DTO named `Car` for compatibility with the existing laboratory contract. It is not a domain object.
 
@@ -193,6 +196,22 @@ Evidência: `PublishPendingOutboxEventsTest` (aplicação, JUnit puro),
 (os dois commits na mesma transação) e `OutboxRelayKafkaIntegrationTest` (relay → Kafka).
 Contrato do evento em [contracts.md](./contracts.md). Decisões: ADR 004 e ADR 008.
 
+**Observability (implementada, cap. 10 item 6).** Métricas do relay e do pipeline Kafka em
+`/q/metrics` (formato Prometheus):
+
+| Peça | Caminho |
+|---|---|
+| Porta de intenção | `application/port/out/OutboxMetrics.java` (`eventRelayed()`/`relayFailed()`) |
+| Adapter | `adapter/out/observability/MicrometerOutboxMetrics.java` |
+| Métricas | counter `billing.outbox.published`, `billing.outbox.failures`, `billing.outbox.backlog.refresh.errors`; gauge `billing.outbox.pending` |
+| Pipeline Kafka | client metrics (lag) via `quarkus.micrometer.binder.kafka.enabled` + channel metrics `quarkus.messaging.message.*` via `smallrye.messaging.observation.enabled=true` |
+| Gatilho do gauge | `@Scheduled(every="5s", concurrentExecution = SKIP)` retornando `Uni<Void>` sobre `OutboxEventStore.countPending()` |
+
+Evidência: `MicrometerOutboxMetricsTest` (JUnit puro com `SimpleMeterRegistry`) e
+`OutboxMetricsIntegrationTest` (scrape real de `/q/metrics` + corrência com Kafka). Detalhe de
+projeto no padrão DDD em [ddd-tdd-standards.md](./ddd-tdd-standards.md) §5‑Observability e
+estudo do capítulo em [14-cloud-native-patterns.md](./knowledge/14-cloud-native-patterns.md).
+
 ## users-service
 
 **Role:** Web BFF.
@@ -262,4 +281,5 @@ Messaging cross-cutting concerns such as idempotency belong to the messaging inf
 | inventory-proto | ✅ | — | — | contract |
 
 ---
-_Last updated: 2026-09-27_
+_Last updated: 2026-09-28 (billing/inventory: seção de observability do cap. 10 item 6 —
+métricas do relay da outbox e pipeline Kafka em `/q/metrics`)._

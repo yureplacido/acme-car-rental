@@ -75,6 +75,12 @@ public class PanacheOutboxEventStore
                 .replaceWithVoid();
     }
 
+    @Override
+    @WithSession
+    public Uni<Long> countPending() {
+        return count("publishedAt is null");
+    }
+
     private OutboxEvent toModel(OutboxEventEntity entity) {
         return new OutboxEvent(
                 UUID.fromString(entity.eventId),

@@ -16,4 +16,6 @@ public interface OutboxEventStore {
     Uni<Void> markPublished(OutboxEvent event, Instant publishedAt);
 
     Uni<Void> incrementAttempts(OutboxEvent event);
+
+    Uni<Long> countPending();
 }

@@ -42,6 +42,22 @@ Usar @QuarkusTest quando a fronteira/framework é parte do comportamento.
 
 Exemplos: Reservation REST, Reservation persistence reativa, GraphQL/gRPC contracts e OIDC/security.
 
+### Observability
+O teste de um adapter de métrica segue **duas camadas**, nunca uma:
+
+1. **Lógica do adapter** (contadores, gauge, regra no-caminho-de-falha) = **JUnit puro** com um
+   `SimpleMeterRegistry` real, sem Quarkus. Exemplos: `MicrometerOutboxMetricsTest`,
+   `MicrometerInventoryMetricsTest` (`knowledge/04` §9, "Adapter unit").
+2. **Evidência de ponta a ponta** (o registro é exposto) = `@QuarkusTest` que scaneia o
+   `/q/metrics` real, exigindo `quarkus-micrometer-registry-prometheus` no pom do serviço.
+   Série é **nome + tag** (não `startsWith` do nome). Exemplos: `OutboxMetricsIntegrationTest`,
+   `HealthEndpointTest` (inventory).
+
+Regras: nunca `await().indefinitely()` sob `@RunOnVertxContext` (usar `UniAsserter`); scrape
+HTTP de um endpoint em worker thread exige `.emitOn(eventLoop)` para o próximo passo reativo
+voltar à event loop; métrica de negócio é sempre declarada como **porta** no serviço — o teste
+de application usa o fake da porta.
+
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
 
@@ -73,4 +89,5 @@ Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é pr
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
 ---
-_Last updated: 2026-09-27_
+_Last updated: 2026-09-28 (subseção "Observability": teste de adapter de métrica em duas camadas;
+régua da série por nome+tag)._

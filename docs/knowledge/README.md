@@ -51,6 +51,7 @@ Estas páginas existem para tornar essas divergências **explícitas e reutiliz�
 | 11 | [Armadilhas e lições](./11-armadilhas-e-licoes.md) | todos | erros reais, diagnóstico e prevenção |
 | 12 | [Modelo para novos capítulos](./12-modelo-para-novos-capitulos.md) | — | **template** para documentar o próximo capítulo |
 | 13 | [Transactional Outbox na prática](./13-transactional-outbox.md) | 9 + implementação | **outbox, relay, at-least-once, scheduler e testes E2E** |
+| 14 | [Cloud-native patterns](./14-cloud-native-patterns.md) | 10 | **health, metrics Prometheus/Micrometer, Kafka pipeline metrics, tracing 🔜, FT 🔜** |
 | — | [Índice do livro](./book-index/README.md) | 1–12 | **onde o assunto está**, com página. Não contém o texto da obra |
 
 ## Mapa capítulo → documento
@@ -66,7 +67,7 @@ Estas páginas existem para tornar essas divergências **explícitas e reutiliz�
 | 7 | Database access | [06](./06-persistencia-transacoes-e-nosql.md) | [services.md](../services.md) |
 | 8 | Reactive programming | [07](./07-programacao-reativa.md) | [architecture.md](../architecture.md) |
 | 9 | Quarkus messaging | [08](./08-messaging-reativo.md) + [09](./09-padroes-de-resiliencia-em-messaging.md) | [adr/](../adr/README.md), [contracts.md](../contracts.md) |
-| 10+ | Cloud-native, observabilidade, extensões | [12](./12-modelo-para-novos-capitulos.md) (template; capítulos ainda não escritos) | [roadmap.md](../roadmap.md) |
+| 10+ | Cloud-native, observabilidade, extensões | [14](./14-cloud-native-patterns.md) (health/metrics prontos; tracing/FT/descoberta em andamento) | [roadmap.md](../roadmap.md) |
 | 10 | Health, metrics, tracing, FT, service discovery | [book-index/cap10.txt](./book-index/cap10.txt) (onde o livro trata) | [roadmap.md](../roadmap.md) |
 | 11 | Cloud, Kubernetes/OpenShift, serverless | [book-index/cap11.txt](./book-index/cap11.txt) | [deployment.md](../deployment.md) |
 | 12 | Custom extensions | [book-index/cap12.txt](./book-index/cap12.txt) | [roadmap.md](../roadmap.md) |
@@ -111,6 +112,5 @@ mesma de [12](./12-modelo-para-novos-capitulos.md): **síntese, não transcriç�
 
 ---
 
-_Última atualização: 2026-09-26 (cap. 1–9 do livro documentados; cap. 10–12 com escopo
-conferido contra o livro e roadmap em nível de capacidade; base criada a partir das
-correções de testes do `billing-service` e da leitura dos capítulos 3, 5, 7, 8 e 9)._
+_Última atualização: 2026-09-28 (cap. 10 documentado em [14](./14-cloud-native-patterns.md):
+health e métricas do pipeline Kafka/outbox; cap. 11–12 seguem em nível de capacidade)._

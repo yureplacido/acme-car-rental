@@ -243,10 +243,10 @@ O teste precisa de CDI, HTTP, banco ou broker?
 - [ ] Nenhum `await().indefinitely()` em teste anotado com `@RunOnVertxContext`.
 - [ ] Todo teste Kafka declara `restrictToAnnotatedClass = false`.
 - [ ] Nomes no formato `should<Comportamento>Quando<Condição>` **quando a condição importar**.
-      Estado real: 124 métodos de teste, sendo 15 com `Quando`/`When` (o caso mais explícito,
-      `shouldCommitInvoiceAndOutboxTogetherWhenInvoiceIsOpened`), 108 com `should` sem
-      condição e 1 legado (`testStagingProfileOverridesGraphQLUrl`). É **preferência**, não
-      invariante — ver a regra em [testing.md](../testing.md) §Nomenclatura.
+      Estado real: 131 métodos de teste verificados por varredura de assinatura, sendo 16 com
+      condição `When` (o caso mais explícito, `shouldCommitInvoiceAndOutboxTogetherWhenInvoiceIsOpened`),
+      114 com `should` sem condição e 1 legado (`testStagingProfileOverridesGraphQLUrl`). É
+      **preferência**, não invariante — ver a regra em [testing.md](../testing.md) §Nomenclatura.
 - [ ] Teste novo de comportamento tem o `RED` visível no histórico.
 
 ## 9. Inventário de testes por camada
@@ -255,14 +255,17 @@ O teste precisa de CDI, HTTP, banco ou broker?
 |---|---|
 | Domain (8) | `InvoiceTest`, `InvoiceLineTest`, `VehicleTest`, `VehicleDailyRateTest`, `VehicleTelemetryTest`, `MaintenanceOrderTest`, `RentalTest`, `ReservationTest` |
 | Application (19) | `CreateInvoiceTest`, `OpenInvoiceForRentalTest`, `ConsumeVehicleRegisteredTest`, `ConsumeReservationConfirmedTest`, `ConsumeRentalCompletedTest`, `PublishPendingOutboxEventsTest`, `RegisterVehicleTest`, `RegisterVehicleEventTest`, `RegisterVehicleRetryTest`, `RegisterVehicleTimeoutTest`, `BulkRegisterVehiclesTest`, `BulkRegisterVehiclesBackpressureTest`, `BulkRegisterVehiclesCancellationTest`, `DecommissionVehicleTest`, `FindVehicleByPlateTest`, `SearchVehiclesTest`, `StartRentalTest`, `CreateReservationTest`, `ReservationFacadeTest` |
-| Adapter unit (6) | `KafkaVehicleRegisteredConsumerTest`, `KafkaReservationConfirmedConsumerTest`, `KafkaRentalCompletedConsumerTest`, `VehicleRegisteredEventPublisherTest`, `EventJsonCodecTest` (inventory), `EventJsonCodecTest` (billing) |
-| Adapter/Integration (20) | `ReservationResourceTest`, `ReservationPersistenceTest`, `ReactiveExecutionResourceTest`, `StagingTest`, `BillingPersistenceTest`, `BillingOutboxIntegrationTest`, `BillingFlowKafkaIntegrationTest`, `DelayedRetryKafkaIntegrationTest`, `DlqKafkaIntegrationTest`, `TransactionalInboxRetryKafkaIntegrationTest`, `TransactionalInboxProcessorIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `VehicleRegisteredEventPublisherIntegrationTest`, `BusinessMetricsIntegrationTest`, `VehicleEntityMappingTest`, `HealthEndpointTest` (billing), `HealthEndpointTest` (inventory), `HealthEndpointTest` (rental), `HealthEndpointTest` (reservation), `HealthEndpointTest` (users) |
+| Adapter unit (8) | `KafkaVehicleRegisteredConsumerTest`, `KafkaReservationConfirmedConsumerTest`, `KafkaRentalCompletedConsumerTest`, `VehicleRegisteredEventPublisherTest`, `EventJsonCodecTest` (inventory), `EventJsonCodecTest` (billing), `MicrometerOutboxMetricsTest`, `MicrometerInventoryMetricsTest` |
+| Adapter/Integration (21) | `ReservationResourceTest`, `ReservationPersistenceTest`, `ReactiveExecutionResourceTest`, `StagingTest`, `BillingPersistenceTest`, `BillingOutboxIntegrationTest`, `BillingFlowKafkaIntegrationTest`, `DelayedRetryKafkaIntegrationTest`, `DlqKafkaIntegrationTest`, `TransactionalInboxRetryKafkaIntegrationTest`, `TransactionalInboxProcessorIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `OutboxMetricsIntegrationTest`, `VehicleRegisteredEventPublisherIntegrationTest`, `BusinessMetricsIntegrationTest`, `VehicleEntityMappingTest`, `HealthEndpointTest` (billing), `HealthEndpointTest` (inventory), `HealthEndpointTest` (rental), `HealthEndpointTest` (reservation), `HealthEndpointTest` (users) |
 
-**Total: 54 classes de teste** = 20 `@QuarkusTest` + 33 JUnit puro + 1 `@QuarkusIntegrationTest`
+**Total: 57 classes de teste** = 21 `@QuarkusTest` + 35 JUnit puro + 1 `@QuarkusIntegrationTest`
 (`ReservationResourceIT`).
 `BillingPersistenceTest` é `@QuarkusTest` (Postgres via Dev Services), portanto está em
 Adapter/Integration e **não** em "Adapter unit" — a camada "adapter unit" é JUnit puro,
-sem container.
+sem container. `MicrometerOutboxMetricsTest` e `MicrometerInventoryMetricsTest` são JUnit puro
+com um `SimpleMeterRegistry` real (shape inaugurada pelo cap. 10: adapter de métrica testado
+sem Quarkus — ver [14-cloud-native-patterns.md](./14-cloud-native-patterns.md) §4 e
+[testing.md](../testing.md) §Observability).
 
 **Veja também:** [03-testes-quarkus.md](./03-testes-quarkus.md) ·
 [11-armadilhas-e-licoes.md](./11-armadilhas-e-licoes.md) ·
@@ -271,4 +274,5 @@ sem container.
 ---
 
 _Última atualização: 2026-09-28 (padrão derivado das correções de `billing-service`,
-commit `a6fddc0`, e do inventário conferido: 54 classes de teste)._
+commit `a6fddc0`, e do inventário conferido: 57 classes de teste; cap. 10 acrescenta a
+shape de teste de adapter de métrica com `SimpleMeterRegistry` puro, no billing e no inventory)._

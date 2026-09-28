@@ -289,7 +289,8 @@ billing-service/src/main/java/org/acme/billing/
 │       ├── InvoiceRepository.java
 │       ├── ProcessedEventStore.java
 │       ├── OutboxEventStore.java
-│       └── EventPublisher.java
+│       ├── EventPublisher.java
+│       └── OutboxMetrics.java                (métricas do relay da outbox)
 └── adapter/
     ├── in/messaging/
     │   ├── KafkaReservationConfirmedConsumer.java
@@ -302,6 +303,8 @@ billing-service/src/main/java/org/acme/billing/
         ├── messaging/
         │   ├── OutboxRelay.java                (@Scheduled every=5s, SKIP)
         │   └── InvoiceOpenedKafkaPublisher.java (canal invoice-opened-out)
+        ├── observability/
+        │   └── MicrometerOutboxMetrics.java    (counters + gauge de backlog)
         └── persistence/
             ├── PanacheInvoiceRepository.java
             ├── InvoiceEntity.java / InvoiceMapper.java / InvoiceLinesConverter.java
@@ -315,6 +318,9 @@ PostgreSQL (DRAFT→OPEN), aplicando idempotência via `TransactionalInboxProces
 (ADR 005); retry via `delayed-retry-topic`
 (ADR 002) e DLQ (ADR 003). Na outra direção, `InvoiceOpened` é gravado na outbox
 transacional (ADR 008) e publicado por `OutboxRelay`.
+O billing expõe `/q/metrics` (registry Prometheus, cap.10): métricas do relay da outbox
+(`MicrometerOutboxMetrics`), client metrics do Kafka (lag) e métricas por canal
+(`quarkus.messaging.message.*` via `smallrye.messaging.observation.enabled=true`).
  
 ### Transactional Outbox Pattern (Billing)
  
@@ -493,6 +499,7 @@ Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; 
 | 12 | Consultas de seleção ficam na Application | adapters traduzem protocolo, não acumulam regra de consulta |
 | 13 | OpenCode funciona como architecture gate | impedir divergência entre futuras implementações |
 | 14 | Agregador raiz **somente para testes** (`packaging=pom`, sem parent/dependencyManagement) | rodar todos os testes com `./mvnw test` sem acoplar os microserviços |
+| 15 | Métrica de negócio/pipeline por **porta da aplicação** → adapter Micrometer em `adapter/out/observability` | regra 9 do AGENTS.md (efeito observável ≠ regra de negócio) e precedente do inventory; a intenção fica na aplicação, o instrumento no adapter. **Exceção registrada (billing):** o gauge de backlog faz o adapter chamar `OutboxEventStore.countPending()` na direção oposta — billing-specific, documentada em `ddd-tdd-standards.md` §5-Observability |
 
 ## Construção e testes
  
@@ -618,4 +625,5 @@ flowchart TD
  
 A aplicação só ganha complexidade quando um comportamento exigir essa complexidade.
 ---
-_Last updated: 2026-09-28 (diagramas sincronizados com o código; estilo Mermaid unificado)_
+_Last updated: 2026-09-28 (diagramas sincronizados com o código; estilo Mermaid unificado; decisão 15 —
+métricas por porta da aplicação + adapter de observabilidade; billing com `/q/metrics`, cap. 10)._

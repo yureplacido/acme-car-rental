@@ -122,8 +122,13 @@ public interface OutboxEventStore {
     Uni<Void> markPublished(OutboxEvent event, Instant publishedAt);
 
     Uni<Void> incrementAttempts(OutboxEvent event);
+
+    Uni<Long> countPending();
 }
 ```
+
+`countPending()` entrou no cap. 10: o gauge de backlog da outbox (`MicrometerOutboxMetrics`)
+consulta a contagem de pendentes reais — ver [14-cloud-native-patterns.md](./14-cloud-native-patterns.md) §2.1.4.
 
 `application/port/out/EventPublisher.java` — o relay publica por esta porta, e só ela:
 
@@ -311,8 +316,12 @@ private Uni<Void> publishSequentially(List<OutboxEvent> events) {
 private Uni<Void> publishOne(OutboxEvent event) {
     return eventPublisher.publish(event)
             .flatMap(ignored -> outboxEventStore.markPublished(event, Instant.now()))
+            .invoke(ignored -> outboxMetrics.eventRelayed())
             .onFailure()
-            .call(ignored -> outboxEventStore.incrementAttempts(event));
+            .call(ignored -> {
+                outboxMetrics.relayFailed();
+                return outboxEventStore.incrementAttempts(event);
+            });
 }
 ```
 
@@ -321,9 +330,12 @@ Três decisões legíveis aqui:
 1. `transformToUniAndConcatenate` — **sequencial**, não paralelo. Publicar em paralelo
    destruiria a ordem de `occurredAt` que a consulta pediu.
 2. `markPublished` no `flatMap` — só executa se `publish` completar com sucesso. É a
-   ordem obrigatória da §1.3, escrita como código.
+   ordem obrigatória da §1.3, escrita como código. O sucesso só é **contado** (cap. 10,
+   `outboxMetrics.eventRelayed()`) depois do `markPublished` — enviar mas não marcar
+   não vale como publicado.
 3. `incrementAttempts` no `onFailure().call(...)` — registra a tentativa **e** propaga a
-   falha, o que interrompe o lote (o `concat` para na primeira falha).
+   falha, o que interrompe o lote (o `concat` para na primeira falha). A mesma chamada
+   conta a falha (`outboxMetrics.relayFailed()`), mantendo "retry" e "falha" na mesma fonte.
 
 ### 2.8 O agendamento
 
@@ -434,6 +446,7 @@ fora do loop de requisição.
 | Chave = `aggregateId` | `adapter/out/messaging/InvoiceOpenedKafkaPublisher.java` | `OutboxRelayKafkaIntegrationTest` |
 | Relay entrega no broker real | `adapter/out/messaging/InvoiceOpenedKafkaPublisher.java` (via `OutboxRelay`) | `OutboxRelayKafkaIntegrationTest` |
 | Claim concorrente entre instâncias | — | 🔜 não implementado (ver §6) |
+| Métricas do relay (publicado/falha) | `application/port/out/OutboxMetrics.java` + `adapter/out/observability/MicrometerOutboxMetrics.java` | `OutboxMetricsIntegrationTest` (cap. 10) |
 
 ---
 
@@ -459,8 +472,9 @@ padrão. Os trechos abaixo são o código real dos testes.
 ### 4.1 Application — a ordem obrigatória, sem broker
 
 `application/usecase/PublishPendingOutboxEventsTest.java` — JUnit puro, com fakes das
-duas portas. É o arquivo que **mais** prova sobre o padrão, e o mais rápido do projeto
-(175 linhas, 4 comportamentos, zero dependência de infra).
+portas `OutboxEventStore`, `EventPublisher` e `OutboxMetrics`. É o arquivo que **mais** prova
+sobre o padrão, e o mais rápido do projeto (205 linhas, 4 comportamentos, zero dependência de
+infra).
 
 ```java
 class PublishPendingOutboxEventsTest {
@@ -471,25 +485,29 @@ class PublishPendingOutboxEventsTest {
         OutboxEvent second = event("second");
         FakeOutboxEventStore store = new FakeOutboxEventStore(List.of(first, second));
         FakeEventPublisher publisher = new FakeEventPublisher();
+        FakeOutboxMetrics metrics = new FakeOutboxMetrics();
 
         PublishPendingOutboxEvents useCase =
-                new PublishPendingOutboxEvents(store, publisher);
+                new PublishPendingOutboxEvents(store, publisher, metrics);
 
         useCase.handle().await().indefinitely();
 
         assertEquals(List.of(first.eventId(), second.eventId()), publisher.publishedIds);
         assertEquals(List.of(first.eventId(), second.eventId()), store.markedIds);
         assertTrue(store.incrementedIds.isEmpty());
+        assertEquals(2, metrics.relayed);
+        assertEquals(0, metrics.failed);
     }
+}
 ```
 
 O que cada comportamento trava:
 
 | Teste | Propriedade travada |
 |---|---|
-| `shouldPublishPendingEventsAndMarkEachOneAsPublished` | todo publicado é marcado; nenhum `incrementAttempts` no caminho feliz |
-| `shouldDoNothingWhenThereAreNoPendingEvents` | lote vazio não publica nem marca nada |
-| `shouldIncrementAttemptsAndStopBatchWhenPublicationFails` | falha no 2º evento → `attempts` só no 2º, 3º **nunca** é publicado, e o 1º continua marcado |
+| `shouldPublishPendingEventsAndMarkEachOneAsPublished` | todo publicado é marcado; nenhum `incrementAttempts` no caminho feliz; sucesso conta 2 `relayed`, 0 `failed` |
+| `shouldDoNothingWhenThereAreNoPendingEvents` | lote vazio não publica nem marca nada, e não conta métrica |
+| `shouldIncrementAttemptsAndStopBatchWhenPublicationFails` | falha no 2º evento → `attempts` só no 2º, 3º **nunca** é publicado, o 1º continua marcado, e a falha conta 1 `relayed` + 1 `failed` |
 | `shouldUseRequestedBatchSize` | o `limit` chega à porta |
 
 O terceiro é o que prova §2.7 item 3. O trecho que importa:
@@ -506,6 +524,8 @@ assertEquals(
         List.of(second.eventId()),
         store.incrementedIds);
 assertFalse(publisher.publishedIds.contains(third.eventId()));
+assertEquals(1, metrics.relayed);
+assertEquals(1, metrics.failed);
 ```
 
 Ou seja: o 1º foi publicado **e** marcado, o 2º foi publicado **e** falhou ao marcar
@@ -651,7 +671,7 @@ recuperação após crash entre `publish` e `markPublished`. Ver §6.
 ./mvnw -pl billing-service test
 ```
 
-Sobe **um** broker (recurso único com `restrictToAnnotatedClass = false`) e roda os 49
+Sobe **um** broker (recurso único com `restrictToAnnotatedClass = false`) e roda os 61
 testes do serviço.
 
 ---
@@ -715,7 +735,7 @@ Detalhe completo em [11-armadilhas-e-licoes.md §2](./11-armadilhas-e-licoes.md)
 | `nextAttemptAt` + backoff exponencial + jitter | `attempts` registra a tentativa mas não agenda; para o volume atual, republicar a cada 5s é aceitável | quando a taxa de falha de publicação incomodar |
 | Tabela de dead-letter para a outbox | hoje um evento que falha sempre fica pendente e ocupa o lote | quando precisar de alerta sobre evento preso |
 | `exactly-once` | exigiria transação distribuída entre Postgres e Kafka; o custo não se justifica | nunca, no modelo atual |
-| Métricas / tracing do `eventId` | não há observabilidade no serviço ainda | junto com o capítulo de cloud-native |
+| Métrica por `eventId` / tracing do `eventId` | existe observabilidade agregada (§2.7/§2.11 e cap. 10), mas métrica **por evento** violaria a regra de cardinalidade baixa do padrão (`ddd-tdd-standards.md` §5-Observability); tracing per-event via headers fica com o capítulo de tracing | junto com o capítulo de tracing (item 7 do roadmap) |
 
 📌 **Lacunas honestas deste padrão, hoje:**
 
@@ -772,7 +792,7 @@ Detalhe completo em [11-armadilhas-e-licoes.md §2](./11-armadilhas-e-licoes.md)
 - [x] `docs/roadmap.md` com o status e evidência executável
 - [x] ADRs criadas/atualizadas para toda divergência (004, 005, 007, 008)
 - [x] `docs/testing.md` com a regra de `await()` sob `@RunOnVertxContext`
-- [x] suíte do serviço verde: `./mvnw -pl billing-service test` (49 testes)
+- [x] suíte do serviço verde: `./mvnw -pl billing-service test` (61 testes)
 - [x] guardians executados (`/ddd-audit`, `/tdd-audit`, `/quarkus-audit`, `/architecture-audit`)
 
 ---
@@ -804,6 +824,6 @@ Detalhe completo em [11-armadilhas-e-licoes.md §2](./11-armadilhas-e-licoes.md)
 
 ---
 
-_Última atualização: 2026-09-26 (reescrito no padrão do
-[12-modelo-para-novos-capitulos.md](./12-modelo-para-novos-capitulos.md), com trechos de
-código embutidos e lacunas declaradas)._
+_Última atualização: 2026-09-28 (cap. 10: `countPending()`, `OutboxMetrics` e wiring de
+métricas em `publishOne` sincronizados; versão base 2026-09-26 no padrão do
+[12-modelo-para-novos-capitulos.md](./12-modelo-para-novos-capitulos.md))._

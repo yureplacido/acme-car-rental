@@ -46,10 +46,10 @@ class BusinessMetricsIntegrationTest {
     }
 
     private double counterValue(String metrics) {
-        String prefix = "inventory_vehicles_registered_total ";
+        String name = "inventory_vehicles_registered_total";
         return metrics.lines()
-                .filter(line -> line.startsWith(prefix))
-                .map(line -> line.substring(prefix.length()).trim())
+                .filter(line -> line.matches(name + " [0-9.]+"))
+                .map(line -> line.substring(name.length()).trim())
                 .mapToDouble(Double::parseDouble)
                 .findFirst()
                 .orElse(0.0);
