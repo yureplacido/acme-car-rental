@@ -3,9 +3,11 @@ package org.acme.billing.application.usecase;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.acme.billing.application.model.OutboxEvent;
 import org.acme.billing.application.port.out.EventPublisher;
 import org.acme.billing.application.port.out.OutboxEventStore;
+import org.acme.billing.application.port.out.OutboxMetrics;
 
 import java.time.Instant;
 import java.util.List;
@@ -17,12 +19,16 @@ public class PublishPendingOutboxEvents {
 
     private final OutboxEventStore outboxEventStore;
     private final EventPublisher eventPublisher;
+    private final OutboxMetrics outboxMetrics;
 
+    @Inject
     public PublishPendingOutboxEvents(
             OutboxEventStore outboxEventStore,
-            EventPublisher eventPublisher) {
+            EventPublisher eventPublisher,
+            OutboxMetrics outboxMetrics) {
         this.outboxEventStore = outboxEventStore;
         this.eventPublisher = eventPublisher;
+        this.outboxMetrics = outboxMetrics;
     }
 
     public Uni<Void> handle() {
@@ -44,7 +50,11 @@ public class PublishPendingOutboxEvents {
     private Uni<Void> publishOne(OutboxEvent event) {
         return eventPublisher.publish(event)
                 .flatMap(ignored -> outboxEventStore.markPublished(event, Instant.now()))
+                .invoke(ignored -> outboxMetrics.eventRelayed())
                 .onFailure()
-                .call(ignored -> outboxEventStore.incrementAttempts(event));
+                .call(ignored -> {
+                    outboxMetrics.relayFailed();
+                    return outboxEventStore.incrementAttempts(event);
+                });
     }
 }
