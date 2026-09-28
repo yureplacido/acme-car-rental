@@ -260,3 +260,6 @@ Messaging cross-cutting concerns such as idempotency belong to the messaging inf
 | users-service | ✅ | ✅ | ✅ | BFF |
 | inventory-cli | ✅ | ✅ | — | client |
 | inventory-proto | ✅ | — | — | contract |
+
+---
+_Last updated: 2026-09-27_

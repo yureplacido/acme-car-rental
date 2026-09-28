@@ -75,3 +75,5 @@ O claim e o efeito de negócio compartilham a mesma transação reativa local do
 - **ADR 004 (outbox):** produtor at-least-once + consumidor idempotente = entrega efetiva.
 - **ADR 002/003 (retry/DLQ):** canais novos herdam a política por configuração.
 - **ADR 006 (observabilidade):** métricas do inbox (`processed_events`) entram no Cap. 10.
+---
+_Last updated: 2026-09-27_

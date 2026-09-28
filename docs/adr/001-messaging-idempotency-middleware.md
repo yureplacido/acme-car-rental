@@ -137,3 +137,6 @@ Para eventos com efeito persistente, um `PublisherDecorator` não consegue mante
 - `ProcessedEventStore.tryClaim(UUID)` define o contrato atômico.
 - `KafkaVehicleRegisteredConsumer` não depende mais do store de idempotência.
 - Os testes históricos do middleware cobriam duplicação e liberação do claim em `nack`.
+
+---
+_Last updated: 2026-09-27_

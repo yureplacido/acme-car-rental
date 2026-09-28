@@ -223,3 +223,6 @@ Architecture + DDD + TDD + Quarkus guardians
 ```
 
 Use `/domain-design` antes de implementar uma feature e `/preflight` para o fluxo completo.
+
+---
+_Last updated: 2026-09-27_

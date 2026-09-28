@@ -277,3 +277,6 @@ A responsabilidade permanece:
 ```
 
 O retry não substitui idempotência. A redelivery da mesma ocorrência deve continuar sendo identificada pelo `eventId`.
+
+---
+_Last updated: 2026-09-27_

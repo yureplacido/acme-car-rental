@@ -88,3 +88,6 @@ Isso não espalha a regra de persistência: os consumers conhecem apenas a abstr
 - `BillingFlowKafkaIntegrationTest`
 
 O teste de integração do processor demonstra que uma falha do efeito faz o claim voltar a ficar disponível.
+
+---
+_Last updated: 2026-09-27_
