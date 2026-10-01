@@ -70,6 +70,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!-- Cap.10 - tracing ponta a ponta (item 7): propagacao de contexto via
+             headers Kafka e automatica quando o extension esta presente (guia
+             Quarkus "Messaging", secao OpenTelemetry Tracing). -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-opentelemetry</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
@@ -87,6 +94,14 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-test-kafka-companion</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Cap.10 - tracing: exporter em memoria para os testes de propagacao
+             (guia Quarkus "Using OpenTelemetry", secao "Using CDI to produce a
+             test exporter"). -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
             <scope>test</scope>
         </dependency>
         <!-- Cap.9 - teste reativo assíncrono (@RunOnVertxContext + UniAsserter) sem transação
