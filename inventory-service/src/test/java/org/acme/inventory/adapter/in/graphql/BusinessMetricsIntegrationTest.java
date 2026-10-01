@@ -3,12 +3,18 @@ package org.acme.inventory.adapter.in.graphql;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
 class BusinessMetricsIntegrationTest {
+
+    private static final Pattern REGISTERED_COUNTER =
+            Pattern.compile("inventory_vehicles_registered_total\\s+([0-9.]+)");
 
     @Test
     void shouldExposeVehicleRegistrationCounterAfterGraphQLMutation() {
@@ -46,12 +52,10 @@ class BusinessMetricsIntegrationTest {
     }
 
     private double counterValue(String metrics) {
-        String name = "inventory_vehicles_registered_total";
-        return metrics.lines()
-                .filter(line -> line.matches(name + " [0-9.]+"))
-                .map(line -> line.substring(name.length()).trim())
-                .mapToDouble(Double::parseDouble)
-                .findFirst()
-                .orElse(0.0);
+        Matcher matcher = REGISTERED_COUNTER.matcher(metrics);
+        if (!matcher.find()) {
+            return 0.0;
+        }
+        return Double.parseDouble(matcher.group(1));
     }
 }
