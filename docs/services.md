@@ -71,6 +71,9 @@ Outbound:
 - Observability: `/q/metrics` exposto via `quarkus-micrometer-registry-prometheus`; métrica de
   negócio atrás de porta (`InventoryMetrics` → `MicrometerInventoryMetrics`, cap. 10 item 1);
   evidência: `HealthEndpointTest.shouldExposeHttpAndJvmMetrics`
+- Tracing: `quarkus-opentelemetry` (cap. 10 item 7) — o record `vehicle-registered` produzido
+  pela mutation GraphQL carrega o header `traceparent` do trace da requisição (propagação
+  automática, guia Messaging); evidência: `VehicleRegisteredTracePropagationIntegrationTest`
 
 GraphQL exposes a transport DTO named `Car` for compatibility with the existing laboratory contract. It is not a domain object.
 
@@ -212,6 +215,15 @@ Evidência: `MicrometerOutboxMetricsTest` (JUnit puro com `SimpleMeterRegistry`)
 projeto no padrão DDD em [ddd-tdd-standards.md](./ddd-tdd-standards.md) §5‑Observability e
 estudo do capítulo em [14-cloud-native-patterns.md](./knowledge/14-cloud-native-patterns.md).
 
+**Tracing (implementada, cap. 10 item 7).** `quarkus-opentelemetry` no pom; propagação de
+contexto **automática** no Kafka (guia Messaging, seção OpenTelemetry Tracing): o consumidor de
+`vehicle-registered` herda o span do record como pai e processa o evento sob o trace propagado
+no header `traceparent` — o contexto viaja no header, nunca no payload. Em dev, o Dev Service
+LGTM (Grafana+Tempo) sobe sozinho; em teste, exporter CDI em memória (`InMemorySpanExporter`).
+**Escopo atual:** o salto Kafka inventory→billing; os hops REST/GraphQL entre os outros
+serviços não são tracejados (não têm o extension). Evidência: `BillingTracePropagationIntegrationTest`.
+Decisão: 16 do [architecture.md](./architecture.md).
+
 ## users-service
 
 **Role:** Web BFF.
@@ -282,4 +294,5 @@ Messaging cross-cutting concerns such as idempotency belong to the messaging inf
 
 ---
 _Last updated: 2026-09-28 (billing/inventory: seção de observability do cap. 10 item 6 —
-métricas do relay da outbox e pipeline Kafka em `/q/metrics`)._
+métricas do relay da outbox e pipeline Kafka em `/q/metrics` — e tracing ponta a ponta do
+item 7 — propagação automática de contexto no Kafka com `quarkus-opentelemetry`)._

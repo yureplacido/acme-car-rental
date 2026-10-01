@@ -252,6 +252,14 @@ Rules for scheduling and failure in the observability path:
 adapter → use case → port direction, and it is **billing-specific**: only billing owns a relay
 with a backlog. If a third service needs this shape, revisit the rule before copying it.
 
+**Platform signals have no port.** The port rule applies to signals the application *invents*
+(business/pipeline metrics). Signals the runtime already measures — health, tracing, HTTP/gRPC/
+Kafka client metrics — are platform effects: no port, no application code, no adapter class.
+Tracing in particular is automatic with `quarkus-opentelemetry` (context propagates in the
+Kafka `traceparent` header; see decision 16 in `architecture.md`). Creating a `TracingPort` or
+a `HealthPort` would be desacoplar de nada — the discriminator is *who invents the signal*:
+the use case (→ port) or the runtime (→ no port).
+
 ## 6. Context boundaries
 
 A bounded context must not import another context's:

@@ -134,7 +134,8 @@ Notas de escopo:
 
 > O capítulo está sendo implementado incrementalmente contra Quarkus 3.39.3.
 > As evidências já concluídas abaixo estão mergeadas; os itens restantes continuam
-> como trabalho explícito do capítulo.
+> como trabalho explícito do capítulo. Item 7 (tracing) implementado e aguardando
+> merge; itens 8–10 pendentes.
 
 - [x] Decidir MicroProfile/SmallRye antes de abstração própria: health e metrics usam as extensões nativas do Quarkus/SmallRye; abstrações próprias só existem quando representam uma porta da aplicação
 - [x] Health de aplicação expondo liveness, readiness e startup como grupos distintos, com testes por serviço [3.39.3]
@@ -142,8 +143,18 @@ Notas de escopo:
 - [x] Métricas HTTP e de runtime coletáveis em `/q/metrics` [3.39.3] — evidência no Inventory
 - [x] Métrica de negócio de Inventory para veículos registrados, exposta como contador Prometheus e isolada atrás de uma porta da aplicação
 - [x] Métrica do pipeline Kafka e do relay da outbox: lag, falhas e tempo de canal — o billing expõe `/q/metrics` (registro Prometheus) com contadores do relay (`billing.outbox.published`/`failures`/`billing.outbox.backlog.refresh.errors`), gauge de backlog (`billing.outbox.pending`), client metrics do Kafka (consumer lag, via `quarkus.micrometer.binder.kafka.enabled`) e observabilidade por canal (`quarkus.messaging.message.*`, `smallrye.messaging.observation.enabled=true`) [3.39.3]; a contagem de tentativas de uma publicação continua na coluna `attempts` da outbox (reativação do item 2), não é mentida por métrica; evidência: `OutboxMetricsIntegrationTest` (scrape real), `PublishPendingOutboxEventsTest` no caminho de falha e o teste de adapter `MicrometerOutboxMetricsTest`
-- [ ] Tracing de requisição ponta a ponta, com propagação de contexto através
-      do Kafka [3.39.3] — evidência: teste de integração assegurando a propagação
+- [x] Tracing de requisição ponta a ponta, com propagação de contexto através
+      do Kafka [3.39.3] — evidência: `VehicleRegisteredTracePropagationIntegrationTest`
+      (inventory: o record produzido pela mutation GraphQL carrega o header
+      `traceparent` do trace da requisição) e `BillingTracePropagationIntegrationTest`
+      (billing: o consumidor processa o evento sob o trace propagado no header do
+      record). A propagação é **automática** com `quarkus-opentelemetry` (guia
+      Messaging, seção OpenTelemetry Tracing): mensagens de saída propagam o span
+      corrente, mensagens de entrada herdam o span do record como pai — nenhum
+      código de domínio ou adapter muda; o contexto viaja no header, nunca no
+      payload. Em dev, o Dev Service LGTM (Grafana+Tempo) sobe sozinho; em teste,
+      exporter CDI em memória (`InMemorySpanExporter`, padrão oficial "Using CDI
+      to produce a test exporter")
 - [ ] Fault tolerance em chamada externa com timeout, retry e fallback explícitos,
       sem retry cego [3.39.3] — evidência: teste do cenário de falha
 - [ ] Service discovery desacoplando localização de serviço da configuração
@@ -225,6 +236,6 @@ Architecture + DDD + TDD + Quarkus guardians
 Use `/domain-design` antes de implementar uma feature e `/preflight` para o fluxo completo.
 
 ---
-_Last updated: 2026-09-28 (cap. 10 item 6 fechado: métricas do pipeline Kafka e relay da outbox
-no billing; `adapter/out/observability`, a porta `OutboxMetrics` e o `countPending` entram no
-padrão de referência do repositório)._
+_Last updated: 2026-09-28 (cap. 10 item 7 fechado: tracing ponta a ponta via propagação
+automática de contexto no Kafka com `quarkus-opentelemetry`; evidência nos dois serviços —
+inventory produz o record com `traceparent`, billing processa sob o trace propagado)._

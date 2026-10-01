@@ -125,6 +125,7 @@ evento (regra DDD — nunca compartilhar classes entre bounded contexts).
 | Consumer | billing-service (`vehicle-registered-in`, group `billing-service`) |
 | Encoding | JSON (String serializer/deserializer) |
 | Chave de idempotência | `eventId` (UUID) |
+| Header de contexto | `traceparent` (W3C) em todo record quando o publisher tem `quarkus-opentelemetry` (cap.10 item 7) — **não faz parte do payload nem do `version`**; o consumidor herda o span do record como pai. Propagação automática, guia Messaging "OpenTelemetry Tracing" |
 
 Payload (`version = 1`):
 

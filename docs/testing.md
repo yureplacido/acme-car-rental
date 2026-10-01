@@ -58,6 +58,27 @@ HTTP de um endpoint em worker thread exige `.emitOn(eventLoop)` para o próximo 
 voltar à event loop; métrica de negócio é sempre declarada como **porta** no serviço — o teste
 de application usa o fake da porta.
 
+### Tracing
+O teste de propagação de contexto usa o padrão oficial "Using CDI to produce a test exporter":
+`io.opentelemetry:opentelemetry-sdk-testing` (scope `test`) + um bean `@Produces @Singleton`
+de `InMemorySpanExporter` em `src/test` (o Quarkus usa exporters CDI quando
+`quarkus.otel.traces.exporter=cdi`, o default). Em `%test` desligar o exporter OTLP
+(`%test.quarkus.otel.exporter.otlp.enabled=false`) e usar `%test.quarkus.otel.simple=true`
+(exporta na hora, sem esperar o batch de 5s).
+
+- **Saída (inventory):** `@QuarkusTest` executa a mutation GraphQL, consome o record do broker
+  com `KafkaCompanion` e verifica o header `traceparent` bem formado + traceId de um span do
+  próprio serviço. Exemplo: `VehicleRegisteredTracePropagationIntegrationTest`.
+- **Entrada (billing):** `@QuarkusTest` publica um record com `traceparent` conhecido
+  (upstream simulado) e verifica no `InMemorySpanExporter` que o processamento gerou um span
+  com o traceId do header. Exemplo: `BillingTracePropagationIntegrationTest`.
+
+Atenção: com `quarkus-opentelemetry` presente, o Micrometer anexa **exemplars OTel** às linhas
+de contador na saída **OpenMetrics 1.0** (o que o `/q/metrics` devolve sem `Accept: text/plain`;
+o formato Prometheus 0.0.4, pedido com `Accept: text/plain`, não tem exemplars):
+`name 1.0 # {span_id=...,trace_id=...} 1.0 <ts>`. Matchers de métrica devem usar `Pattern` +
+`find()` (primeiro número após o nome), nunca `matches()` de linha inteira.
+
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
 
@@ -89,5 +110,6 @@ Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é pr
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
 ---
-_Last updated: 2026-09-28 (subseção "Observability": teste de adapter de métrica em duas camadas;
-régua da série por nome+tag)._
+_Last updated: 2026-09-28 (subseções "Observability" e "Tracing": teste de adapter de métrica em
+duas camadas; régua da série por nome+tag; propagação de contexto via `InMemorySpanExporter` e
+armadilha dos exemplars OTel)._
