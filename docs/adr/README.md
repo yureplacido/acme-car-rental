@@ -16,6 +16,7 @@ As ADRs também são material de estudo: devem explicar **por que** uma decisão
 | 6 | [ADR 006 — Import massivo reativo de veículos](./006-reactive-inventory-bulk-import.md) | backpressure e cancelamento no import | Proposed |
 | 7 | [ADR 007 — Inbox transacional com o efeito de negócio](./007-transactional-inbox.md) | claim + efeito na mesma transação | Accepted / implementada |
 | 8 | [ADR 008 — Transactional outbox (versão final)](./008-transactional-outbox.md) | outbox transacional, substitui a ADR 004 | Accepted / implementada |
+| 9 | [ADR 009 — Fault tolerance nas chamadas externas](./009-fault-tolerance-chamadas-externas.md) | timeout, retry seletivo e fallback que sinaliza indisponibilidade | Accepted / implementada |
 
 ### Fundamentos que antecedem essas decisões
 

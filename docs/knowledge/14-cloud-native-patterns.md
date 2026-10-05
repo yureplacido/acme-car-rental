@@ -3,8 +3,9 @@
 > Capítulo 10 do *Quarkus in Action* (p. 273–302 no impresso; PDF p. 299–329).
 > Norma do projeto: [ddd-tdd-standards.md](../ddd-tdd-standards.md) §9 (regras de negócio em
 > agregados, não em adapters) e AGENTS.md regra 16 (API verificada contra Quarkus 3.39.3).
-> Última atualização: 2026-09-28 (itens health 1–5, métricas do pipeline/relay — item 6 — e
-> tracing ponta a ponta — item 7 — concluídos).
+> Última atualização: 2026-10-05 (itens health 1–5, métricas do pipeline/relay — item 6 —,
+> tracing ponta a ponta — item 7 — e fault tolerance nas chamadas externas — item 8 —
+> concluídos; service discovery e graceful shutdown, itens 9–10, pendentes).
 
 ---
 
@@ -77,8 +78,26 @@
   mensagens de saída propagam o span corrente no header `traceparent`; mensagens de entrada
   herdam o span do record como pai. Nenhum código de domínio ou adapter muda — o contexto
   viaja no header, nunca no payload. Em dev, o Dev Service LGTM (Grafana+Tempo) sobe sozinho.
-- **Quando usar / quando não usar:** fault tolerance e service discovery — ver
-  [roadmap.md](../roadmap.md) cap. 10 — itens 8–10 ainda **não concluídos**.
+- **Fault tolerance (implementado, item 8):** a política mora nas annotations dos
+  **adapters de saída** (`adapter/out`), nunca na porta nem no caso de uso — ela descreve a
+  fronteira técnica. O retry só entra onde a operação é idempotente, e o fallback **sinaliza**
+  em vez de devolver valor falso. Detalhes e alternativas em
+  [adr/009](../adr/009-fault-tolerance-chamadas-externas.md); resumo abaixo.
+- **Quando usar / quando não usar:** service discovery e graceful shutdown — ver
+  [roadmap.md](../roadmap.md) cap. 10 — itens 9–10 ainda **não concluídos**.
+- **Armadilhas medidas neste projeto:**
+  - **`@Timeout` do SmallRye FT em método que devolve `Uni` não cancela a subscription a
+    montante.** Emite `TimeoutException` para o chamador e deixa a chamada em voo. Para a
+    escrita isso segura conexão HTTP, então o prazo do transporte
+    (`quarkus.rest-client."<cliente>".read-timeout`) é configurado **abaixo** do deadline de FT,
+    e um teste de guarda compara os dois.
+  - **Unidade diferente entre annotation e config.** `Timeout.unit` padrão é `MILLIS`; em
+    `quarkus.fault-tolerance."<classe>/<método>".timeout.value` o valor sem unidade é lido em
+    **SEGUNDOS**. `timeout.value=300` valeria 5 minutos, e a config inválida falha em silêncio.
+    Sempre escrever `timeout.unit` e medir o tempo decorrido no teste.
+  - **`@InjectMock` de um REST client exige o qualifier `@RestClient` no campo**
+    (`@InjectMock @RestClient RentalClient client`); sem ele a resolução do bean falha, porque
+    o bean registrado só tem o qualifier `@RestClient`.
 
 ---
 
@@ -95,7 +114,7 @@
 | Client metrics Kafka (lag) | billing `smallrye.messaging.observation.enabled` + binder kafka | `OutboxMetricsIntegrationTest` (scrape `/q/metrics`) |
 | Channel metrics `quarkus.messaging.message.*` | billing `application.properties` | `OutboxMetricsIntegrationTest` |
 | Tracing ponta a ponta (propagação via Kafka) | `quarkus-opentelemetry` nos dois serviços; propagação automática (guia Messaging, seção OpenTelemetry Tracing) | `VehicleRegisteredTracePropagationIntegrationTest` (inventory), `BillingTracePropagationIntegrationTest` (billing) |
-| Fault tolerance (SmallRye FT) | 🔜 ainda não implementado | — |
+| Fault tolerance (SmallRye FT) | reservation `adapter/out/inventory/GraphQLInventoryGateway.java`, `adapter/out/rental/RentalRestGateway.java`, `adapter/in/rest/InventoryUnavailableMapper.java`, `application/exception/InventoryUnavailable.java` | `GraphQLInventoryGatewayFaultToleranceTest` (4), `RentalRestGatewayFaultToleranceTest` (4), `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (3) |
 | Service discovery (Stork) | 🔜 ainda não implementado | — |
 
 > A tabela acima é o índice; cada conceito implementado tem trecho embutido abaixo.
@@ -281,6 +300,90 @@ exporter OTLP fica **desligado** (não há collector no compose; ver [deployment
 têm o extension — o item 7 evidencia a capacidade de propagação no pipeline de mensageria, não
 o mesh inteiro.
 
+### 2.1.6 Fault tolerance na fronteira de saída: retry onde é seguro, sinal onde não há resposta
+
+O `reservation-service` é o único serviço com chamada síncrona de saída, e as duas têm
+políticas opostas porque têm naturezas opostas.
+
+**Escrita (`POST /rentals`) — só timeout.** `RentalRestGateway.start`:
+
+```java
+public static final long WRITE_DEADLINE_MILLIS = 2_000;
+
+@Override
+@Timeout(value = WRITE_DEADLINE_MILLIS, unit = ChronoUnit.MILLIS)
+public Uni<Void> start(String customerId, Long reservationId) {
+    return client.start(customerId, reservationId).replaceWithVoid();
+}
+```
+
+- **Sem `@Retry`**: `StartRental` sempre salva uma nova locação e nunca consulta
+  `findByCustomerAndReservation` antes de gravar. Repetir depois de um resultado incerto
+  duplica a locação — `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`
+  é o teste que caracteriza isso e que falha se um dia mudar.
+- **Sem `@Fallback`**: o fallback honesto da escrita é não existir. Devolver sucesso confirmaria
+  ao cliente que a locação começou, sem locação registrada.
+
+**Leitura (GraphQL `allCars`) — timeout, retry seletivo e fallback que sinaliza.**
+`GraphQLInventoryGateway.findVehicles` usa a **mesma lista de falhas** em `@Retry.retryOn` e
+`@Fallback.applyOn`, para que "o que pode ser repetido" e "o que pode virar indisponível" sejam
+uma decisão só:
+
+| Falha | Retry | Vira `InventoryUnavailable` | Por quê |
+|---|---|---|---|
+| `TimeoutException` | sim | sim | deadline estourado: pode ser transitório |
+| `ProcessingException` | sim | sim | falha de I/O do client |
+| `ServerErrorException` (5xx) | sim | sim | inventory reiniciando |
+| `ClientErrorException` (4xx) | **não** (`abortOn`) | não | consulta inválida: repetir não muda nada e não é indisponibilidade |
+| `MappingException` | não (omissão) | não | erro determinístico de mapeamento |
+
+O fallback **não devolve lista vazia**. Devolve `InventoryUnavailable`
+(`reservation-service/.../application/exception/InventoryUnavailable.java`), falha de aplicação
+que distingue "não há veículo" de "não deu para saber":
+
+```java
+public final class InventoryUnavailable extends RuntimeException {
+    public InventoryUnavailable(Throwable cause) { super("inventory is unavailable", cause); }
+}
+```
+
+`InventoryUnavailableMapper` (adapter **inbound**) é quem decide o formato visível ao cliente —
+503, `Retry-After: 30`, corpo `{"code":"INVENTORY_UNAVAILABLE",...}` — e a causa original fica
+só no log. Regra 10 do AGENTS.md: a fronteira traduz, a regra de negócio fica na aplicação.
+
+**Por que a política fica no adapter.** As anotações descrevem a fronteira técnica (o transporte
+falhou, o destino está fora), não regra de negócio. Nenhuma porta do `application/port/out`
+ganhou anotação de fault tolerance, e nenhum caso de uso mudou de assinatura: `findVehicles()`
+continua devolvendo `Uni<List<AvailableVehicle>>`, que agora pode falhar — e falhar é
+informação legítima para quem consulta.
+
+**Duas camadas de prazo na escrita, por causa do cancelamento:**
+
+```properties
+quarkus.rest-client."org.acme.reservation.adapter.out.rental.RentalClient".connect-timeout=500
+quarkus.rest-client."org.acme.reservation.adapter.out.rental.RentalClient".read-timeout=1500
+```
+
+O `@Timeout` do SmallRye FT em método que devolve `Uni` **não cancela** a subscription a
+montante (medido: um emitter que só termina por cancelamento continuava vivo depois do
+deadline). O padrão do Quarkus para `read-timeout` é 30 s, então sem isto a requisição de
+`POST /rentals` ficaria em voo muito depois do deadline. `RentalRestGatewayFaultToleranceTest
+.shouldAbortTheInFlightWriteBeforeTheFaultToleranceDeadline` compara os dois prazos e falha se a
+ordem se inverter. A escrita não tem override por perfil justamente para essa relação valer em
+qualquer ambiente.
+
+**Configuração** — política na annotation, valor operacional na config:
+
+```properties
+%prod.quarkus.fault-tolerance."org.acme.reservation.adapter.out.inventory.GraphQLInventoryGateway/findVehicles".timeout.value=3
+%prod.quarkus.fault-tolerance."org.acme.reservation.adapter.out.inventory.GraphQLInventoryGateway/findVehicles".timeout.unit=SECONDS
+```
+
+O identificador é `<classe>/<método>`. A armadilha está na unidade: `Timeout.unit` padrão é
+`MILLIS`, e o valor sem unidade na config é lido em **SEGUNDOS**. Por isso `timeout.unit` vem
+sempre explícito, e as classes de teste **medem o tempo decorrido** — se a chave parar de valer,
+a asserção de tempo quebra em vez de o teste passar em silêncio.
+
 ### 2.2 Configuração
 
 `billing-service/src/main/resources/application.properties` — as duas linhas que ligam a
@@ -313,13 +416,28 @@ Tracing (item 7) — o extension que liga a propagação automática de contexto
 Nos testes, o exporter em memória vem de `io.opentelemetry:opentelemetry-sdk-testing`
 (scope `test`), seguindo o padrão oficial "Using CDI to produce a test exporter".
 
+Fault tolerance (item 8) — a annotation `@Timeout`/`@Retry`/`@Fallback` vem do MicroProfile
+Fault Tolerance, que já estava no classpath; o que falta é a extensão:
+
+```xml
+<dependency>
+    <groupId>io.quarkus</groupId>
+    <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+</dependency>
+```
+
+Só o `reservation-service` recebeu a extensão, porque só ele tem chamada de saída. Versões
+resolvidas: `quarkus-smallrye-fault-tolerance` 3.39.3, SmallRye Fault Tolerance 6.11.2,
+MicroProfile Fault Tolerance API 4.1.2.
+
 ### 2.3 Dependências
 
 | Serviço | `quarkus-micrometer` | `quarkus-micrometer-registry-prometheus` | `quarkus-smallrye-health` | `quarkus-opentelemetry` |
 |---|---|---|---|---|
 | billing | ✅ | ✅(cap.10 item 6) | ✅ | ✅(cap.10 item 7) |
 | inventory | ✅ | ✅ | ✅ | ✅(cap.10 item 7) |
-| rental / reservation / users | ✅ | — | ✅ | — |
+| reservation | ✅ | — | ✅ | ✅(cap.10 item 8) |
+| rental / users | ✅ | — | ✅ | — |
 
 ---
 
@@ -447,11 +565,14 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ## 9. Checklist de fecho (parcial — capítulo em progresso)
 
-- [x] roadmap.md com status e evidência executável dos itens 1–7
-- [ ] fault tolerance, service discovery e graceful shutdown (itens 8–10) ainda pendentes — 🔜
+- [x] roadmap.md com status e evidência executável dos itens 1–8
+- [x] suíte do reservation verde (29 testes) depois do item 8
+- [ ] service discovery e graceful shutdown (itens 9–10) ainda pendentes — 🔜
 - [x] suíte do billing verde (62 testes)
 - [x] suíte do inventory verde (45 testes)
-- [x] guardians executados ao terminar o item 7 (dd-domain, architecture, tdd, quarkus-book)
+- [x] suíte do reservation verde (29 testes) depois do item 8
+- [x] ADR do item 8 registrada (`adr/009-fault-tolerance-chamadas-externas.md`)
+- [ ] guardians do item 8 — em execução
 
 ---
 
@@ -466,7 +587,7 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 [x] API verificada contra 3.39.3 (regra 16)
 [x] armadilhas reais registradas (§5)
 [x] conceitos recusados registrados com motivo (§6)
-[x] índice + roadmap + README da docs atualizados (item 7 + doc 14 indexados)
+[x] índice + roadmap + README da docs atualizados (itens 7 e 8)
 [x] suíte verde
 [x] guardians rodados (4) e fixes de sincronização aplicados após o fecho
 ```
@@ -476,8 +597,9 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 **Veja também:** [README.md](./README.md) ·
 [09-padroes-de-resiliencia-em-messaging.md](./09-padroes-de-resiliencia-em-messaging.md) ·
 [13-transactional-outbox.md](./13-transactional-outbox.md) ·
+[../adr/009-fault-tolerance-chamadas-externas.md](../adr/009-fault-tolerance-chamadas-externas.md) ·
 [12-modelo-para-novos-capitulos.md](./12-modelo-para-novos-capitulos.md)
 
 ---
 
-_Última atualização: 2026-09-28 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 — e tracing ponta a ponta — item 7 — concluídos; snippets alinhados ao código real e guardians executados; FT/service discovery/graceful shutdown pendentes)._
+_Última atualização: 2026-10-05 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 — e fault tolerance nas chamadas externas do reservation — item 8 — concluídos; snippets alinhados ao código real; service discovery e graceful shutdown, itens 9–10, pendentes)._
