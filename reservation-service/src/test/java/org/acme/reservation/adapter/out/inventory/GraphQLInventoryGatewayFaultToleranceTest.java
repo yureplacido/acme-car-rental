@@ -83,7 +83,9 @@ class GraphQLInventoryGatewayFaultToleranceTest {
 
     @Test
     void shouldFailWithInventoryUnavailableWhenTheReadKeepsTimingOut() {
-        AtomicInteger attempts = answering(Uni.createFrom().nothing());
+        AtomicInteger cancellations = new AtomicInteger();
+        Uni<List<Car>> neverAnswers = Uni.createFrom().nothing();
+        AtomicInteger attempts = answering(neverAnswers.onCancellation().invoke(cancellations::incrementAndGet));
 
         long startedAt = System.nanoTime();
         Throwable failure = assertThrows(InventoryUnavailable.class, () -> findVehicles());
@@ -91,10 +93,15 @@ class GraphQLInventoryGatewayFaultToleranceTest {
 
         assertInstanceOf(TimeoutException.class, rootCause(failure));
         assertEquals(3, attempts.get(), "uma tentativa e duas repeticoes, e nada mais");
-        assertTrue(elapsed.compareTo(Duration.ofMillis(300)) >= 0,
+        assertEquals(0, cancellations.get(),
+                "o @Timeout avisa o chamador mas nao cancela a chamada a montante (por isso a leitura "
+                        + "so depende do deadline, sem segunda camada de transporte)");
+        // 3 tentativas de 300ms + 2 esperas de 10ms: a faixa estreita faz um deadline errado
+        // (100ms ou 600ms) quebrar em vez de passar em silencio.
+        assertTrue(elapsed.compareTo(Duration.ofMillis(700)) >= 0,
                 "o deadline do %test precisa ter sido aguardado: " + elapsed.toMillis() + "ms");
-        assertTrue(elapsed.compareTo(Duration.ofSeconds(2)) < 0,
-                "tres tentativas de 300ms nao podem passar de 2s: " + elapsed.toMillis() + "ms");
+        assertTrue(elapsed.compareTo(Duration.ofMillis(1_800)) < 0,
+                "tres tentativas de 300ms nao podem passar de 1,8s: " + elapsed.toMillis() + "ms");
     }
 
     @Test

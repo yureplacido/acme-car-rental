@@ -102,6 +102,12 @@ comportamento é medido em tentativas — não em mensagem de log:
   (`quarkus.rest-client."<cliente>".read-timeout`) e um teste compara os dois
   (`RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout`, uma
   guarda de configuração — o abort em voo é provado por integração, no item 9).
+- **Taxonomia caracterizada antes da política:** quando a `@Retry`/`@Fallback` depende do tipo de
+  falha que o **cliente** lança, esse contrato se mede em JUnit puro com socket real
+  (`GraphQLInventoryClientFailureTest`), sem Quarkus — o que se mede é a biblioteca, não a CDI. E
+  a falha é observada **por assinatura**: `await().indefinitely()` re-empacota exceção checada em
+  `CompletionException`, e atribuir essa forma ao cliente faria a `@Retry` parecer aplicada sem
+  estar.
 - **Caracterização antes de política:** quando a política depende de uma propriedade do outro
   serviço (aqui, "a escrita não é idempotente"), o teste que fixa essa propriedade fica no
   serviço dono dela (`StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`).

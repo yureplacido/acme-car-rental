@@ -138,8 +138,8 @@ Aqui mora a política de fault tolerance das duas chamadas síncronas de saída 
   (`quarkus.fault-tolerance."<classe>/<método>".*`), com `timeout.unit` sempre explícito.
 
 O `users-service` também tem chamada síncrona de saída (`ReservationsRestGateway` →
-`GET /reservations/availability`) e ainda **não** trata o 503: é dívida aberta, registrada na
-ADR 009.
+`GET /reservations/availability`), com cliente **bloqueante** e sem prazo nem política, e ainda
+**não** trata o 503: é dívida aberta, registrada na ADR 009.
 
 ## rental-service
 

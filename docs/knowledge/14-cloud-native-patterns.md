@@ -87,14 +87,16 @@
   [roadmap.md](../roadmap.md) cap. 10 — itens 9–10 ainda **não concluídos**.
 - **Armadilhas medidas neste projeto:**
   - **`@Timeout` do SmallRye FT em método que devolve `Uni` não cancela a subscription a
-    montante.** Emite `TimeoutException` para o chamador e deixa a chamada em voo. Para a
-    escrita isso segura conexão HTTP, então o prazo do transporte
-    (`quarkus.rest-client."<cliente>".read-timeout`) é configurado **abaixo** do deadline de FT,
-    e um teste de guarda compara os dois.
-  - **Unidade diferente entre annotation e config.** `Timeout.unit` padrão é `MILLIS`; em
-    `quarkus.fault-tolerance."<classe>/<método>".timeout.value` o valor sem unidade é lido em
-    **SEGUNDOS**. `timeout.value=300` valeria 5 minutos, e a config inválida falha em silêncio.
-    Sempre escrever `timeout.unit` e medir o tempo decorrido no teste.
+    montante.** Emite `TimeoutException` para o chamador e deixa a chamada em voo. Caracterizado
+    em teste com `Uni.onCancellation()` (`shouldKeepTheWriteCallInFlightWhenTheFaultToleranceDeadlineFires`,
+    `shouldFailWithInventoryUnavailableWhenTheReadKeepsTimingOut`). Para a escrita isso segura
+    conexão HTTP, então o prazo do transporte (`quarkus.rest-client."<cliente>".read-timeout`) é
+    configurado **abaixo** do deadline de FT, e um teste de guarda compara os dois.
+  - **Unidade entre annotation e config.** `timeout.value` sem `timeout.unit` **herda** a unidade
+    da annotation (`Timeout.unit`, padrão `MILLIS`): com a annotation em segundos, `300` vale
+    300 s (medido, 300002 ms) — a mesma linha de config muda de significado conforme a annotation.
+    Sempre escrever `timeout.unit` e medir o tempo decorrido no teste, com faixa bilateral e
+    `@Timeout` de classe.
   - **`@InjectMock` de um REST client exige o qualifier `@RestClient` no campo**
     (`@InjectMock @RestClient RentalClient client`); sem ele a resolução do bean falha, porque
     o bean registrado só tem o qualifier `@RestClient`.
@@ -114,7 +116,7 @@
 | Client metrics Kafka (lag) | billing `smallrye.messaging.observation.enabled` + binder kafka | `OutboxMetricsIntegrationTest` (scrape `/q/metrics`) |
 | Channel metrics `quarkus.messaging.message.*` | billing `application.properties` | `OutboxMetricsIntegrationTest` |
 | Tracing ponta a ponta (propagação via Kafka) | `quarkus-opentelemetry` nos dois serviços; propagação automática (guia Messaging, seção OpenTelemetry Tracing) | `VehicleRegisteredTracePropagationIntegrationTest` (inventory), `BillingTracePropagationIntegrationTest` (billing) |
-| Fault tolerance (SmallRye FT) | reservation `adapter/out/inventory/GraphQLInventoryGateway.java`, `adapter/out/rental/RentalRestGateway.java`, `adapter/in/rest/InventoryUnavailableMapper.java`, `application/exception/InventoryUnavailable.java` | `GraphQLInventoryClientFailureTest` (3, taxonomia medida contra o cliente real), `GraphQLInventoryGatewayFaultToleranceTest` (6), `RentalRestGatewayFaultToleranceTest` (4), `AvailabilityThroughInventoryChainTest` (2, cadeia com o gateway em CDI), `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (3), `CreateReservationTest` (4) |
+| Fault tolerance (SmallRye FT) | reservation `adapter/out/inventory/GraphQLInventoryGateway.java`, `adapter/out/rental/RentalRestGateway.java`, `adapter/in/rest/InventoryUnavailableMapper.java`, `application/exception/InventoryUnavailable.java` | `GraphQLInventoryClientFailureTest` (3, taxonomia medida contra o cliente real), `GraphQLInventoryGatewayFaultToleranceTest` (6), `RentalRestGatewayFaultToleranceTest` (5), `AvailabilityThroughInventoryChainTest` (3, cadeia com o gateway em CDI), `ReservationWriteFailureTest` (3, contrato de falha da escrita), `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (2), `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1) |
 | Service discovery (Stork) | 🔜 ainda não implementado | — |
 
 > A tabela acima é o índice; cada conceito implementado tem trecho embutido abaixo.

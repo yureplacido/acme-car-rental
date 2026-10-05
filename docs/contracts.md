@@ -189,7 +189,27 @@ Regras para quem consome:
 - Como consequência da última mas uma: uma URL de catálogo errada (404) é tratada como
   indisponibilidade e repetida antes do 503, porque o cliente não tipa o status HTTP.
 
-Evidência: `AvailabilityUnavailableTest` (3 cenários) e `GraphQLInventoryGatewayFaultToleranceTest` (6 cenários).
+Evidência: `AvailabilityUnavailableTest` (3 cenários), `AvailabilityThroughInventoryChainTest`
+(3, incluindo o erro de GraphQL que **não** vira 503) e `GraphQLInventoryGatewayFaultToleranceTest` (6 cenários).
+
+## Criação de reserva (HTTP, reservation-service) — contrato de falha
+
+`POST /reservations` não tem mapper de falha: quando a escrita no `rental-service` estoura o
+prazo de 2 s ou a chamada é recusada, a resposta é **500**, e o `@Retry` está fora de propósito
+(a escrita não é idempotente — ver [adr/009](adr/009-fault-tolerance-chamadas-externas.md)).
+
+Consequências que o cliente precisa saber:
+
+- **500 aqui não significa "tente de novo"**: o `rental-service` pode ter criado a locação e a
+  reserva continua `PENDING`. Reenviar o pedido pode duplicar a locação.
+- A reserva fica visível como `PENDING` em `GET /reservations/all` — é a reconciliação pendente,
+  declarada na ADR 009. Um status dedicado para "a escrita depende de um serviço que não
+  respondeu" é contrato novo, e fica para item próprio.
+- O 503 de `InventoryUnavailable` é exclusivo da leitura de disponibilidade: ele significa
+  "catálogo inconclusivo" e nunca aparece na escrita.
+
+Evidência: `ReservationWriteFailureTest` (3 cenários, cadeia com o gateway de escrita real em CDI)
+e `CreateReservationTest.shouldLeaveTheReservationPendingWhenTheRentalStartFails`.
 
 ---
 

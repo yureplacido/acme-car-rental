@@ -8,6 +8,7 @@ import org.acme.reservation.application.port.out.InventoryGateway;
 import org.acme.reservation.application.port.out.ReservationRepository;
 import org.acme.reservation.application.query.AvailableVehicle;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.when;
  * Decisao e evidencia em docs/adr/009-fault-tolerance-chamadas-externas.md.
  */
 @QuarkusTest
+@Timeout(30)
 class AvailabilityUnavailableTest {
 
     @InjectMock
