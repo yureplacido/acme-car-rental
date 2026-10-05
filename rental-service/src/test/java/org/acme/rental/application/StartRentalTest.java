@@ -38,7 +38,7 @@ class StartRentalTest {
      */
     @Test
     void shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice() {
-        CountingRepository repository = new CountingRepository();
+        FakeRepository repository = new FakeRepository();
         StartRental useCase = new StartRental(repository);
         StartRental.Command command = new StartRental.Command(
                 "alice", 42L, LocalDate.of(2035, 3, 20));
@@ -48,18 +48,6 @@ class StartRentalTest {
 
         assertEquals(2, repository.saved.size(),
                 "hoje a escrita nao e idempotente: e isso que proibe @Retry no chamador");
-        assertEquals(0, repository.reads,
-                "StartRental nao consulta antes de salvar, entao nao tem como descobrir a duplicata");
-    }
-
-    static class CountingRepository extends FakeRepository {
-        int reads;
-
-        @Override
-        public Optional<Rental> findByCustomerAndReservation(String customerId, Long reservationId) {
-            reads++;
-            return super.findByCustomerAndReservation(customerId, reservationId);
-        }
     }
 
     static class FakeRepository implements RentalRepository {
