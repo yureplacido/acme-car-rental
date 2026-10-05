@@ -9,6 +9,7 @@ import org.acme.reservation.application.port.out.RentalGateway;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.util.List;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.when;
  * Decisao e evidencia em docs/adr/009-fault-tolerance-chamadas-externas.md.
  */
 @QuarkusTest
+@Timeout(30)
 class RentalRestGatewayFaultToleranceTest {
 
     @Inject
@@ -53,8 +55,10 @@ class RentalRestGatewayFaultToleranceTest {
         Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
 
         assertEquals(List.of("alice/42"), calls);
+        assertTrue(elapsed.compareTo(Duration.ofMillis(1_500)) >= 0,
+                "o deadline da escrita precisa ter sido aguardado: " + elapsed.toMillis() + "ms");
         assertTrue(elapsed.compareTo(Duration.ofSeconds(3)) < 0,
-                "o deadline da escrita precisa valer: " + elapsed.toMillis() + "ms");
+                "uma unica tentativa, sem retry: " + elapsed.toMillis() + "ms");
     }
 
     @Test
@@ -75,7 +79,7 @@ class RentalRestGatewayFaultToleranceTest {
      * a chamada HTTP em voo e o prazo do transporte, entao ele precisa ser menor que o deadline.
      */
     @Test
-    void shouldAbortTheInFlightWriteBeforeTheFaultToleranceDeadline() {
+    void shouldKeepTheWriteDeadlineAboveTheTransportTimeout() {
         assertTrue(transportReadTimeoutMillis > 0, "a escrita precisa de prazo de transporte");
         assertTrue(transportReadTimeoutMillis < RentalRestGateway.WRITE_DEADLINE_MILLIS,
                 "read-timeout (" + transportReadTimeoutMillis

@@ -8,6 +8,7 @@ import org.acme.reservation.domain.model.CustomerId;
 import org.acme.reservation.domain.model.RentalPeriod;
 import org.acme.reservation.domain.model.Reservation;
 import org.acme.reservation.domain.model.ReservationStatus;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -100,5 +101,41 @@ class CreateReservationTest {
 
         verify(repository, never()).save(any());
         verifyNoInteractions(rentalGateway);
+    }
+
+    /**
+     * Caracterizacao, nao aprovacao: e o preco de escrever sem {@code @Retry} e sem
+     * {@code @Fallback}. A reserva ja foi gravada como PENDING quando a chamada de escrita
+     * falha, e a falha sobe para quem pediu - o rental pode ter sido criado do outro lado, e o
+     * estado local nao sabe. Reconciliar essa divida e trabalho de negocio (ADR
+     * docs/adr/009-fault-tolerance-chamadas-externas.md); o que este teste fixa e que hoje ela
+     * existe e que a escrita acontece uma unica vez.
+     */
+    @Test
+    void shouldLeaveTheReservationPendingWhenTheRentalStartFails() {
+        Reservation persisted = Reservation.rehydrate(
+                new org.acme.reservation.domain.model.ReservationId(42L),
+                new org.acme.reservation.domain.model.CustomerId("alice"),
+                new org.acme.reservation.domain.model.VehicleId(10L),
+                new org.acme.reservation.domain.model.RentalPeriod(
+                        LocalDate.of(2035, 3, 20), LocalDate.of(2035, 3, 29)),
+                ReservationStatus.PENDING);
+
+        when(repository.findByVehicle(any())).thenReturn(Uni.createFrom().item(List.of()));
+        when(repository.save(any())).thenReturn(Uni.createFrom().item(persisted));
+        when(rentalGateway.start("alice", 42L))
+                .thenReturn(Uni.createFrom().failure(new TimeoutException("rental deadline")));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                TimeoutException.class,
+                () -> service.handle(new CreateReservation.Command(
+                        "alice", 10L,
+                        LocalDate.of(2035, 3, 20),
+                        LocalDate.of(2035, 3, 29),
+                        LocalDate.of(2035, 3, 20))).await().indefinitely());
+
+        assertEquals(ReservationStatus.PENDING, persisted.status(),
+                "a reserva fica PENDING: nao ha confirmacao nem compensacao local");
+        verify(rentalGateway, times(1)).start("alice", 42L);
     }
 }

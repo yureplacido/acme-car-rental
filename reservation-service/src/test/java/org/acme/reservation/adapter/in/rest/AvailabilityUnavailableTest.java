@@ -5,7 +5,6 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.smallrye.mutiny.Uni;
 import org.acme.reservation.application.exception.InventoryUnavailable;
 import org.acme.reservation.application.port.out.InventoryGateway;
-import org.acme.reservation.application.port.out.RentalGateway;
 import org.acme.reservation.application.port.out.ReservationRepository;
 import org.acme.reservation.application.query.AvailableVehicle;
 import org.junit.jupiter.api.Test;
@@ -16,8 +15,6 @@ import java.util.List;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 /**
@@ -32,9 +29,6 @@ class AvailabilityUnavailableTest {
 
     @InjectMock
     InventoryGateway inventoryGateway;
-
-    @InjectMock
-    RentalGateway rentalGateway;
 
     @InjectMock
     ReservationRepository reservationRepository;
@@ -74,7 +68,7 @@ class AvailabilityUnavailableTest {
     }
 
     @Test
-    void shouldNotLeakInfrastructureDetailWhenInventoryKeepsFailing() {
+    void shouldNotLeakInfrastructureDetailWhenInventoryIsUnavailable() {
         givenInventory(new InventoryUnavailable(new IllegalStateException(
                 "connection refused to http://inventory-service:8083/graphql")));
 
@@ -94,6 +88,5 @@ class AvailabilityUnavailableTest {
     private void givenInventory(Throwable failure) {
         when(inventoryGateway.findVehicles()).thenReturn(Uni.createFrom().failure(failure));
         when(reservationRepository.all()).thenReturn(Uni.createFrom().item(List.of()));
-        when(rentalGateway.start(any(), anyLong())).thenReturn(Uni.createFrom().voidItem());
     }
 }
