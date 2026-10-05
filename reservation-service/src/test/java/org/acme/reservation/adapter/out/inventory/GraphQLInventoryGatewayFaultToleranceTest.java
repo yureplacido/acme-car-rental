@@ -5,6 +5,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.ServerErrorException;
 import org.acme.reservation.adapter.out.inventory.model.Car;
 import org.acme.reservation.application.exception.InventoryUnavailable;
 import org.acme.reservation.application.port.out.InventoryGateway;
@@ -12,9 +13,9 @@ import org.acme.reservation.application.query.AvailableVehicle;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -23,9 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * Politica de fault tolerance da leitura: timeout, retry so para falha transitoria e fallback
- * que sinaliza indisponibilidade em vez de devolver lista vazia - "nenhum veiculo disponivel"
- * seria uma resposta falsa quando o inventory esta fora.
+ * Politica de fault tolerance da leitura de disponibilidade: timeout, retry so para falha
+ * transitoria e fallback que sinaliza indisponibilidade em vez de devolver lista vazia -
+ * "nenhum veiculo disponivel" seria resposta falsa com o inventory fora do ar.
  *
  * Decisao e evidencia em docs/adr/009-fault-tolerance-chamadas-externas.md.
  */
@@ -40,7 +41,7 @@ class GraphQLInventoryGatewayFaultToleranceTest {
 
     @Test
     void shouldRetryTransientInventoryFailureAndThenReturnVehicles() {
-        AtomicInteger attempts = answering(failing(2, new IllegalStateException("inventory is restarting")), twoCars());
+        AtomicInteger attempts = restarting(2);
 
         List<AvailableVehicle> vehicles = findVehicles();
 
@@ -52,7 +53,8 @@ class GraphQLInventoryGatewayFaultToleranceTest {
 
     @Test
     void shouldNotRetryWhenInventoryRejectsTheQuery() {
-        AtomicInteger attempts = answering(Uni.createFrom().failure(new BadRequestException("unknown field allCars")));
+        AtomicInteger attempts = answering(Uni.createFrom().failure(
+                new BadRequestException("unknown field allCars")));
 
         Throwable failure = assertThrows(BadRequestException.class, () -> findVehicles());
 
@@ -64,10 +66,14 @@ class GraphQLInventoryGatewayFaultToleranceTest {
     void shouldFailWithInventoryUnavailableWhenTheReadKeepsTimingOut() {
         AtomicInteger attempts = answering(Uni.createFrom().nothing());
 
+        long startedAt = System.nanoTime();
         Throwable failure = assertThrows(InventoryUnavailable.class, () -> findVehicles());
+        Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
 
         assertInstanceOf(TimeoutException.class, rootCause(failure));
-        assertTrue(attempts.get() > 1, "o retry deve ter tentado antes do fallback");
+        assertEquals(3, attempts.get(), "uma tentativa e duas repeticoes, e nada mais");
+        assertTrue(elapsed.compareTo(Duration.ofSeconds(4)) < 0,
+                "o deadline do %test deve valer: " + elapsed.toMillis() + "ms");
     }
 
     @Test
@@ -88,25 +94,23 @@ class GraphQLInventoryGatewayFaultToleranceTest {
         return gateway.findVehicles().await().indefinitely();
     }
 
-    /**
-     * Programa as respostas do client em ordem: cada assinatura vale para uma tentativa; a ultima
-     * se repete. Devolve o contador de tentativas.
-     */
-    private AtomicInteger answering(Uni<List<Car>> first, Uni<List<Car>>... then) {
+    /** Inventory reiniciando: 5xx, falha de transporte que vale outra tentativa. */
+    private AtomicInteger restarting(int failuresBeforeSuccess) {
         AtomicInteger attempts = new AtomicInteger();
-        List<Uni<List<Car>>> responses = Stream.concat(Stream.of(first), Stream.of(then)).toList();
-        when(client.allCars()).thenAnswer(invocation -> {
-            int attempt = attempts.getAndIncrement();
-            return responses.get(Math.min(attempt, responses.size() - 1));
-        });
+        when(client.allCars()).thenAnswer(invocation -> attempts.getAndIncrement() < failuresBeforeSuccess
+                ? Uni.createFrom().failure(new ServerErrorException("inventory is restarting", 503))
+                : twoCars());
         return attempts;
     }
 
-    /**
-     * Falha as N primeiras tentativas e so entao responde.
-     */
-    private static Uni<List<Car>> failing(int failures, Throwable failure) {
-        return Uni.createFrom().deferred(() -> new FailingRead(failures, failure).next());
+    /** Inventory sempre responde a mesma coisa, tentativa por tentativa. */
+    private AtomicInteger answering(Uni<List<Car>> response) {
+        AtomicInteger attempts = new AtomicInteger();
+        when(client.allCars()).thenAnswer(invocation -> {
+            attempts.incrementAndGet();
+            return response;
+        });
+        return attempts;
     }
 
     private static Uni<List<Car>> twoCars() {
@@ -121,22 +125,5 @@ class GraphQLInventoryGatewayFaultToleranceTest {
             current = current.getCause();
         }
         return current;
-    }
-
-    private static final class FailingRead {
-
-        private final AtomicInteger remainingFailures;
-        private final Throwable failure;
-
-        private FailingRead(int failures, Throwable failure) {
-            this.remainingFailures = new AtomicInteger(failures);
-            this.failure = failure;
-        }
-
-        private Uni<List<Car>> next() {
-            return remainingFailures.getAndDecrement() > 0
-                    ? Uni.createFrom().failure(failure)
-                    : twoCars();
-        }
     }
 }

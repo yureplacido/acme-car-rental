@@ -39,7 +39,7 @@ class FindAvailableVehiclesTest {
                 new FailingInventoryGateway(new RuntimeException("connection refused")),
                 noReservations);
 
-        Throwable failure = assertThrows(InventoryUnavailable.class,
+        InventoryUnavailable failure = assertThrows(InventoryUnavailable.class,
                 () -> useCase.handle(START, END).await().indefinitely());
 
         assertEquals("inventory is unavailable", failure.getMessage());

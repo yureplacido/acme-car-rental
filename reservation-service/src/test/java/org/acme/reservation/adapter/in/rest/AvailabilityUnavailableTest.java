@@ -44,8 +44,8 @@ class AvailabilityUnavailableTest {
         givenInventory(new InventoryUnavailable(new IllegalStateException("inventory is restarting")));
 
         given()
-                .queryParam("startDate", LocalDate.of(2035, 6, 1))
-                .queryParam("endDate", LocalDate.of(2035, 6, 10))
+                .queryParam("startDate", LocalDate.of(2035, 6, 1).toString())
+                .queryParam("endDate", LocalDate.of(2035, 6, 10).toString())
                 .when()
                 .get("/reservations/availability")
                 .then()
@@ -63,8 +63,8 @@ class AvailabilityUnavailableTest {
         when(reservationRepository.all()).thenReturn(Uni.createFrom().item(List.of()));
 
         given()
-                .queryParam("startDate", LocalDate.of(2035, 6, 1))
-                .queryParam("endDate", LocalDate.of(2035, 6, 10))
+                .queryParam("startDate", LocalDate.of(2035, 6, 1).toString())
+                .queryParam("endDate", LocalDate.of(2035, 6, 10).toString())
                 .when()
                 .get("/reservations/availability")
                 .then()
@@ -79,8 +79,8 @@ class AvailabilityUnavailableTest {
                 "connection refused to http://inventory-service:8083/graphql")));
 
         String body = given()
-                .queryParam("startDate", LocalDate.of(2035, 6, 1))
-                .queryParam("endDate", LocalDate.of(2035, 6, 10))
+                .queryParam("startDate", LocalDate.of(2035, 6, 1).toString())
+                .queryParam("endDate", LocalDate.of(2035, 6, 10).toString())
                 .when()
                 .get("/reservations/availability")
                 .then()
