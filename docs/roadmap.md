@@ -170,10 +170,10 @@ Notas de escopo:
       fora. Erro de GraphQL (200 com `errors`) não é repetido nem convertido em
       indisponibilidade. A fronteira responde 503 com corpo estável (`code`, `message`,
       `retryAfterSeconds`) e `Retry-After: 30`, sem vazar detalhe de infraestrutura.
-      Evidência: `RentalRestGatewayFaultToleranceTest` (4), `GraphQLInventoryGatewayFaultToleranceTest` (6),
-      `GraphQLInventoryClientFailureTest` (3), `AvailabilityThroughInventoryChainTest` (2),
-      `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (3),
-      `CreateReservationTest` (4). Três achados que custariam silêncio se não fossem medidos:
+      Evidência: `GraphQLInventoryClientFailureTest` (3), `GraphQLInventoryGatewayFaultToleranceTest` (6),
+      `RentalRestGatewayFaultToleranceTest` (5), `AvailabilityThroughInventoryChainTest` (3),
+      `ReservationWriteFailureTest` (3), `AvailabilityUnavailableTest` (3),
+      `FindAvailableVehiclesTest` (2) e `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1). Três achados que custariam silêncio se não fossem medidos:
       o `@Timeout` do SmallRye FT em método que devolve `Uni` **não cancela** a subscription a
       montante (por isso o `read-timeout` do cliente REST é configurado abaixo do deadline de FT,
       com teste de guarda); a taxonomia precisa ser a que o cliente **real** lança, senão o
@@ -181,7 +181,8 @@ Notas de escopo:
       `timeout.unit` **herda a unidade da annotation** (as classes de teste medem o tempo
       decorrido com limites bilaterais e `@Timeout` de classe para quebrar rápido se a chave
       deixar de valer). Dívida aberta: o `users-service`, que consome essa disponibilidade, ainda
-      não trata o 503
+      não trata o 503 — e usa cliente bloqueante sem prazo, então o caminho de falha passou a
+      custar ~9 s em `%prod` segurando thread do BFF
 - [ ] Service discovery desacoplando localização de serviço da configuração
 - [ ] Configuração cloud-native: a mesma imagem sobe em qualquer ambiente,
       comportamento stateless entre instâncias

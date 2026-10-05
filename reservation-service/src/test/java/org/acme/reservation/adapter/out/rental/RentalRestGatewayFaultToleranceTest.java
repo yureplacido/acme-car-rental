@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Timeout;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -78,6 +79,27 @@ class RentalRestGatewayFaultToleranceTest {
      * emitter que so termina por cancelamento, e ele continuou vivo apos o deadline. Quem aborta
      * a chamada HTTP em voo e o prazo do transporte, entao ele precisa ser menor que o deadline.
      */
+    /**
+     * Caracterização da biblioteca, e a premissa da segunda camada de prazo: o {@code @Timeout}
+     * avisa o chamador mas não cancela a subscription a montante. O
+     * {@link Uni#onCancellation()} só dispara quando alguém cancela, então a contagem em zero
+     * depois do {@code TimeoutException} é a prova.
+     *
+     * <p>Quando o SmallRye FT passar a cancelar, este teste falha — e a boa notícia será poder
+     * remover o prazo de transporte e a guarda de configuração que o compara.
+     */
+    @Test
+    void shouldKeepTheWriteCallInFlightWhenTheFaultToleranceDeadlineFires() {
+        AtomicInteger cancellations = new AtomicInteger();
+        Uni<RentalResponse> neverAnswers = Uni.createFrom().nothing();
+        recordCalls(neverAnswers.onCancellation().invoke(cancellations::incrementAndGet));
+
+        assertThrows(TimeoutException.class, () -> start());
+
+        assertEquals(0, cancellations.get(),
+                "o @Timeout avisa o chamador mas não cancela a chamada a montante");
+    }
+
     @Test
     void shouldKeepTheWriteDeadlineAboveTheTransportTimeout() {
         assertTrue(transportReadTimeoutMillis > 0, "a escrita precisa de prazo de transporte");

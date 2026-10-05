@@ -2,6 +2,7 @@ package org.acme.reservation.adapter.in.rest;
 
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.graphql.client.GraphQLClientException;
 import io.smallrye.graphql.client.InvalidResponseException;
 import io.smallrye.mutiny.Uni;
 import org.acme.reservation.adapter.out.inventory.GraphQLInventoryClient;
@@ -72,6 +73,28 @@ class AvailabilityThroughInventoryChainTest {
                 .then()
                 .statusCode(200)
                 .body("", empty());
+    }
+
+    /**
+     * O erro de GraphQL e defeito do inventario, nao indisponibilidade: a fronteira nao pode
+     * disfarçar isso como 503, que o cliente leria como "resultado inconclusivo, tente mais
+     * tarde". Hoje sai como erro inesperado do proprio servico — este teste fixa esse "hoje",
+     * e mudar o mapeamento e um item proprio.
+     */
+    @Test
+    void shouldNotDisguiseGraphqlErrorsAsInventoryUnavailable() {
+        AtomicInteger attempts = new AtomicInteger();
+        when(inventoryClient.allCars()).thenAnswer(invocation -> {
+            attempts.incrementAndGet();
+            return Uni.createFrom().failure(new GraphQLClientException("schema exploded", List.of()));
+        });
+        givenNoExistingReservations();
+
+        givenAvailability()
+                .then()
+                .statusCode(500);
+
+        assertEquals(1, attempts.get(), "erro de GraphQL nao e transitorio: repetir nao muda nada");
     }
 
     private void givenNoExistingReservations() {
