@@ -114,7 +114,7 @@
 | Client metrics Kafka (lag) | billing `smallrye.messaging.observation.enabled` + binder kafka | `OutboxMetricsIntegrationTest` (scrape `/q/metrics`) |
 | Channel metrics `quarkus.messaging.message.*` | billing `application.properties` | `OutboxMetricsIntegrationTest` |
 | Tracing ponta a ponta (propagação via Kafka) | `quarkus-opentelemetry` nos dois serviços; propagação automática (guia Messaging, seção OpenTelemetry Tracing) | `VehicleRegisteredTracePropagationIntegrationTest` (inventory), `BillingTracePropagationIntegrationTest` (billing) |
-| Fault tolerance (SmallRye FT) | reservation `adapter/out/inventory/GraphQLInventoryGateway.java`, `adapter/out/rental/RentalRestGateway.java`, `adapter/in/rest/InventoryUnavailableMapper.java`, `application/exception/InventoryUnavailable.java` | `GraphQLInventoryGatewayFaultToleranceTest` (4), `RentalRestGatewayFaultToleranceTest` (4), `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (3) |
+| Fault tolerance (SmallRye FT) | reservation `adapter/out/inventory/GraphQLInventoryGateway.java`, `adapter/out/rental/RentalRestGateway.java`, `adapter/in/rest/InventoryUnavailableMapper.java`, `application/exception/InventoryUnavailable.java` | `GraphQLInventoryClientFailureTest` (3, taxonomia medida contra o cliente real), `GraphQLInventoryGatewayFaultToleranceTest` (6), `RentalRestGatewayFaultToleranceTest` (4), `AvailabilityThroughInventoryChainTest` (2, cadeia com o gateway em CDI), `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (3), `CreateReservationTest` (4) |
 | Service discovery (Stork) | 🔜 ainda não implementado | — |
 
 > A tabela acima é o índice; cada conceito implementado tem trecho embutido abaixo.
@@ -342,8 +342,9 @@ o que tornava retry e fallback letra morta:
 | `GraphQLClientException` | não | não | inventory respondeu 200 com `errors`: é defeito do outro lado, não indisponibilidade |
 | `MappingException` | não (omissão) | não | erro determinístico de mapeamento |
 
-Duas consequências da medição: o cliente embrulha falha de I/O em `CompletionException` (o gateway
-desembrulha antes de devolver a `Uni`, senão `IOException` nunca casaria), e `InvalidResponseException`
+Duas consequências da medição: falha de I/O chega como `IOException` cru (o Mutiny remove o
+embrulho de `CompletionStage` antes de emitir, então `retryOn` casa direto — observar isso por
+`await()` daria uma forma de falha do próprio teste, não do cliente), e `InvalidResponseException`
 não distingue 5xx de 4xx — uma URL de catálogo errada (404) é repetida 3 vezes antes de virar 503.
 
 O fallback **não devolve lista vazia**. Devolve `InventoryUnavailable`

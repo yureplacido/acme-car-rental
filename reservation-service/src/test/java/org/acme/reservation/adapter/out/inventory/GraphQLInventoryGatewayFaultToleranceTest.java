@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Timeout;
 import java.net.ConnectException;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -74,12 +73,11 @@ class GraphQLInventoryGatewayFaultToleranceTest {
 
     @Test
     void shouldRetryWhenTheConnectionToInventoryFails() {
-        AtomicInteger attempts = failingTwiceThenAnswering(
-                new CompletionException(new ConnectException("connection refused")));
+        AtomicInteger attempts = failingTwiceThenAnswering(new ConnectException("connection refused"));
 
         List<AvailableVehicle> vehicles = findVehicles();
 
-        assertEquals(3, attempts.get(), "o embrulho do client tem de ser desfeito para o retry valer");
+        assertEquals(3, attempts.get(), "falha de conexao e transitoria: repetir e seguro na leitura");
         assertEquals(2, vehicles.size());
     }
 

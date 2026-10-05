@@ -161,6 +161,9 @@ inacessível, a resposta é **503**, não 200 com lista vazia. Lista vazia signi
 disponível" e é um fato de negócio; quando a consulta não pode ser feita, o resultado é
 inconclusivo e o cliente precisa saber disso (decisão em
 [adr/009-fault-tolerance-chamadas-externas.md](adr/009-fault-tolerance-chamadas-externas.md)).
+Evidência: `AvailabilityUnavailableTest` (contrato a partir da porta) e
+`AvailabilityThroughInventoryChainTest` (cadeia com o gateway real em CDI); a taxonomia de falhas
+que dispara o 503 vem de `GraphQLInventoryClientFailureTest`.
 
 ```text
 200  [ { "id", "licensePlateNumber", "manufacturer", "model" } ]
@@ -186,7 +189,7 @@ Regras para quem consome:
 - Como consequência da última mas uma: uma URL de catálogo errada (404) é tratada como
   indisponibilidade e repetida antes do 503, porque o cliente não tipa o status HTTP.
 
-Evidência: `AvailabilityUnavailableTest` (3 cenários) e `GraphQLInventoryGatewayFaultToleranceTest`.
+Evidência: `AvailabilityUnavailableTest` (3 cenários) e `GraphQLInventoryGatewayFaultToleranceTest` (6 cenários).
 
 ---
 
