@@ -177,8 +177,14 @@ Regras para quem consome:
 - **503 significa "não deu para saber"**, não "não há veículo". O corpo é estável e não contém
   detalhe de infraestrutura (host, porta, stack); o diagnóstico fica no log do serviço.
 - O header `Retry-After` informa quanto esperar antes de tentar de novo.
-- Erro determinístico do inventário (consulta inválida) **não** é retry nem indisponibilidade: o
-  serviço responde com o erro correspondente, sem mascarar.
+- **503 cobre exatamente três causas**, todas medidas contra o cliente real
+  (`GraphQLInventoryClientFailureTest`): deadline estourado, conexão recusada/resetada e resposta
+  HTTP sem envelope GraphQL (o inventory reiniciando, um proxy no meio, uma URL errada).
+- Erro de GraphQL (o inventário respondeu 200 com `errors`) **não** é retry nem
+  indisponibilidade: é defeito do inventário, e o serviço responde com o erro correspondente, sem
+  mascarar como 503.
+- Como consequência da última mas uma: uma URL de catálogo errada (404) é tratada como
+  indisponibilidade e repetida antes do 503, porque o cliente não tipa o status HTTP.
 
 Evidência: `AvailabilityUnavailableTest` (3 cenários) e `GraphQLInventoryGatewayFaultToleranceTest`.
 

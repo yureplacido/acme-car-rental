@@ -158,24 +158,30 @@ Notas de escopo:
 - [x] Fault tolerance em chamada externa com timeout, retry e fallback explícitos,
       sem retry cego [3.39.3] — decisão em
       [adr/009-fault-tolerance-chamadas-externas.md](adr/009-fault-tolerance-chamadas-externas.md).
-      No `reservation-service`, que é o único com chamada síncrona de saída: a **escrita**
+      No `reservation-service`, que tem as duas chamadas síncronas de saída: a **escrita**
       (`POST /rentals`) tem **só timeout** — sem `@Retry` porque `StartRental` sempre salva
-      nova locação e nunca consulta `findByCustomerAndReservation` (caracterizado em
+      nova locação para o mesmo par cliente/reserva (caracterizado em
       `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`), e sem
       `@Fallback` porque engolir a falha confirmaria reserva sem locação; a **leitura**
-      (GraphQL `allCars`) tem timeout, `@Retry` só para falha transitória (deadline, falha de
-      I/O, 5xx; 4xx aborta) e fallback que **sinaliza** `InventoryUnavailable` em vez de
+      (GraphQL `allCars`) tem timeout, `@Retry` só para falha transitória (deadline, resposta
+      HTTP sem envelope GraphQL, conexão recusada/resetada — lista **medida** contra o cliente
+      real, não deduzida) e fallback que **sinaliza** `InventoryUnavailable` em vez de
       devolver lista vazia — lista vazia é "nenhum veículo", mentira quando o inventory está
-      fora. A fronteira responde 503 com corpo estável (`code`, `message`,
+      fora. Erro de GraphQL (200 com `errors`) não é repetido nem convertido em
+      indisponibilidade. A fronteira responde 503 com corpo estável (`code`, `message`,
       `retryAfterSeconds`) e `Retry-After: 30`, sem vazar detalhe de infraestrutura.
-      Evidência: `RentalRestGatewayFaultToleranceTest` (4), `GraphQLInventoryGatewayFaultToleranceTest` (4),
-      `AvailabilityUnavailableTest` (3) e `FindAvailableVehiclesTest` (3). Dois achados que
-      custariam silêncio se não fossem medidos: o `@Timeout` do SmallRye FT em método que
-      devolve `Uni` **não cancela** a subscription a montante (por isso o `read-timeout` do
-      cliente REST é configurado abaixo do deadline de FT, com teste de guarda), e o valor sem
-      unidade em `quarkus.fault-tolerance."<classe>/<método>".timeout.value` é lido em
-      **segundos** enquanto o `unit` padrão da annotation é milissegundos (as classes de teste
-      medem o tempo decorrido para quebrar se a chave deixar de valer)
+      Evidência: `RentalRestGatewayFaultToleranceTest` (4), `GraphQLInventoryGatewayFaultToleranceTest` (6),
+      `GraphQLInventoryClientFailureTest` (3), `AvailabilityThroughInventoryChainTest` (2),
+      `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (3),
+      `CreateReservationTest` (4). Três achados que custariam silêncio se não fossem medidos:
+      o `@Timeout` do SmallRye FT em método que devolve `Uni` **não cancela** a subscription a
+      montante (por isso o `read-timeout` do cliente REST é configurado abaixo do deadline de FT,
+      com teste de guarda); a taxonomia precisa ser a que o cliente **real** lança, senão o
+      `@Retry`/`@Fallback` vira letra morta e o teste passa assim mesmo; e `timeout.value` sem
+      `timeout.unit` **herda a unidade da annotation** (as classes de teste medem o tempo
+      decorrido com limites bilaterais e `@Timeout` de classe para quebrar rápido se a chave
+      deixar de valer). Dívida aberta: o `users-service`, que consome essa disponibilidade, ainda
+      não trata o 503
 - [ ] Service discovery desacoplando localização de serviço da configuração
 - [ ] Configuração cloud-native: a mesma imagem sobe em qualquer ambiente,
       comportamento stateless entre instâncias

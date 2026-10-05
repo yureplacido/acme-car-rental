@@ -85,17 +85,23 @@ comportamento é medido em tentativas — não em mensagem de log:
 
 - **Leitura com retry:** o mock conta chamadas e devolve falha transitória nas N primeiras;
   a asserção é o número de tentativas e a recuperação (`GraphQLInventoryGatewayFaultToleranceTest`).
-- **Falha determinística:** 4xx não é repetido; a asserção é "uma tentativa só".
+- **Falha determinística:** erro de GraphQL (o inventory respondeu 200 com `errors`) não é
+  repetido nem convertido em indisponibilidade; a asserção é "uma tentativa só".
+- **Taxonomia medida, não presumida:** os tipos que a policy declara são os que o cliente real
+  lança (`GraphQLInventoryClientFailureTest`). A primeira versão declarava tipos JAX-RS que o
+  cliente GraphQL typesafe nunca lança — e o teste passava, provando que a policy não fazia nada.
 - **Fallback:** quando as tentativas acabam, a asserção é o **tipo de falha** que chega no
   chamador (sinal de aplicação), e nunca uma lista vazia.
-- **Deadline:** o teste mede o tempo decorrido. Isso não é vaidade: a unidade da annotation e a
-  unidade da config são diferentes (annotation em milissegundos, valor de config em segundos), e
-  uma chave de config errada falha em silêncio. Medir o tempo transforma esse silêncio em
-  asserção.
+- **Deadline:** o teste mede o tempo decorrido, com limites bilaterais (`>=` o prazo esperado e
+  `<` o teto) e `@Timeout` de classe. Isso não é vaidade: `timeout.value` sem `timeout.unit`
+  herda a unidade da annotation, então o mesmo número pode valer 300 ms ou 300 s, e uma chave de
+  config errada falha em silêncio. Medir o tempo transforma esse silêncio em asserção, e o
+  `@Timeout` de classe evita que o engano vire uma suíte de minutos.
 - **Prazo de transporte vs. deadline de FT:** o `@Timeout` do SmallRye FT em método que devolve
   `Uni` não cancela a chamada a montante, então a escrita também tem prazo de transporte
   (`quarkus.rest-client."<cliente>".read-timeout`) e um teste compara os dois
-  (`RentalRestGatewayFaultToleranceTest.shouldAbortTheInFlightWriteBeforeTheFaultToleranceDeadline`).
+  (`RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout`, uma
+  guarda de configuração — o abort em voo é provado por integração, no item 9).
 - **Caracterização antes de política:** quando a política depende de uma propriedade do outro
   serviço (aqui, "a escrita não é idempotente"), o teste que fixa essa propriedade fica no
   serviço dono dela (`StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`).

@@ -302,8 +302,8 @@ o mesh inteiro.
 
 ### 2.1.6 Fault tolerance na fronteira de saída: retry onde é seguro, sinal onde não há resposta
 
-O `reservation-service` é o único serviço com chamada síncrona de saída, e as duas têm
-políticas opostas porque têm naturezas opostas.
+O `reservation-service` tem duas chamadas síncronas de saída, e elas têm políticas opostas
+porque têm naturezas opostas.
 
 **Escrita (`POST /rentals`) — só timeout.** `RentalRestGateway.start`:
 
@@ -329,13 +329,22 @@ public Uni<Void> start(String customerId, Long reservationId) {
 `@Fallback.applyOn`, para que "o que pode ser repetido" e "o que pode virar indisponível" sejam
 uma decisão só:
 
+A lista foi **medida contra o cliente typesafe real** (`GraphQLInventoryClientFailureTest`, com
+um servidor HTTP de verdade), não deduzida da documentação — a primeira versão deste capítulo
+usava tipos JAX-RS (`ProcessingException`, `ServerErrorException`) que este cliente nunca lança,
+o que tornava retry e fallback letra morta:
+
 | Falha | Retry | Vira `InventoryUnavailable` | Por quê |
 |---|---|---|---|
 | `TimeoutException` | sim | sim | deadline estourado: pode ser transitório |
-| `ProcessingException` | sim | sim | falha de I/O do client |
-| `ServerErrorException` (5xx) | sim | sim | inventory reiniciando |
-| `ClientErrorException` (4xx) | **não** (`abortOn`) | não | consulta inválida: repetir não muda nada e não é indisponibilidade |
+| `InvalidResponseException` | sim | sim | resposta HTTP sem envelope GraphQL (inventory reiniciando, proxy, URL errada) |
+| `IOException` | sim | sim | conexão recusada/resetada |
+| `GraphQLClientException` | não | não | inventory respondeu 200 com `errors`: é defeito do outro lado, não indisponibilidade |
 | `MappingException` | não (omissão) | não | erro determinístico de mapeamento |
+
+Duas consequências da medição: o cliente embrulha falha de I/O em `CompletionException` (o gateway
+desembrulha antes de devolver a `Uni`, senão `IOException` nunca casaria), e `InvalidResponseException`
+não distingue 5xx de 4xx — uma URL de catálogo errada (404) é repetida 3 vezes antes de virar 503.
 
 O fallback **não devolve lista vazia**. Devolve `InventoryUnavailable`
 (`reservation-service/.../application/exception/InventoryUnavailable.java`), falha de aplicação
@@ -368,9 +377,10 @@ O `@Timeout` do SmallRye FT em método que devolve `Uni` **não cancela** a subs
 montante (medido: um emitter que só termina por cancelamento continuava vivo depois do
 deadline). O padrão do Quarkus para `read-timeout` é 30 s, então sem isto a requisição de
 `POST /rentals` ficaria em voo muito depois do deadline. `RentalRestGatewayFaultToleranceTest
-.shouldAbortTheInFlightWriteBeforeTheFaultToleranceDeadline` compara os dois prazos e falha se a
-ordem se inverter. A escrita não tem override por perfil justamente para essa relação valer em
-qualquer ambiente.
+.shouldKeepTheWriteDeadlineAboveTheTransportTimeout` compara os dois prazos e falha se a
+ordem se inverter — é uma **guarda de configuração**, não a prova do abort (essa vem de
+integração com o container fora do ar, no item 9). A escrita não tem override por perfil
+justamente para essa relação valer em qualquer ambiente.
 
 **Configuração** — política na annotation, valor operacional na config:
 
@@ -379,10 +389,13 @@ qualquer ambiente.
 %prod.quarkus.fault-tolerance."org.acme.reservation.adapter.out.inventory.GraphQLInventoryGateway/findVehicles".timeout.unit=SECONDS
 ```
 
-O identificador é `<classe>/<método>`. A armadilha está na unidade: `Timeout.unit` padrão é
-`MILLIS`, e o valor sem unidade na config é lido em **SEGUNDOS**. Por isso `timeout.unit` vem
-sempre explícito, e as classes de teste **medem o tempo decorrido** — se a chave parar de valer,
-a asserção de tempo quebra em vez de o teste passar em silêncio.
+O identificador é `<classe>/<método>`. A armadilha está na unidade: `timeout.value` **sem**
+`timeout.unit` herda a unidade da annotation (`Timeout.unit`, padrão `MILLIS`) — e como a
+unidade da annotation é escolha nossa, o mesmo número muda de significado conforme ela
+(`300` = 300 ms com annotation em milissegundos, 300 s com annotation em segundos; medido).
+Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o tempo decorrido**
+com limites bilaterais e `@Timeout` de classe — se a chave parar de valer, o teste falha em
+segundos, em vez de passar em silêncio ou arrastar a suíte por minutos.
 
 ### 2.2 Configuração
 
