@@ -54,4 +54,4 @@ Uma ADR deve ser criada quando houver uma decisão arquitetural que altere respo
 
 > A ordem acima é um roteiro de estudo. Uma ADR futura só deve ser marcada como implementada quando existir evidência executável no código e nos testes.
 ---
-_Last updated: 2026-09-27_
+_Last updated: 2026-10-05 (ADR 009 do cap. 10 item 8 registrada)_

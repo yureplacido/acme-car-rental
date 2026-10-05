@@ -148,6 +148,9 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 - O `users-service`, que consome `GET /reservations/availability`, ainda não trata 503: precisa passar a tratar resultado inconclusivo em item próprio, em vez de receber lista vazia com o sentido errado. Pior, o cliente dele é **bloqueante** (`ReservationsClient.availability` devolve `Collection<Car>`), sem prazo e sem política alguma — e com o retry de leitura novo, o caminho de falha passou a custar ~9 s em `%prod` (3 idas × 3 s) segurando thread do BFF. É dívida criada por esta ADR e visível agora.
 - 503 é uma resposta nova para quem consome `GET /reservations/availability`; clientes precisam tratá-la explicitamente.
 - A dívida de `CreateReservation` (reserva `PENDING` órfã quando a escrita falha) continua aberta e é visível agora, porque a falha deixa de ser engolida.
+- O erro de GraphQL sai como **500 sem corpo estável**: o `@ServerExceptionMapper` cobre só `InventoryUnavailable`, então esse caminho não tem contrato de corpo. Um mapper de erro inesperado é contrato novo (item 9). Hoje o mesmo recurso tem dois regimes de erro assimétricos — `/availability` tem 503 estável e `/reservations` tem 500 cru.
+- A assinatura do fallback `inventoryUnreachable(Throwable)` só resolve no modo não-compat, que esta ADR trata como default. Se alguém declarar `quarkus.fault-tolerance.compatibility-mode=mp`, ela deixa de casar e **nada falha**. O teste que exige a causa original preservada é também a prova desse modo.
+- A taxonomia de `retryOn` vale para `quarkus-smallrye-graphql-client` **3.39.3 medido**: um bump de `quarkus.platform.version` pode trocar `InvalidResponseException` por outro tipo e transformar retry/fallback em letra morta, em silêncio, porque o teste injeta os tipos à mão. É a razão de `GraphQLInventoryClientFailureTest` existir como caracterização: rodá-lo a cada bump de plataforma.
 
 ## Evidência
 
@@ -161,7 +164,7 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 | `RentalRestGatewayFaultToleranceTest.shouldStartTheRentalWhenTheServiceAnswersInTime` | caminho feliz não foi quebrado |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldReturnTheVehiclesWhenInventoryAnswersInTime` | resposta normal preservada |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenInventoryAnswersWithoutGraphqlEnvelope` | resposta HTTP sem envelope GraphQL é repetida e a leitura se recupera na 3ª tentativa |
-| `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenTheConnectionToInventoryFails` | `IOException` cru é repetida: é a forma que o cliente real emite |
+| `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenTheConnectionToInventoryFails` | `IOException` (no teste, `ConnectException`) é repetida: é a forma que o cliente real emite |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldFailWithInventoryUnavailableWhenTheReadKeepsTimingOut` | deadline estourado esgota as 3 tentativas e vira `InventoryUnavailable`, com tempo dentro da janela esperada e sem cancelar a chamada a montante |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldFailWithInventoryUnavailableWhenInventoryKeepsAnsweringWithoutGraphqlEnvelope` | esgotamento por resposta sem envelope também sinaliza indisponibilidade, com a causa preservada |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldNotRetryWhenInventoryAnswersWithGraphqlErrors` | erro de GraphQL não é repetido nem convertido em indisponibilidade |
@@ -169,7 +172,6 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 | `AvailabilityUnavailableTest` (3 testes) | 503 com `Retry-After` e corpo estável; 200 quando o inventory responde; sem vazar detalhe de infraestrutura |
 | `AvailabilityThroughInventoryChainTest` (3 testes) | a cadeia inteira com o gateway real em CDI: 3 tentativas e depois 503; `200 []` quando o inventory responde vazio de verdade; erro de GraphQL sai como 500, não disfarçado de indisponibilidade |
 | `ReservationWriteFailureTest` (3 testes) | contrato de falha da escrita: prazo estourado e chamada recusada dão 500 com **uma** ida ao rental-service, e a reserva fica visível como `PENDING` |
-| `AvailabilityUnavailableTest` (3 testes) | contrato do 503 a partir da porta, sem vazar detalhe de infraestrutura |
 | `CreateReservationTest.shouldLeaveTheReservationPendingWhenTheRentalStartFails` | caracterização da dívida: escrita única, reserva fica `PENDING`, falha sobe |
 | `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` | caracterização da não-idempotência que proíbe retry na escrita |
 

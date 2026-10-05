@@ -628,7 +628,9 @@ flowchart TD
  
 A aplicação só ganha complexidade quando um comportamento exigir essa complexidade.
 ---
-_Last updated: 2026-09-28 (diagramas sincronizados com o código; estilo Mermaid unificado; decisão 15 —
+_Last updated: 2026-10-05 (decisão 17 — `application/exception` para sinal de falha da aplicação,
+com o contrato HTTP no adapter inbound; item 8 do cap. 10 sincronizado com o código;
+diagramas sincronizados com o código; estilo Mermaid unificado; decisão 15 —
 métricas por porta da aplicação + adapter de observabilidade; decisão 16 — tracing ponta a ponta
 como efeito de plataforma com `quarkus-opentelemetry`; billing e inventory com `/q/metrics` e
 propagação de contexto no Kafka, cap. 10)._

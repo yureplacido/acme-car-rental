@@ -210,6 +210,9 @@ public interface RentalGateway {
 ```
 
 HTTP client annotations, serialization types and provider-specific behavior stay in the outbound adapter.
+A política de fault tolerance (timeout, retry, fallback) também é fronteira técnica: mora nas
+annotations do adapter de saída, nunca na porta nem no caso de uso — é divergência entre serviços
+por idempotência, não um valor único para todos (ADR 009).
 
 ### Persistence
 
