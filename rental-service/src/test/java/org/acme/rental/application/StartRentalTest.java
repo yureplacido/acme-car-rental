@@ -27,6 +27,41 @@ class StartRentalTest {
         assertTrue(repository.saved.contains(rental));
     }
 
+    /**
+     * Caracterizacao, nao aprovacao: e assim que StartRental se comporta hoje, e e por isso que
+     * o reservation-service nao pode repetir a chamada de escrita. StartRental nao consulta
+     * findByCustomerAndReservation antes de salvar, entao a segunda chamada para o mesmo par
+     * cliente/reserva cria uma segunda locacao. Enquanto isso for verdade, a escrita fica sem
+     * @Retry e sem chave de idempotencia: repetir depois de um resultado incerto duplicaria a
+     * locacao. Se um dia isso mudar, este teste falha e a politica de escrita pode ser revista
+     * (ADR docs/adr/009-fault-tolerance-chamadas-externas.md).
+     */
+    @Test
+    void shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice() {
+        CountingRepository repository = new CountingRepository();
+        StartRental useCase = new StartRental(repository);
+        StartRental.Command command = new StartRental.Command(
+                "alice", 42L, LocalDate.of(2035, 3, 20));
+
+        useCase.handle(command);
+        useCase.handle(command);
+
+        assertEquals(2, repository.saved.size(),
+                "hoje a escrita nao e idempotente: e isso que proibe @Retry no chamador");
+        assertEquals(0, repository.reads,
+                "StartRental nao consulta antes de salvar, entao nao tem como descobrir a duplicata");
+    }
+
+    static class CountingRepository extends FakeRepository {
+        int reads;
+
+        @Override
+        public Optional<Rental> findByCustomerAndReservation(String customerId, Long reservationId) {
+            reads++;
+            return super.findByCustomerAndReservation(customerId, reservationId);
+        }
+    }
+
     static class FakeRepository implements RentalRepository {
         final List<Rental> saved = new ArrayList<>();
         public Rental save(Rental rental) { saved.add(rental); return rental; }
