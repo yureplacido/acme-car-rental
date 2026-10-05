@@ -71,6 +71,15 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-health</artifactId>
         </dependency>
+        <!--
+            Cap.10 item 8 - fault tolerance (SmallRye Fault Tolerance / MicroProfile FT).
+            A política fica nas annotations dos adapters de saída (RentalRestGateway e
+            GraphQLInventoryGateway); ver docs/adr/009-fault-tolerance-chamadas-externas.md.
+        -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-micrometer</artifactId>
