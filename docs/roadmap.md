@@ -182,7 +182,10 @@ Notas de escopo:
       decorrido com limites bilaterais e `@Timeout` de classe para quebrar rápido se a chave
       deixar de valer). Dívida aberta: o `users-service`, que consome essa disponibilidade, ainda
       não trata o 503 — e usa cliente bloqueante sem prazo, então o caminho de falha passou a
-      custar ~9 s em `%prod` segurando thread do BFF
+      custar ~9 s em `%prod` segurando thread do BFF. Duas evidências ainda em aberto: o
+      **abort** da chamada em voo é a única coisa que a guarda de configuração não prova
+      (`read-timeout` é inatividade com rearmamento, não deadline — a prova exige integração
+      real), e o mapper do erro de GraphQL sai como 500 sem corpo estável
 - [ ] Service discovery desacoplando localização de serviço da configuração
 - [ ] Configuração cloud-native: a mesma imagem sobe em qualquer ambiente,
       comportamento stateless entre instâncias
