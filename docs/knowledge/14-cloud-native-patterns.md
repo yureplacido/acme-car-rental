@@ -116,7 +116,7 @@
 | Client metrics Kafka (lag) | billing `smallrye.messaging.observation.enabled` + binder kafka | `OutboxMetricsIntegrationTest` (scrape `/q/metrics`) |
 | Channel metrics `quarkus.messaging.message.*` | billing `application.properties` | `OutboxMetricsIntegrationTest` |
 | Tracing ponta a ponta (propagação via Kafka) | `quarkus-opentelemetry` nos dois serviços; propagação automática (guia Messaging, seção OpenTelemetry Tracing) | `VehicleRegisteredTracePropagationIntegrationTest` (inventory), `BillingTracePropagationIntegrationTest` (billing) |
-| Fault tolerance (SmallRye FT) | reservation `adapter/out/inventory/GraphQLInventoryGateway.java`, `adapter/out/rental/RentalRestGateway.java`, `adapter/in/rest/InventoryUnavailableMapper.java`, `application/exception/InventoryUnavailable.java` | `GraphQLInventoryClientFailureTest` (3, taxonomia medida contra o cliente real), `GraphQLInventoryGatewayFaultToleranceTest` (6), `RentalRestGatewayFaultToleranceTest` (5), `AvailabilityThroughInventoryChainTest` (3, cadeia com o gateway em CDI), `ReservationWriteFailureTest` (3, contrato de falha da escrita), `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (2), `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1) |
+| Fault tolerance (SmallRye FT) | reservation `adapter/out/inventory/GraphQLInventoryGateway.java`, `adapter/out/rental/RentalRestGateway.java`, `adapter/in/rest/InventoryUnavailableMapper.java`, `application/exception/InventoryUnavailable.java` | `GraphQLInventoryClientFailureTest` (3, taxonomia medida contra o cliente real), `GraphQLInventoryGatewayFaultToleranceTest` (6), `RentalRestGatewayFaultToleranceTest` (5), `AvailabilityThroughInventoryChainTest` (3, cadeia com o gateway em CDI), `ReservationWriteFailureTest` (3, contrato de falha da escrita), `AvailabilityUnavailableTest` (3), `FindAvailableVehiclesTest` (3, sendo 2 do item 8), `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1) |
 | Service discovery (Stork) | 🔜 ainda não implementado | — |
 
 > A tabela acima é o índice; cada conceito implementado tem trecho embutido abaixo.
@@ -442,18 +442,20 @@ Fault Tolerance, que já estava no classpath; o que falta é a extensão:
 </dependency>
 ```
 
-Só o `reservation-service` recebeu a extensão, porque só ele tem chamada de saída. Versões
-resolvidas: `quarkus-smallrye-fault-tolerance` 3.39.3, SmallRye Fault Tolerance 6.11.2,
+O `reservation-service` recebeu a extensão porque é onde a política de fault tolerance deste
+capítulo está implementada. O `users-service` também tem chamada síncrona de saída e está
+**sem** prazo nem política — dívida declarada na [ADR 009](../adr/009-fault-tolerance-chamadas-externas.md).
+Versões resolvidas: `quarkus-smallrye-fault-tolerance` 3.39.3, SmallRye Fault Tolerance 6.11.2,
 MicroProfile Fault Tolerance API 4.1.2.
 
 ### 2.3 Dependências
 
-| Serviço | `quarkus-micrometer` | `quarkus-micrometer-registry-prometheus` | `quarkus-smallrye-health` | `quarkus-opentelemetry` |
-|---|---|---|---|---|
-| billing | ✅ | ✅(cap.10 item 6) | ✅ | ✅(cap.10 item 7) |
-| inventory | ✅ | ✅ | ✅ | ✅(cap.10 item 7) |
-| reservation | ✅ | — | ✅ | ✅(cap.10 item 8) |
-| rental / users | ✅ | — | ✅ | — |
+| Serviço | `quarkus-micrometer` | `quarkus-micrometer-registry-prometheus` | `quarkus-smallrye-health` | `quarkus-opentelemetry` | `quarkus-smallrye-fault-tolerance` |
+|---|---|---|---|---|---|
+| billing | ✅ | ✅(cap.10 item 6) | ✅ | ✅(cap.10 item 7) | — |
+| inventory | ✅ | ✅ | ✅ | ✅(cap.10 item 7) | — |
+| reservation | ✅ | — | ✅ | — | ✅(cap.10 item 8) |
+| rental / users | ✅ | — | ✅ | — | — |
 
 ---
 
@@ -582,13 +584,12 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 ## 9. Checklist de fecho (parcial — capítulo em progresso)
 
 - [x] roadmap.md com status e evidência executável dos itens 1–8
-- [x] suíte do reservation verde (29 testes) depois do item 8
 - [ ] service discovery e graceful shutdown (itens 9–10) ainda pendentes — 🔜
 - [x] suíte do billing verde (62 testes)
 - [x] suíte do inventory verde (45 testes)
-- [x] suíte do reservation verde (29 testes) depois do item 8
+- [x] suíte do reservation verde (42 testes) depois do item 8
 - [x] ADR do item 8 registrada (`adr/009-fault-tolerance-chamadas-externas.md`)
-- [ ] guardians do item 8 — em execução
+- [x] guardiões do item 8 — DDD, TDD e arquitetura rodaram; achados corrigidos
 
 ---
 

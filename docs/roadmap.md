@@ -55,7 +55,7 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [ ] Demonstrar event loop versus worker pool com teste/observabilidade
 - [ ] Demonstrar concorrência controlada
 - [ ] Demonstrar backpressure em um fluxo de ingestão
-- [ ] Definir timeout/cancellation/retry nos adapters externos
+- [ ] Definir timeout/cancellation/retry nos adapters externos (parcial: reservation, cap. 10 item 8 — ADR 009)
 
 ## Cap. 9 — Messaging
 
@@ -173,7 +173,7 @@ Notas de escopo:
       Evidência: `GraphQLInventoryClientFailureTest` (3), `GraphQLInventoryGatewayFaultToleranceTest` (6),
       `RentalRestGatewayFaultToleranceTest` (5), `AvailabilityThroughInventoryChainTest` (3),
       `ReservationWriteFailureTest` (3), `AvailabilityUnavailableTest` (3),
-      `FindAvailableVehiclesTest` (2) e `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1). Três achados que custariam silêncio se não fossem medidos:
+      `FindAvailableVehiclesTest` (3, sendo 2 do item 8) e `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1). Três achados que custariam silêncio se não fossem medidos:
       o `@Timeout` do SmallRye FT em método que devolve `Uni` **não cancela** a subscription a
       montante (por isso o `read-timeout` do cliente REST é configurado abaixo do deadline de FT,
       com teste de guarda); a taxonomia precisa ser a que o cliente **real** lança, senão o

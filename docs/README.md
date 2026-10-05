@@ -120,7 +120,7 @@ Use this table to know **where to record** new learnings. When finishing a chapt
 | 7 | Database access | `services.md` (repos), `contracts.md`, `roadmap.md` | `knowledge/06-persistencia-transacoes-e-nosql.md` |
 | 8 | Reactive programming | `architecture.md`, `services.md` | `knowledge/07-programacao-reativa.md` |
 | 9 | Quarkus messaging | `services.md` (billing), `contracts.md`, `roadmap.md`, `adr/` | `knowledge/08-messaging-reativo.md`, `knowledge/09-padroes-de-resiliencia-em-messaging.md`, `knowledge/13-transactional-outbox.md` |
-| 10 | Cloud-native (health, metrics, tracing, FT, SD) | `roadmap.md`, `services.md`, `architecture.md` | `knowledge/14-cloud-native-patterns.md`, `knowledge/book-index/cap10.txt` |
+| 10 | Cloud-native (health, metrics, tracing, FT, SD) | `roadmap.md`, `services.md`, `architecture.md`, `contracts.md`, `testing.md`, `adr/009-fault-tolerance-chamadas-externas.md` | `knowledge/14-cloud-native-patterns.md`, `knowledge/book-index/cap10.txt` |
 | 11 | Cloud, K8s/OpenShift, serverless | `deployment.md`, `roadmap.md` | `knowledge/book-index/cap11.txt` |
 | 12 | Custom Quarkus extensions | `roadmap.md` | `knowledge/book-index/cap12.txt` |
  
@@ -154,4 +154,4 @@ Before a significant change, use `/preflight <feature>`. After, run `/ddd-audit`
  
 ---
  
-_Last updated: 2026-09-28 (nav diagram restyled; docs/knowledge for ch.1-9; ch.10-12 scope confirmed against book; book index in knowledge/book-index)_
+_Last updated: 2026-10-05 (cap. 10 item 8 alinhado em contracts/testing/adr 009; nav diagram restyled; docs/knowledge for ch.1-9; ch.10-12 scope confirmed against book; book index in knowledge/book-index)_

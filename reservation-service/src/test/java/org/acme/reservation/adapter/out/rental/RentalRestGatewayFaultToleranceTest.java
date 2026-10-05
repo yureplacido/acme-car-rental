@@ -74,12 +74,6 @@ class RentalRestGatewayFaultToleranceTest {
     }
 
     /**
-     * O {@code @Timeout} do SmallRye Fault Tolerance em metodo que devolve {@code Uni} emite
-     * {@code TimeoutException} mas nao cancela a subscription a montante - foi medido com um
-     * emitter que so termina por cancelamento, e ele continuou vivo apos o deadline. Quem aborta
-     * a chamada HTTP em voo e o prazo do transporte, entao ele precisa ser menor que o deadline.
-     */
-    /**
      * Caracterização da biblioteca, e a premissa da segunda camada de prazo: o {@code @Timeout}
      * avisa o chamador mas não cancela a subscription a montante. O
      * {@link Uni#onCancellation()} só dispara quando alguém cancela, então a contagem em zero
