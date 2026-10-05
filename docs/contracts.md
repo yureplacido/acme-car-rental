@@ -156,7 +156,7 @@ Regras de evolução:
 
 `GET /reservations/availability?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD`
 
-Este endpoint gained um contrato de falha no cap. 10 item 8: quando o `inventory-service` está
+Este endpoint ganhou um contrato de falha no cap. 10 item 8: quando o `inventory-service` está
 inacessível, a resposta é **503**, não 200 com lista vazia. Lista vazia significa "nenhum veículo
 disponível" e é um fato de negócio; quando a consulta não pode ser feita, o resultado é
 inconclusivo e o cliente precisa saber disso (decisão em
