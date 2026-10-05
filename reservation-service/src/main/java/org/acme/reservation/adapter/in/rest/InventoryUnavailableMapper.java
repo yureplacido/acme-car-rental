@@ -4,7 +4,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
-import org.acme.reservation.adapter.in.rest.model.UnavailableResponse;
+import org.acme.reservation.adapter.in.rest.model.InventoryUnavailableResponse;
 import org.acme.reservation.application.exception.InventoryUnavailable;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
@@ -30,7 +30,7 @@ public class InventoryUnavailableMapper {
         return Response.status(Response.Status.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS)
                 .type(MediaType.APPLICATION_JSON_TYPE)
-                .entity(new UnavailableResponse(
+                .entity(new InventoryUnavailableResponse(
                         "INVENTORY_UNAVAILABLE",
                         "vehicle inventory is temporarily unavailable",
                         RETRY_AFTER_SECONDS))

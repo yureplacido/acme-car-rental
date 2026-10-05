@@ -131,7 +131,7 @@ Aqui mora a política de fault tolerance das duas chamadas síncronas de saída 
   `InventoryUnavailable` em vez de devolver lista vazia. Erro de GraphQL (200 com `errors`) não
   é repetido nem convertido em indisponibilidade.
 - `adapter/in/rest/InventoryUnavailableMapper`: transforma o sinal em 503 com corpo estável
-  (`adapter/in/rest/model/UnavailableResponse`) e `Retry-After`, sem vazar detalhe de
+  (`adapter/in/rest/model/InventoryUnavailableResponse`) e `Retry-After`, sem vazar detalhe de
   infraestrutura.
 - A política é **das annotations dos adapters**, não das portas nem dos casos de uso;
   os prazos operacionais ficam em `application.properties`
@@ -314,6 +314,7 @@ Messaging cross-cutting concerns such as idempotency belong to the messaging inf
 | inventory-proto | ✅ | — | — | contract |
 
 ---
-_Last updated: 2026-09-28 (billing/inventory: seção de observability do cap. 10 item 6 —
+_Last updated: 2026-10-05 (item 8 do cap. 10 — fault tolerance no reservation e contrato de
+falha da escrita; dívida do users-service explicitada; billing/inventory: seção de observability do cap. 10 item 6;
 métricas do relay da outbox e pipeline Kafka em `/q/metrics` — e tracing ponta a ponta do
 item 7 — propagação automática de contexto no Kafka com `quarkus-opentelemetry`)._
