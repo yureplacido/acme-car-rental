@@ -134,8 +134,8 @@ Notas de escopo:
 
 > O capítulo está sendo implementado incrementalmente contra Quarkus 3.39.3.
 > As evidências já concluídas abaixo estão mergeadas; os itens restantes continuam
-> como trabalho explícito do capítulo. Item 7 (tracing) implementado e aguardando
-> merge; itens 8–10 pendentes.
+> como trabalho explícito do capítulo. Itens 7 (tracing) e 8 (fault tolerance)
+> implementados e aguardando merge; itens 9–10 pendentes.
 
 - [x] Decidir MicroProfile/SmallRye antes de abstração própria: health e metrics usam as extensões nativas do Quarkus/SmallRye; abstrações próprias só existem quando representam uma porta da aplicação
 - [x] Health de aplicação expondo liveness, readiness e startup como grupos distintos, com testes por serviço [3.39.3]
@@ -155,8 +155,27 @@ Notas de escopo:
       payload. Em dev, o Dev Service LGTM (Grafana+Tempo) sobe sozinho; em teste,
       exporter CDI em memória (`InMemorySpanExporter`, padrão oficial "Using CDI
       to produce a test exporter")
-- [ ] Fault tolerance em chamada externa com timeout, retry e fallback explícitos,
-      sem retry cego [3.39.3] — evidência: teste do cenário de falha
+- [x] Fault tolerance em chamada externa com timeout, retry e fallback explícitos,
+      sem retry cego [3.39.3] — decisão em
+      [adr/009-fault-tolerance-chamadas-externas.md](adr/009-fault-tolerance-chamadas-externas.md).
+      No `reservation-service`, que é o único com chamada síncrona de saída: a **escrita**
+      (`POST /rentals`) tem **só timeout** — sem `@Retry` porque `StartRental` sempre salva
+      nova locação e nunca consulta `findByCustomerAndReservation` (caracterizado em
+      `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`), e sem
+      `@Fallback` porque engolir a falha confirmaria reserva sem locação; a **leitura**
+      (GraphQL `allCars`) tem timeout, `@Retry` só para falha transitória (deadline, falha de
+      I/O, 5xx; 4xx aborta) e fallback que **sinaliza** `InventoryUnavailable` em vez de
+      devolver lista vazia — lista vazia é "nenhum veículo", mentira quando o inventory está
+      fora. A fronteira responde 503 com corpo estável (`code`, `message`,
+      `retryAfterSeconds`) e `Retry-After: 30`, sem vazar detalhe de infraestrutura.
+      Evidência: `RentalRestGatewayFaultToleranceTest` (4), `GraphQLInventoryGatewayFaultToleranceTest` (4),
+      `AvailabilityUnavailableTest` (3) e `FindAvailableVehiclesTest` (3). Dois achados que
+      custariam silêncio se não fossem medidos: o `@Timeout` do SmallRye FT em método que
+      devolve `Uni` **não cancela** a subscription a montante (por isso o `read-timeout` do
+      cliente REST é configurado abaixo do deadline de FT, com teste de guarda), e o valor sem
+      unidade em `quarkus.fault-tolerance."<classe>/<método>".timeout.value` é lido em
+      **segundos** enquanto o `unit` padrão da annotation é milissegundos (as classes de teste
+      medem o tempo decorrido para quebrar se a chave deixar de valer)
 - [ ] Service discovery desacoplando localização de serviço da configuração
 - [ ] Configuração cloud-native: a mesma imagem sobe em qualquer ambiente,
       comportamento stateless entre instâncias
@@ -236,6 +255,10 @@ Architecture + DDD + TDD + Quarkus guardians
 Use `/domain-design` antes de implementar uma feature e `/preflight` para o fluxo completo.
 
 ---
-_Last updated: 2026-09-28 (cap. 10 item 7 fechado: tracing ponta a ponta via propagação
-automática de contexto no Kafka com `quarkus-opentelemetry`; evidência nos dois serviços —
-inventory produz o record com `traceparent`, billing processa sob o trace propagado)._
+_Last updated: 2026-10-05 (cap. 10 item 8 fechado: fault tolerance nas chamadas externas do
+`reservation-service` — escrita só com timeout porque não é idempotente, leitura com retry
+seletivo e fallback que sinaliza indisponibilidade em vez de devolver lista vazia; decisão em
+`docs/adr/009-fault-tolerance-chamadas-externas.md`). Item 7 (tracing ponta a ponta via
+propagação automática de contexto no Kafka com `quarkus-opentelemetry`; evidência nos dois
+serviços — inventory produz o record com `traceparent`, billing processa sob o trace
+propagado) permanece implementado e aguardando merge junto deste._

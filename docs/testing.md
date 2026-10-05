@@ -79,6 +79,31 @@ o formato Prometheus 0.0.4, pedido com `Accept: text/plain`, não tem exemplars)
 `name 1.0 # {span_id=...,trace_id=...} 1.0 <ts>`. Matchers de métrica devem usar `Pattern` +
 `find()` (primeiro número após o nome), nunca `matches()` de linha inteira.
 
+### Fault tolerance
+Cenário de falha de fronteira é `@QuarkusTest` com `@InjectMock` do **client externo**, e o
+comportamento é medido em tentativas — não em mensagem de log:
+
+- **Leitura com retry:** o mock conta chamadas e devolve falha transitória nas N primeiras;
+  a asserção é o número de tentativas e a recuperação (`GraphQLInventoryGatewayFaultToleranceTest`).
+- **Falha determinística:** 4xx não é repetido; a asserção é "uma tentativa só".
+- **Fallback:** quando as tentativas acabam, a asserção é o **tipo de falha** que chega no
+  chamador (sinal de aplicação), e nunca uma lista vazia.
+- **Deadline:** o teste mede o tempo decorrido. Isso não é vaidade: a unidade da annotation e a
+  unidade da config são diferentes (annotation em milissegundos, valor de config em segundos), e
+  uma chave de config errada falha em silêncio. Medir o tempo transforma esse silêncio em
+  asserção.
+- **Prazo de transporte vs. deadline de FT:** o `@Timeout` do SmallRye FT em método que devolve
+  `Uni` não cancela a chamada a montante, então a escrita também tem prazo de transporte
+  (`quarkus.rest-client."<cliente>".read-timeout`) e um teste compara os dois
+  (`RentalRestGatewayFaultToleranceTest.shouldAbortTheInFlightWriteBeforeTheFaultToleranceDeadline`).
+- **Caracterização antes de política:** quando a política depende de uma propriedade do outro
+  serviço (aqui, "a escrita não é idempotente"), o teste que fixa essa propriedade fica no
+  serviço dono dela (`StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`).
+
+`@InjectMock` de um REST client MicroProfile exige o qualifier no campo
+(`@InjectMock @RestClient RentalClient client`): sem ele a resolução do bean falha, porque o
+bean registrado só carrega o qualifier `@RestClient`.
+
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
 
@@ -110,6 +135,6 @@ Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é pr
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
 ---
-_Last updated: 2026-09-28 (subseções "Observability" e "Tracing": teste de adapter de métrica em
-duas camadas; régua da série por nome+tag; propagação de contexto via `InMemorySpanExporter` e
-armadilha dos exemplars OTel)._
+_Last updated: 2026-10-05 (seção "Fault tolerance": cenário de falha medido em tentativas e em
+tempo, deadline medido porque a unidade da annotation difere da config, prazo de transporte
+abaixo do deadline de FT, `@InjectMock` de REST client com `@RestClient`)._
