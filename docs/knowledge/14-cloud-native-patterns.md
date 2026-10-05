@@ -5,7 +5,7 @@
 > agregados, não em adapters) e AGENTS.md regra 16 (API verificada contra Quarkus 3.39.3).
 > Última atualização: 2026-10-05 (itens health 1–5, métricas do pipeline/relay — item 6 —,
 > tracing ponta a ponta — item 7 — e fault tolerance nas chamadas externas — item 8 —
-> concluídos; service discovery e graceful shutdown, itens 9–10, pendentes).
+> concluídos; service discovery, configuração cloud-native e graceful shutdown ainda pendentes).
 
 ---
 
@@ -84,7 +84,8 @@
   em vez de devolver valor falso. Detalhes e alternativas em
   [adr/009](../adr/009-fault-tolerance-chamadas-externas.md); resumo abaixo.
 - **Quando usar / quando não usar:** service discovery e graceful shutdown — ver
-  [roadmap.md](../roadmap.md) cap. 10 — itens 9–10 ainda **não concluídos**.
+  [roadmap.md](../roadmap.md) cap. 10 — os três itens em aberto (service discovery, configuração
+  cloud-native e graceful shutdown) ainda **não concluídos**.
 - **Armadilhas medidas neste projeto:**
   - **`@Timeout` do SmallRye FT em método que devolve `Uni` não cancela a subscription a
     montante.** Emite `TimeoutException` para o chamador e deixa a chamada em voo. Caracterizado
@@ -342,7 +343,16 @@ o que tornava retry e fallback letra morta:
 | `InvalidResponseException` | sim | sim | resposta HTTP sem envelope GraphQL (inventory reiniciando, proxy, URL errada) |
 | `IOException` | sim | sim | conexão recusada/resetada |
 | `GraphQLClientException` | não | não | inventory respondeu 200 com `errors`: é defeito do outro lado, não indisponibilidade |
-| `MappingException` | não (omissão) | não | erro determinístico de mapeamento |
+| `InvalidResponseException` (resposta não mapeável) | sim | sim | mesma exceção de "sem envelope GraphQL": o cliente não separa "HTTP sem envelope" de "envelope que não mapeia", e ambos viram indisponibilidade |
+
+Não existe `MappingException` no `smallrye-graphql-client` 2.18.5 (verificado no classpath de
+compilação): falha de mapeamento é lançada como `InvalidResponseException`. O cliente typesafe
+também não separa "resposta HTTP sem envelope GraphQL" de "envelope GraphQL válido que não
+mapeia" — os dois são `InvalidResponseException`. A consequência é que uma falha de mapeamento,
+determinística e defeito nosso, também é repetida 3 vezes e convertida em 503. Aceitamos porque
+separar exigiria inspecionar o corpo da resposta, mais frágil ainda. E o inverso também vale:
+`UnexpectedCloseException` (conexão fechada no meio da resposta) é subclasse de
+`InvalidResponseException`, então entra na mesma política de graça.
 
 Duas consequências da medição: falha de I/O chega como `IOException` cru (o Mutiny remove o
 embrulho de `CompletionStage` antes de emitir, então `retryOn` casa direto — observar isso por
@@ -378,11 +388,18 @@ quarkus.rest-client."org.acme.reservation.adapter.out.rental.RentalClient".read-
 
 O `@Timeout` do SmallRye FT em método que devolve `Uni` **não cancela** a subscription a
 montante (medido: um emitter que só termina por cancelamento continuava vivo depois do
-deadline). O padrão do Quarkus para `read-timeout` é 30 s, então sem isto a requisição de
-`POST /rentals` ficaria em voo muito depois do deadline. `RentalRestGatewayFaultToleranceTest
+deadline; agora versionado como
+`RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteCallInFlightWhenTheFaultToleranceDeadlineFires`).
+Atenção ao nome: `read-timeout` **não** é deadline absoluto — o padrão do Quarkus para ele é 30
+s, e é inatividade com rearmamento, não prazo total. Ele vira `HttpClientRequest.setTimeout`,
+que o javadoc do Vert.x chama de `idleTimeout` "com nome confuso" e marca como `@Deprecated`,
+**rearma** a cada chunk recebido, é cancelado quando chegam os headers, e deixa o
+`idleTimeout` do socket em `0`. Limita a fase de connect (500 ms, via `connect-timeout`) e a
+espera por headers; **a leitura do corpo não tem prazo** neste cliente. Sem o ajuste, a
+requisição de `POST /rentals` ficaria em voo muito depois do deadline. `RentalRestGatewayFaultToleranceTest
 .shouldKeepTheWriteDeadlineAboveTheTransportTimeout` compara os dois prazos e falha se a
 ordem se inverter — é uma **guarda de configuração**, não a prova do abort (essa vem de
-integração com o container fora do ar, no item 9). A escrita não tem override por perfil
+integração com o container fora do ar, pendência aberta no roadmap do cap. 10). A escrita não tem override por perfil
 justamente para essa relação valer em qualquer ambiente.
 
 **Configuração** — política na annotation, valor operacional na config:
@@ -433,7 +450,9 @@ Nos testes, o exporter em memória vem de `io.opentelemetry:opentelemetry-sdk-te
 (scope `test`), seguindo o padrão oficial "Using CDI to produce a test exporter".
 
 Fault tolerance (item 8) — a annotation `@Timeout`/`@Retry`/`@Fallback` vem do MicroProfile
-Fault Tolerance, que já estava no classpath; o que falta é a extensão:
+Fault Tolerance, e a extensão `quarkus-smallrye-fault-tolerance` traz **a API e a
+implementação**: sem ela as annotations nem estão no classpath de compilação (`dependency:tree`
+mostra `microprofile-fault-tolerance-api` só por este caminho):
 
 ```xml
 <dependency>
@@ -467,6 +486,7 @@ MicroProfile Fault Tolerance API 4.1.2.
 | 2 | Livro usa nomes/versões do Quarkus 3.15.1 | API conferida contra 3.39.3 | regra 16 do AGENTS.md | roadmap `[3.39.3]` |
 | 3 | Health/metrics "de módulo" sem separar dependência | decisão explícita de itens 1–5: **sem** abstração própria para o que é padrão; abstração só onde é porta da aplicação | ddd-tdd-standards §9 | roadmap cap. 10 |
 | 4 | Adapter de métrica só implementa a porta que usa | o gauge de backlog do billing **inverte a direção**: `MicrometerOutboxMetrics` chama `OutboxEventStore.countPending()` (porta que ele não implementa) | exceção billing-specific documentada em ddd-tdd-standards §5-Observability ("Recorded exception") e decisão 15 do architecture.md; só billing tem relay com backlog | §2.1.4, §3 |
+| 6 | Livro decora o bean **inbound** com `@Retry` (`CoffeeResource`, §10.5.1) | a FT vive no **adapter de saída** (`RentalRestGateway`, `GraphQLInventoryGateway`), porque é lá que se sabe se a chamada é idempotente — informação que o inbound não tem | regra 10 do AGENTS.md: o inbound mapeia transporte, não decide política; a decisão está na ADR 009 | §2.1.6 + ADR 009 |
 | 5 | Livro cobre tracing com propagação HTTP e um Jaeger externo gerenciado à mão (docker run) | propagação **automática** do Quarkus 3.39.3 com `quarkus-opentelemetry` (guia Messaging, seção OpenTelemetry Tracing): via Kafka no nosso pipeline; em dev o Dev Service LGTM sobe sozinho; em teste, exporter CDI em memória | regra 16: API verificada na doc oficial; o livro nem menciona `TracingMetadata` nem exige instrumentação manual no caso Kafka | §2.1.5 + `VehicleRegisteredTracePropagationIntegrationTest` + `BillingTracePropagationIntegrationTest` |
 
 ---
@@ -549,6 +569,7 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 | SmallRye Metrics (MP Metrics antigo) | `quarkus-smallrye-metrics` está deprecated; Micrometer é o caminho | nunca |
 | Abstração própria de health | health é padrão do runtime; abstrair seria desacoplar de nada | nunca (regra) |
 | Métrica de negócio fora de porta | conflita com regra 9 do AGENTS.md | nunca (regra) |
+| Circuit breaker e bulkhead/limitador de concorrência | o capítulo (§10.5.2) os apresenta como alternativas ao retry; adiados porque ainda não há taxa de erro nem concorrência medida no caminho — só billing e inventory expõem `/q/metrics`, e sem consumidor não há dado | quando o reservation-service expor `/q/metrics` com consumidor; motivo e reavaliação na ADR 009, "Alternativas consideradas" |
 
 ---
 
@@ -584,7 +605,7 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 ## 9. Checklist de fecho (parcial — capítulo em progresso)
 
 - [x] roadmap.md com status e evidência executável dos itens 1–8
-- [ ] service discovery e graceful shutdown (itens 9–10) ainda pendentes — 🔜
+- [ ] service discovery, configuração cloud-native e graceful shutdown ainda pendentes — 🔜
 - [x] suíte do billing verde (62 testes)
 - [x] suíte do inventory verde (45 testes)
 - [x] suíte do reservation verde (42 testes) depois do item 8
@@ -619,4 +640,4 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ---
 
-_Última atualização: 2026-10-05 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 — e fault tolerance nas chamadas externas do reservation — item 8 — concluídos; snippets alinhados ao código real; service discovery e graceful shutdown, itens 9–10, pendentes)._
+_Última atualização: 2026-10-05 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 — e fault tolerance nas chamadas externas do reservation — item 8 — concluídos; snippets alinhados ao código real; service discovery, configuração cloud-native e graceful shutdown ainda pendentes)._

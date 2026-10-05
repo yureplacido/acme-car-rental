@@ -44,6 +44,8 @@ class RentalRestGatewayFaultToleranceTest {
     @RestClient
     RentalClient client;
 
+    @ConfigProperty(name = "quarkus.rest-client.\"org.acme.reservation.adapter.out.rental.RentalClient\".connect-timeout")
+    long transportConnectTimeoutMillis;
     @ConfigProperty(name = "quarkus.rest-client.\"org.acme.reservation.adapter.out.rental.RentalClient\".read-timeout")
     long transportReadTimeoutMillis;
 
@@ -101,6 +103,11 @@ class RentalRestGatewayFaultToleranceTest {
                 "read-timeout (" + transportReadTimeoutMillis
                         + "ms) precisa ser menor que o deadline de FT ("
                         + RentalRestGateway.WRITE_DEADLINE_MILLIS + "ms), senao a chamada fica em voo");
+        assertTrue(transportConnectTimeoutMillis > 0, "a escrita precisa de prazo de connect");
+        assertTrue(transportConnectTimeoutMillis < RentalRestGateway.WRITE_DEADLINE_MILLIS,
+                "connect-timeout (" + transportConnectTimeoutMillis
+                        + "ms) precisa ser menor que o deadline de FT ("
+                        + RentalRestGateway.WRITE_DEADLINE_MILLIS + "ms), senao a fase de connect fica em voo");
     }
 
     @Test

@@ -96,13 +96,35 @@ Por isso a escrita tem duas camadas de prazo, e a segunda existe para compensar 
 
 ```text
 RentalRestGateway.WRITE_DEADLINE_MILLIS = 2000   annotation @Timeout (orçamento da chamada)
-quarkus.rest-client."...RentalClient".read-timeout = 1500   (aborta o request)
+quarkus.rest-client."...RentalClient".read-timeout = 1500   (limita connect e a espera por headers)
 RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout
 ```
 
-O teste de guarda compara as duas com o valor exposto pela própria annotation, de modo que aumentar o deadline sem o ajuste correspondente do transporte quebra o build. O escopo dele é esse: **é uma guarda de configuração**, não a prova de que a requisição foi abortada — a prova do cancelamento a montante seria um teste de integração com o container fora do ar, que é evidência do item 9. É também por isso que a escrita **não tem override por perfil**: um deadline só, válido em todos, para que a relação com o prazo de transporte seja verificável em qualquer ambiente.
+O mecanismo merece precisão: `read-timeout` **não** é um deadline absoluto. Ele vira
+`HttpClientRequest.setTimeout`, que o javadoc do Vert.x 4.5.33 descreve como `idleTimeout`
+"com nome confuso" e marca como `@Deprecated`; a implementação **rearma** o tempo a cada chunk
+recebido, **cancela** o timer quando chegam os headers, e o `idleTimeout` do socket fica no
+default `0`, ou seja, desligado. O que ele de fato limita é a fase de connect (500 ms, via
+`connect-timeout`) e a espera pelos headers — a leitura do corpo da resposta **não tem prazo**
+no cliente REST do Quarkus.
 
-A leitura não tem essa segunda camada: o cliente GraphQL do SmallRye não expõe chave de prazo (verificado no modelo de configuração de `quarkus-smallrye-graphql-client` 3.39.3 — só `url`, proxy, TLS, WebSocket). Uma consulta de catálogo abandonada é inofensiva comparada com uma escrita, e o deadline da annotation cobre o caso: um socket travado estoura o `@Timeout`, que é `TimeoutException`, que está em `retryOn` e `applyOn`.
+A ordem continua correta e é o que importa para a decisão: mesmo quando o `read-timeout` não
+estoura, o `@Timeout` de 2 s entrega `TimeoutException` ao chamador — o que ele não faz é
+abortar a chamada em voo. Por isso o teste de integração com o container fora do ar não é
+evidência de item futuro, é a **única** prova possível do abort: nenhum teste com cliente
+mockado observa o `reset(cause)` do Vert.x.
+
+O teste de guarda compara as duas com o valor exposto pela própria annotation, de modo que aumentar o deadline sem o ajuste correspondente do transporte quebra o build. O escopo dele é esse: **é uma guarda de configuração**, não a prova de que a requisição foi abortada — a prova do cancelamento a montante seria um teste de integração com o container fora do ar, hoje em aberto no roadmap. É também por isso que a escrita **não tem override por perfil**: um deadline só, válido em todos, para que a relação com o prazo de transporte seja verificável em qualquer ambiente.
+
+A leitura não tem essa segunda camada: o cliente GraphQL do SmallRye não expõe chave de prazo (verificado no modelo de configuração de `quarkus-smallrye-graphql-client` 3.39.3 — só `url`, proxy, TLS, WebSocket). Uma consulta de catálogo abandonada custa menos que uma escrita, porque é idempotente e o fallback existe. O deadline da annotation cobre o chamador, mas **não** a conexão: como o `@Timeout` não cancela, a requisição abandonada persiste nos defaults do Vert.x 4.5.33 medidos nesta revisão — `connect-timeout` 60 s e `idleTimeout` 0, isto é, **sem prazo de leitura**. São até 60 s de conexão retida na fase de connect, ou indefinidamente na de read, por tentativa, ×3. A configuração não oferece uma segunda camada como no REST client, então esse custo é aceito como dívida conhecida, e não como ausência de risco.
+
+O casamento por tipo considera a cadeia de causas, não só a exceção de topo: é o modo
+não-compatível (`SpecCompatibility.inspectExceptionCauseChain`) que o habilita. Hoje isso não
+alarga nada, porque `GraphQLClientException` 2.18.5 só tem construtores `(String, GraphQLError)`
+e `(String, List<GraphQLError>)`, sem causa — e é
+`AvailabilityThroughInventoryChainTest.shouldNotDisguiseGraphqlErrorsAsInventoryUnavailable` que
+fixa essa invariante. Um bump do cliente que passe a encadear causa transformaria "erro de
+GraphQL" em 503 silenciosamente.
 
 ### 5. Política na annotation, valor operacional na config
 
@@ -124,9 +146,9 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 
 **Fallback da leitura devolvendo lista vazia.** Rejeitado: é degradação silenciosa que produz uma resposta de negócio falsa. Um "vehicle catalog degradado" é melhor que um catálogo errado — e por isso a resposta é 503, não 200.
 
-**Circuit breaker.** Adiado para o item 9. Faz sentido quando há taxa de erro observável e estado a compartilhar entre chamadas; aqui a política de timeout e retry já limita o estrago, e o breaker seria estado sem evidência.
+**Circuit breaker.** Adiado até o reservation-service expor `/q/metrics` com consumidor. Faz sentido quando há taxa de erro observável e estado a compartilhar entre chamadas; aqui a política de timeout e retry já limita o estrago, e o breaker seria estado sem evidência.
 
-**Bulkhead / limitador de concorrência.** Adiado para o item 9. Faz sentido para isolar Threads ou conexões sob carga, o que exige medição de concorrência entre as chamadas.
+**Bulkhead / limitador de concorrência.** Adiado até o reservation-service expor `/q/metrics` com consumidor. Faz sentido para isolar Threads ou conexões sob carga, o que exige medição de concorrência entre as chamadas.
 
 **Timeout manual com `Uni.ifNoItem().after(...)` no adapter.** Rejeitado como mecanismo único: duplicaria a política SmallRye em código e a tornaria menos auditável. O atrativo é que a versão Mutiny cancela de fato a subscription a montante — por isso o cancelamento foi medido e comparado, em vez de presumido.
 
@@ -148,8 +170,8 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 - O `users-service`, que consome `GET /reservations/availability`, ainda não trata 503: precisa passar a tratar resultado inconclusivo em item próprio, em vez de receber lista vazia com o sentido errado. Pior, o cliente dele é **bloqueante** (`ReservationsClient.availability` devolve `Collection<Car>`), sem prazo e sem política alguma — e com o retry de leitura novo, o caminho de falha passou a custar ~9 s em `%prod` (3 idas × 3 s) segurando thread do BFF. É dívida criada por esta ADR e visível agora.
 - 503 é uma resposta nova para quem consome `GET /reservations/availability`; clientes precisam tratá-la explicitamente.
 - A dívida de `CreateReservation` (reserva `PENDING` órfã quando a escrita falha) continua aberta e é visível agora, porque a falha deixa de ser engolida.
-- O erro de GraphQL sai como **500 sem corpo estável**: o `@ServerExceptionMapper` cobre só `InventoryUnavailable`, então esse caminho não tem contrato de corpo. Um mapper de erro inesperado é contrato novo (item 9). Hoje o mesmo recurso tem dois regimes de erro assimétricos — `/availability` tem 503 estável e `/reservations` tem 500 cru.
-- A assinatura do fallback `inventoryUnreachable(Throwable)` só resolve no modo não-compat, que esta ADR trata como default. Se alguém declarar `quarkus.fault-tolerance.compatibility-mode=mp`, ela deixa de casar e **nada falha**. O teste que exige a causa original preservada é também a prova desse modo.
+- O erro de GraphQL sai como **500 sem corpo estável**: o `@ServerExceptionMapper` cobre só `InventoryUnavailable`, então esse caminho não tem contrato de corpo. Um mapper de erro inesperado é contrato novo (roadmap.md, cap. 10). Hoje o mesmo recurso tem dois regimes de erro assimétricos — `/availability` tem 503 estável e `/reservations` tem 500 cru.
+- A assinatura do fallback `inventoryUnreachable(Throwable)` só resolve no modo não-compat, que esta ADR trata como default. A propriedade real é `quarkus.fault-tolerance.mp-compatibility` (booleana, default `false` no Quarkus) — não existe `compatibility-mode`. Se alguém declarar `mp-compatibility=true`, o fallback deixa de casar e o **build falha em augmentação** (`FaultToleranceDefinitionException`: "can't find fallback method … with matching parameter types and return type"), que é bem melhor do que degradar em silêncio. O teste que exige a causa original preservada é também a prova desse modo.
 - A taxonomia de `retryOn` vale para `quarkus-smallrye-graphql-client` **3.39.3 medido**: um bump de `quarkus.platform.version` pode trocar `InvalidResponseException` por outro tipo e transformar retry/fallback em letra morta, em silêncio, porque o teste injeta os tipos à mão. É a razão de `GraphQLInventoryClientFailureTest` existir como caracterização: rodá-lo a cada bump de plataforma.
 
 ## Evidência
@@ -160,7 +182,7 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 | `RentalRestGatewayFaultToleranceTest.shouldTimeOutWhenRentalServiceNeverResponds` | deadline da escrita vale (≥1,5 s, <3 s) e propaga `TimeoutException`, com uma única chamada |
 | `RentalRestGatewayFaultToleranceTest.shouldNotRetryRentalStartWhenItFails` | escrita não repete: exatamente uma chamada em falha |
 | `RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteCallInFlightWhenTheFaultToleranceDeadlineFires` | caracterização da biblioteca: o `@Timeout` avisa o chamador e **não** cancela a chamada a montante (é a premissa da segunda camada de prazo) |
-| `RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout` | guarda de configuração: prazo de transporte menor que o deadline de FT |
+| `RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout` | guarda de configuração: `connect-timeout` e `read-timeout` abaixo do deadline de FT (as duas chaves, não só uma) |
 | `RentalRestGatewayFaultToleranceTest.shouldStartTheRentalWhenTheServiceAnswersInTime` | caminho feliz não foi quebrado |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldReturnTheVehiclesWhenInventoryAnswersInTime` | resposta normal preservada |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenInventoryAnswersWithoutGraphqlEnvelope` | resposta HTTP sem envelope GraphQL é repetida e a leitura se recupera na 3ª tentativa |
@@ -183,4 +205,4 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 
 ## Estado da decisão
 
-**Accepted / implementada**, com evidência de teste unitário dos adapters, de caracterização do cliente real e de contrato da fronteira (inclusive a cadeia completa com o gateway em CDI). Faltam duas evidências, ambas do item 9: falha em integração real com o container fora do ar (que também provaria o abort da chamada em voo, hoje só guardado por configuração) e o tratamento do 503 pelo `users-service`.
+**Accepted / implementada**, com evidência de teste unitário dos adapters, de caracterização do cliente real e de contrato da fronteira (inclusive a cadeia completa com o gateway em CDI). Faltam duas evidências, ambas em aberto no roadmap do cap. 10: falha em integração real com o container fora do ar (que também provaria o abort da chamada em voo, hoje só guardado por configuração) e o tratamento do 503 pelo `users-service`.
