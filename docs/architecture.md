@@ -235,6 +235,7 @@ reservation-service/src/main/java/org/acme/reservation/
 ├── application/
 │   ├── usecase/
 │   ├── query/
+│   ├── exception/                    (falha de aplicação, ex.: InventoryUnavailable — decisão 17)
 │   └── port/out/
 └── adapter/
     ├── in/rest/

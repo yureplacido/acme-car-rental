@@ -4,6 +4,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
+import org.acme.reservation.adapter.in.rest.model.UnavailableResponse;
 import org.acme.reservation.application.exception.InventoryUnavailable;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
@@ -18,8 +19,9 @@ import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 public class InventoryUnavailableMapper {
 
     /**
-     * Pior caso da leitura: 3 tentativas de 2s + backoff. O 30s e uma promessa conservadora de
-     * "tente de novo depois", nao uma medicao.
+     * Pior caso da leitura: 3 idas com o deadline de leitura
+     * ({@code GraphQLInventoryGateway.READ_DEADLINE_MILLIS}) + backoff. O 30s e uma promessa
+     * conservadora de "tente de novo depois", nao uma medicao.
      */
     private static final int RETRY_AFTER_SECONDS = 30;
 
@@ -28,13 +30,10 @@ public class InventoryUnavailableMapper {
         return Response.status(Response.Status.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS)
                 .type(MediaType.APPLICATION_JSON_TYPE)
-                .entity(new Unavailable(
+                .entity(new UnavailableResponse(
                         "INVENTORY_UNAVAILABLE",
                         "vehicle inventory is temporarily unavailable",
                         RETRY_AFTER_SECONDS))
                 .build();
-    }
-
-    public record Unavailable(String code, String message, int retryAfterSeconds) {
     }
 }

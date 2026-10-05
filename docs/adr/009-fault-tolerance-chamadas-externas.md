@@ -66,14 +66,16 @@ fora das duas    = GraphQLClientException        inventory respondeu 200 com `er
 
 Duas consequências dessa medição:
 
-- O cliente entrega falha de I/O embrulhada em `CompletionException`, e as annotations casam pelo tipo. Por isso o gateway desembrulha a `CompletionException` antes de devolver a `Uni`: sem isso `IOException` nunca casaria e o retry seria letra morta de novo.
+- Falha de I/O chega crua, como `IOException`: o Mutiny remove o embrulho de `CompletionStage` antes de emitir a falha, então `retryOn` casa direto e o gateway não desembrulha nada. Isso só é verificável observando a falha **por assinatura** — `await().indefinitely()` re-empacota exceção checada em `CompletionException`, e medir por ele atribuiria ao cliente uma forma de falha do próprio teste. Foi exatamente esse erro que a primeira versão deste item cometeu.
 - Erro de GraphQL (`GraphQLClientException`) é **defeito do outro lado, não indisponibilidade**: não é repetido e não vira 503, sobe como erro inesperado. Falha de mapeamento fica fora das listas por omissão, pelo mesmo motivo — erro determinístico.
 
 Limite conhecido desta taxonomia: `InvalidResponseException` não distingue 5xx de 4xx, porque o cliente não expõe o status como tipo. Uma URL de catálogo errada (404) é repetida 3 vezes antes de virar 503. Aceitamos isso em vez de fazer parse da mensagem de exceção, que seria mais frágil ainda.
 
 O fallback **não devolve lista vazia**. Devolve o sinal `InventoryUnavailable` (`application/exception`), que é falha de aplicação, não valor de negócio. `FindAvailableVehiclesTest` fixa essa distinção: `[]` é um resultado legítimo; `InventoryUnavailable` é "não deu para saber".
 
-`InventoryUnavailable` é uma classe final de aplicação, sem anotações de fault tolerance: as anotações de política ficam no adapter, e a fronteira HTTP é quem decide o formato.
+`InventoryUnavailable` é uma classe final de aplicação, sem anotações de fault tolerance: as anotações de política ficam no adapter, e a fronteira HTTP é quem decide o formato. Para o caso de uso ela aparece só como `Uni` que falha — não existe camada de contrato intermediária.
+
+O método de fallback recebe a causa como parâmetro extra (`inventoryUnreachable(Throwable)`), extensão do SmallRye FT disponível no modo não-compatível, que é o default do Quarkus. A MP FT só garante a forma sem argumento; com a extensão, a causa original chega ao log do adapter de saída em vez de virar um `Throwable` genérico.
 
 ### 3. A fronteira HTTP responde 503 com contrato estável
 
@@ -158,7 +160,7 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 | `RentalRestGatewayFaultToleranceTest.shouldStartTheRentalWhenTheServiceAnswersInTime` | caminho feliz não foi quebrado |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldReturnTheVehiclesWhenInventoryAnswersInTime` | resposta normal preservada |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenInventoryAnswersWithoutGraphqlEnvelope` | resposta HTTP sem envelope GraphQL é repetida e a leitura se recupera na 3ª tentativa |
-| `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenTheConnectionToInventoryFails` | `CompletionException` desembrulhada: falha de conexão é mesmo repetida (prova que o `IOException` casa) |
+| `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenTheConnectionToInventoryFails` | `IOException` cru é repetida: é a forma que o cliente real emite |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldFailWithInventoryUnavailableWhenTheReadKeepsTimingOut` | deadline estourado esgota as 3 tentativas e vira `InventoryUnavailable`, com tempo dentro da janela esperada |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldFailWithInventoryUnavailableWhenInventoryKeepsAnsweringWithoutGraphqlEnvelope` | esgotamento por resposta sem envelope também sinaliza indisponibilidade, com a causa preservada |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldNotRetryWhenInventoryAnswersWithGraphqlErrors` | erro de GraphQL não é repetido nem convertido em indisponibilidade |

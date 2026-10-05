@@ -17,7 +17,6 @@ import org.jboss.logging.Logger;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.concurrent.CompletionException;
 
 /**
  * Politica de fault tolerance da leitura de disponibilidade (Cap.10 item 8).
@@ -31,8 +30,7 @@ import java.util.concurrent.CompletionException;
  * {@code GraphQLInventoryClientFailureTest}, nao deduzida da documentacao:
  * <ul>
  *   <li>deadline estourado -&gt; {@link TimeoutException};</li>
- *   <li>conexao recusada/resetada -&gt; {@link CompletionException} embrulhando {@link IOException}
- *       (o embrulho e desfeito aqui, porque a policy precisa ver a causa);</li>
+ *   <li>conexao recusada/resetada -&gt; {@link IOException};</li>
  *   <li>resposta HTTP sem envelope GraphQL -&gt; {@link InvalidResponseException}.</li>
  * </ul>
  *
@@ -70,19 +68,7 @@ public class GraphQLInventoryGateway implements InventoryGateway {
         return client.allCars()
                 .map(cars -> cars.stream()
                         .map(this::toAvailableVehicle)
-                        .toList())
-                .onFailure(CompletionException.class)
-                .recoverWithUni(failure -> Uni.createFrom().failure(unwrap(failure)));
-    }
-
-    /**
-     * O client entrega falha de I/O embrulhada em {@link CompletionException}, e as annotations
-     * casam pelo tipo. Devolver a causa e o que faz {@code retryOn}/{@code applyOn} valerem para
-     * {@link IOException}; sem isso a configuracao seria letra morta.
-     */
-    private static Throwable unwrap(Throwable failure) {
-        Throwable cause = failure.getCause();
-        return cause == null ? failure : cause;
+                        .toList());
     }
 
     /**

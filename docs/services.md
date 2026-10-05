@@ -130,15 +130,16 @@ Aqui mora a política de fault tolerance das duas chamadas síncronas de saída 
   medida contra o cliente real em `GraphQLInventoryClientFailureTest`) e fallback que sinaliza
   `InventoryUnavailable` em vez de devolver lista vazia. Erro de GraphQL (200 com `errors`) não
   é repetido nem convertido em indisponibilidade.
-- `adapter/in/rest/InventoryUnavailableMapper`: transforma o sinal em 503 com corpo estável e
-  `Retry-After`, sem vazar detalhe de infraestrutura.
+- `adapter/in/rest/InventoryUnavailableMapper`: transforma o sinal em 503 com corpo estável
+  (`adapter/in/rest/model/UnavailableResponse`) e `Retry-After`, sem vazar detalhe de
+  infraestrutura.
+- A política é **das annotations dos adapters**, não das portas nem dos casos de uso;
+  os prazos operacionais ficam em `application.properties`
+  (`quarkus.fault-tolerance."<classe>/<método>".*`), com `timeout.unit` sempre explícito.
 
 O `users-service` também tem chamada síncrona de saída (`ReservationsRestGateway` →
 `GET /reservations/availability`) e ainda **não** trata o 503: é dívida aberta, registrada na
 ADR 009.
-- A política é **das annotations dos adapters**, não das portas nem dos casos de uso;
-  os prazos operacionais ficam em `application.properties`
-  (`quarkus.fault-tolerance."<classe>/<método>".*`), com `timeout.unit` sempre explícito.
 
 ## rental-service
 

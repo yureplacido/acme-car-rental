@@ -8,7 +8,6 @@ import org.acme.reservation.domain.model.CustomerId;
 import org.acme.reservation.domain.model.RentalPeriod;
 import org.acme.reservation.domain.model.Reservation;
 import org.acme.reservation.domain.model.ReservationStatus;
-import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -124,10 +123,10 @@ class CreateReservationTest {
         when(repository.findByVehicle(any())).thenReturn(Uni.createFrom().item(List.of()));
         when(repository.save(any())).thenReturn(Uni.createFrom().item(persisted));
         when(rentalGateway.start("alice", 42L))
-                .thenReturn(Uni.createFrom().failure(new TimeoutException("rental deadline")));
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("rental is down")));
 
         org.junit.jupiter.api.Assertions.assertThrows(
-                TimeoutException.class,
+                RuntimeException.class,
                 () -> service.handle(new CreateReservation.Command(
                         "alice", 10L,
                         LocalDate.of(2035, 3, 20),

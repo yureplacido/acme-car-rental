@@ -51,6 +51,7 @@ org.acme.<context>/
 │   ├── query/
 │   ├── event/          (contratos anti-corrupção inbound + eventos de integração)
 │   ├── model/          (modelos da aplicação, ex.: OutboxEvent, views do BFF)
+│   ├── exception/      (falha de aplicação, ex.: InventoryUnavailable — decisão 17)
 │   └── port/out/
 └── adapter/
     ├── in/
