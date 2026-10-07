@@ -79,6 +79,43 @@ o formato Prometheus 0.0.4, pedido com `Accept: text/plain`, não tem exemplars)
 `name 1.0 # {span_id=...,trace_id=...} 1.0 <ts>`. Matchers de métrica devem usar `Pattern` +
 `find()` (primeiro número após o nome), nunca `matches()` de linha inteira.
 
+### Fault tolerance
+Cenário de falha de fronteira é `@QuarkusTest` com `@InjectMock` do **client externo**, e o
+comportamento é medido em tentativas — não em mensagem de log:
+
+- **Leitura com retry:** o mock conta chamadas e devolve falha transitória nas N primeiras;
+  a asserção é o número de tentativas e a recuperação (`GraphQLInventoryGatewayFaultToleranceTest`).
+- **Falha determinística:** erro de GraphQL (o inventory respondeu 200 com `errors`) não é
+  repetido nem convertido em indisponibilidade; a asserção é "uma tentativa só".
+- **Taxonomia medida, não presumida:** os tipos que a policy declara são os que o cliente real
+  lança (`GraphQLInventoryClientFailureTest`). A primeira versão declarava tipos JAX-RS que o
+  cliente GraphQL typesafe nunca lança — e o teste passava, provando que a policy não fazia nada.
+- **Fallback:** quando as tentativas acabam, a asserção é o **tipo de falha** que chega no
+  chamador (sinal de aplicação), e nunca uma lista vazia.
+- **Deadline:** o teste mede o tempo decorrido, com limites bilaterais (`>=` o prazo esperado e
+  `<` o teto) e `@Timeout` de classe. Isso não é vaidade: `timeout.value` sem `timeout.unit`
+  herda a unidade da annotation, então o mesmo número pode valer 300 ms ou 300 s, e uma chave de
+  config errada falha em silêncio. Medir o tempo transforma esse silêncio em asserção, e o
+  `@Timeout` de classe evita que o engano vire uma suíte de minutos.
+- **Prazo de transporte vs. deadline de FT:** o `@Timeout` do SmallRye FT em método que devolve
+  `Uni` não cancela a chamada a montante, então a escrita também tem prazo de transporte
+  (`quarkus.rest-client."<cliente>".read-timeout`) e um teste compara os dois
+  (`RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout`, uma
+  guarda de configuração — o abort em voo é provado por integração, no item 9).
+- **Taxonomia caracterizada antes da política:** quando a `@Retry`/`@Fallback` depende do tipo de
+  falha que o **cliente** lança, esse contrato se mede em JUnit puro com socket real
+  (`GraphQLInventoryClientFailureTest`), sem Quarkus — o que se mede é a biblioteca, não a CDI. E
+  a falha é observada **por assinatura**: `await().indefinitely()` re-empacota exceção checada em
+  `CompletionException`, e atribuir essa forma ao cliente faria a `@Retry` parecer aplicada sem
+  estar.
+- **Caracterização antes de política:** quando a política depende de uma propriedade do outro
+  serviço (aqui, "a escrita não é idempotente"), o teste que fixa essa propriedade fica no
+  serviço dono dela (`StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`).
+
+`@InjectMock` de um REST client MicroProfile exige o qualifier no campo
+(`@InjectMock @RestClient RentalClient client`): sem ele a resolução do bean falha, porque o
+bean registrado só carrega o qualifier `@RestClient`.
+
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
 
@@ -110,6 +147,6 @@ Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é pr
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
 ---
-_Last updated: 2026-09-28 (subseções "Observability" e "Tracing": teste de adapter de métrica em
-duas camadas; régua da série por nome+tag; propagação de contexto via `InMemorySpanExporter` e
-armadilha dos exemplars OTel)._
+_Last updated: 2026-10-05 (seção "Fault tolerance": cenário de falha medido em tentativas e em
+tempo, deadline medido porque a unidade da annotation difere da config, prazo de transporte
+abaixo do deadline de FT, `@InjectMock` de REST client com `@RestClient`)._

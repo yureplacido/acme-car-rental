@@ -235,6 +235,7 @@ reservation-service/src/main/java/org/acme/reservation/
 ├── application/
 │   ├── usecase/
 │   ├── query/
+│   ├── exception/                    (falha de aplicação, ex.: InventoryUnavailable — decisão 17)
 │   └── port/out/
 └── adapter/
     ├── in/rest/
@@ -501,6 +502,7 @@ Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; 
 | 14 | Agregador raiz **somente para testes** (`packaging=pom`, sem parent/dependencyManagement) | rodar todos os testes com `./mvnw test` sem acoplar os microserviços |
 | 15 | Métrica de negócio/pipeline por **porta da aplicação** → adapter Micrometer em `adapter/out/observability` | regra 9 do AGENTS.md (efeito observável ≠ regra de negócio) e precedente do inventory; a intenção fica na aplicação, o instrumento no adapter. **Exceção registrada (billing):** o gauge de backlog faz o adapter chamar `OutboxEventStore.countPending()` na direção oposta — billing-specific, documentada em `ddd-tdd-standards.md` §5-Observability |
 | 16 | Tracing ponta a ponta = **efeito de plataforma, sem porta**: `quarkus-opentelemetry` nos serviços com Kafka (billing/inventory) e propagação automática de contexto no header `traceparent` (guia Messaging, seção OpenTelemetry Tracing) | o discriminador entre decisão 15 e 16 é **quem inventa o sinal**: o caso de uso inventa a métrica de negócio (→ porta); o runtime já mede health/tracing (→ sem porta, mesma lógica do health do cap. 10 item 1). Criar porta seria desacoplar de nada. O contexto viaja no header, nunca no payload; o contrato do evento não muda. **Escopo atual:** o salto Kafka inventory→billing; os hops REST/GraphQL (users→reservation, reservation→inventory/rental) não são tracejados porque esses serviços não têm o extension. Evidência: `VehicleRegisteredTracePropagationIntegrationTest` + `BillingTracePropagationIntegrationTest` |
+| 17 | `application/exception` é o pacote de **falha de aplicação** (não de domínio) | regras de negócio que valem para qualquer adapter (`InventoryUnavailable`: "não deu para saber" não é `[]`) não pertencem nem ao domínio nem à infraestrutura. É mais preciso que `application/error` genérico: a palavra "exception" já diz que é sinal de falha, e o prefixo `application` diz de quem é a decisão. Nenhum tipo de domínio mora aqui; exceções do domínio continuam no seu agregado (`domain/**`) |
 
 ## Construção e testes
  
@@ -626,7 +628,9 @@ flowchart TD
  
 A aplicação só ganha complexidade quando um comportamento exigir essa complexidade.
 ---
-_Last updated: 2026-09-28 (diagramas sincronizados com o código; estilo Mermaid unificado; decisão 15 —
+_Last updated: 2026-10-05 (decisão 17 — `application/exception` para sinal de falha da aplicação,
+com o contrato HTTP no adapter inbound; item 8 do cap. 10 sincronizado com o código;
+diagramas sincronizados com o código; estilo Mermaid unificado; decisão 15 —
 métricas por porta da aplicação + adapter de observabilidade; decisão 16 — tracing ponta a ponta
 como efeito de plataforma com `quarkus-opentelemetry`; billing e inventory com `/q/metrics` e
 propagação de contexto no Kafka, cap. 10)._

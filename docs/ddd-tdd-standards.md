@@ -51,6 +51,7 @@ org.acme.<context>/
 │   ├── query/
 │   ├── event/          (contratos anti-corrupção inbound + eventos de integração)
 │   ├── model/          (modelos da aplicação, ex.: OutboxEvent, views do BFF)
+│   ├── exception/      (falha de aplicação, ex.: InventoryUnavailable — decisão 17)
 │   └── port/out/
 └── adapter/
     ├── in/
@@ -158,6 +159,14 @@ Application commands/queries should use domain concepts rather than transport DT
 
 `Uni`/`Multi` are allowed here only when asynchronous I/O or streaming is part of the actual use case.
 
+### Application failures
+
+An application failure — "this could not be determined, and that is the answer" — belongs in `application/exception`, as a final class carrying the cause. It is not a domain rule violation (those live in their aggregate, `domain/**`) and not an adapter detail (the adapter inbound decides the wire format).
+
+The discriminator is what the caller owes the client: a rule that can be refused is domain; a state that can be observed but not answered is an application exception. `InventoryUnavailable` is the reference: "availability unknown" must not be flattened into an empty list, and the difference between the two has to exist somewhere the use case can see it.
+
+Name the package for the responsibility (`exception`, not `error` or `util`): the name is what makes the decision reviewable.
+
 ### Query responsibility
 
 Filtering, sorting, pagination and application-level selection belong in application query use cases, not transport adapters, unless the logic is purely protocol syntax mapping.
@@ -201,6 +210,9 @@ public interface RentalGateway {
 ```
 
 HTTP client annotations, serialization types and provider-specific behavior stay in the outbound adapter.
+A política de fault tolerance (timeout, retry, fallback) também é fronteira técnica: mora nas
+annotations do adapter de saída, nunca na porta nem no caso de uso — é divergência entre serviços
+por idempotência, não um valor único para todos (ADR 009).
 
 ### Persistence
 
@@ -395,6 +407,9 @@ The special-purpose modules follow their own documented profile.
 
 ---
 _Last updated: 2026-09-28_
+
+Application failure section added with Cap. 10 item 8 (`InventoryUnavailable` in
+`application/exception`; architecture decision 17).
 
 Observability section added with Cap. 10 (metrics behind ports, completion-aware `@Scheduled`,
 no-silent-failure rule, and the recorded billing backlog-sampler exception).

@@ -152,6 +152,67 @@ Regras de evolução:
   payload e headers de diagnóstico preservados.
 - Pendente de pipeline (documentar quando houver): consumer/requeue da DLQ e schema registry.
 
+## Disponibilidade de veículos (HTTP, reservation-service) ✅
+
+`GET /reservations/availability?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD`
+
+Este endpoint ganhou um contrato de falha no cap. 10 item 8: quando o `inventory-service` está
+inacessível, a resposta é **503**, não 200 com lista vazia. Lista vazia significa "nenhum veículo
+disponível" e é um fato de negócio; quando a consulta não pode ser feita, o resultado é
+inconclusivo e o cliente precisa saber disso (decisão em
+[adr/009-fault-tolerance-chamadas-externas.md](adr/009-fault-tolerance-chamadas-externas.md)).
+Evidência: `AvailabilityUnavailableTest` (contrato a partir da porta) e
+`AvailabilityThroughInventoryChainTest` (cadeia com o gateway real em CDI); a taxonomia de falhas
+que dispara o 503 vem de `GraphQLInventoryClientFailureTest`.
+
+```text
+200  [ { "id", "licensePlateNumber", "manufacturer", "model" } ]
+503  {
+       "code": "INVENTORY_UNAVAILABLE",
+       "message": "vehicle inventory is temporarily unavailable",
+       "retryAfterSeconds": 30
+     }     + header Retry-After: 30
+```
+
+Regras para quem consome:
+
+- **200 com `[]`** continua sendo resultado válido e significa "não há veículo nesse período".
+- **503 significa "não deu para saber"**, não "não há veículo". O corpo é estável e não contém
+  detalhe de infraestrutura (host, porta, stack); o diagnóstico fica no log do serviço.
+- O header `Retry-After` informa quanto esperar antes de tentar de novo.
+- **503 cobre exatamente três causas**, todas medidas contra o cliente real
+  (`GraphQLInventoryClientFailureTest`): deadline estourado, conexão recusada/resetada e resposta
+  HTTP sem envelope GraphQL (o inventory reiniciando, um proxy no meio, uma URL errada).
+- Erro de GraphQL (o inventário respondeu 200 com `errors`) **não** é retry nem
+  indisponibilidade: é defeito do inventário, e o serviço responde com o erro correspondente, sem
+  mascarar como 503.
+- Como consequência da última mas uma: uma URL de catálogo errada (404) é tratada como
+  indisponibilidade e repetida antes do 503, porque o cliente não tipa o status HTTP.
+
+Evidência: `AvailabilityUnavailableTest` (3 cenários), `AvailabilityThroughInventoryChainTest`
+(3, incluindo o erro de GraphQL que **não** vira 503) e `GraphQLInventoryGatewayFaultToleranceTest` (6 cenários).
+
+## Criação de reserva (HTTP, reservation-service) — contrato de falha
+
+`POST /reservations` não tem mapper de falha: quando a escrita no `rental-service` estoura o
+prazo de 2 s ou a chamada é recusada, a resposta é **500**, e o `@Retry` está fora de propósito
+(a escrita não é idempotente — ver [adr/009](adr/009-fault-tolerance-chamadas-externas.md)).
+
+Consequências que o cliente precisa saber:
+
+- **500 aqui não significa "tente de novo"**: o `rental-service` pode ter criado a locação e a
+  reserva continua `PENDING`. Reenviar o pedido pode duplicar a locação.
+- A reserva fica visível como `PENDING` em `GET /reservations/all` — é a reconciliação pendente,
+  declarada na ADR 009. Um status dedicado para "a escrita depende de um serviço que não
+  respondeu" é contrato novo, e fica para item próprio.
+- O 503 de `InventoryUnavailable` é exclusivo da leitura de disponibilidade: ele significa
+  "catálogo inconclusivo" e nunca aparece na escrita.
+
+Evidência: `ReservationWriteFailureTest` (3 cenários, cadeia com o gateway de escrita real em CDI)
+e `CreateReservationTest.shouldLeaveTheReservationPendingWhenTheRentalStartFails`.
+
+---
+
 ## Novos contratos (futuro)
  
 - 🔜 **Eventos de cobrança (Reservation/Rental → Billing)**: `ReservationConfirmed`/`RentalCompleted`
@@ -173,4 +234,4 @@ Regras de evolução:
 _Atualize este arquivo sempre que um contrato nascer ou evoluir (veja [README.md](./README.md))._
 
 ---
-_Last updated: 2026-09-27_
+_Last updated: 2026-10-05 (contrato de disponibilidade do reservation: 503 com corpo estável e `Retry-After` quando o inventory está inacessível, em vez de 200 com lista vazia)._
