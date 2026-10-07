@@ -64,9 +64,20 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
         </dependency>
+        <!-- Cap.10 item 9 - o rental-service se publica no Consul como "rentals" via
+        adapter proprio (ConsulServiceRegistration): o auto-registro do Stork em 3.39.3
+        registra health-check-url relativo e deregistra apos o CDI fechado - ver
+        docs/knowledge/14-cloud-native-patterns.md secao 1.7. Nao ha discovery de saida
+        neste modulo, entao nenhuma extensao Stork e necessaria. -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Cap.10 item 9 - testcontainers sobe o Consul real usado pelo teste de registro. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

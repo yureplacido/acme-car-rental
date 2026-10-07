@@ -16,6 +16,10 @@ name: acme-car-rental
 # Kafka (cap.9) entra no perfil services/all: broker KRaft + kafka-init provê os
 # tópicos de messaging antes de inventory/billing iniciarem.
 #
+# Consul (cap.10, service discovery) entra no perfil services/all: users →
+# reservation (stork://) e reservation ↔ rental ("reservations"/"rentals" registrados
+# e deregistrados no boot/shutdown).
+#
 # Bancos pertencem a `services` E `databases`: --profile services sobe apps com
 # seus bancos (respeitando o depends_on); --profile databases sobe so os bancos.
 #
@@ -72,6 +76,9 @@ services:
       QUARKUS_PROFILE: docker
     ports:
       - "${USER_SERVICE_PORT:-8080}:${USER_SERVICE_PORT:-8080}"
+    depends_on:
+      consul:
+        condition: service_healthy
 
   reservation-service:
     profiles: ["services", "all"]
@@ -88,6 +95,8 @@ services:
     depends_on:
       reservation-postgres:
         condition: service_healthy
+      consul:
+        condition: service_healthy
 
   rental-service:
     profiles: ["services", "all"]
@@ -103,6 +112,8 @@ services:
       - "${RENTAL_PORT:-8082}:${RENTAL_PORT:-8082}"
     depends_on:
       rental-mongo:
+        condition: service_healthy
+      consul:
         condition: service_healthy
 
   inventory-service:
@@ -269,6 +280,27 @@ services:
             --create --if-not-exists --topic "$$t" --partitions 1 --replication-factor 1
         done
         echo "messaging topics provisioned"
+
+  # ---------------- service discovery ----------------
+
+  # Cap.10 item 9 - Consul (hashicorp/consul), single-node dev, serve de catalogo de
+  # service discovery. A UI fica em http://localhost:8500/ui. No %docker os servicos
+  # o resolvem pelo nome `consul` (quarkus.stork.<svc>.*.consul-host=consul); o
+  # reservation-service e o rental-service se registram ("reservations"/"rentals") e
+  # deregistram no shutdown, e o users-service resolve o reservation via stork://.
+  consul:
+    container_name: acme-consul
+    image: hashicorp/consul:1.20
+    restart: unless-stopped
+    profiles: ["services", "all"]
+    command: ["agent", "-dev", "-client=0.0.0.0"]
+    ports:
+      - "8500:8500"
+    healthcheck:
+      test: ["CMD-SHELL", "consul members | grep -q alive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # ---------------- identity ----------------
 

@@ -1,4 +1,4 @@
-package org.acme.reservation.adapter.out.registration;
+package org.acme.rental.adapter.out.registration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,21 +18,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Cap.10 item 9 - service discovery: o reservation-service se publica no Consul como
- * "reservations" no boot (mesmo nome que o users-service procura em stork://reservations)
- * e deregistra no shutdown, via adapter proprio (ConsulServiceRegistration) - o vicioso
- * auto-registro do Stork registra health-check-url relativo, critical desde o boot.
+ * Cap.10 item 9 - service discovery: o rental-service se publica no Consul como "rentals"
+ * no boot (mesmo nome que o reservation-service procura em stork://rentals) e deregistra
+ * no shutdown, via adapter proprio (ConsulServiceRegistration) - o vicioso auto-registro
+ * do Stork registra health-check-url relativo, critical desde o boot, e o dereg do rental
+ * explodia no shutdown com "No CDI container is available".
  *
- * O catalogo e consultado por HTTP (API do Consul). O RED desta correcao foi o registro
- * do Stork aparecendo "critical" no catalogo (URL relativa) e o dereg do rental
- * explodindo no shutdown; aqui o teste exige o oposto: check com Status "passing" (o
- * Consul alcanca o /q/health/live do JVM via host.docker.internal) e saida limpa do
- * catalogo apos o deregister.
+ * O catalogo e consultado por HTTP (API do Consul). Exige o oposto do defecto: check com
+ * Status "passing" (o Consul alcanca o /q/health/live do JVM via host.docker.internal) e
+ * saida limpa do catalogo apos o deregister.
  */
 @QuarkusTest
 @TestProfile(ConsulRegistrationProfile.class)
 @QuarkusTestResource(value = ConsulRegistrationTestResource.class, restrictToAnnotatedClass = true)
-class ReservationRegistersInConsulTest {
+class RentalRegistersInConsulTest {
 
     @Inject
     Config config;
@@ -46,7 +45,7 @@ class ReservationRegistersInConsulTest {
 
         JsonNode instances = awaitEntriesMatching(catalog(), node -> node.size() == 1, "registrar-se no Consul");
         JsonNode service = instances.get(0).get("Service");
-        assertEquals("reservations", service.get("Service").asText());
+        assertEquals("rentals", service.get("Service").asText());
         assertEquals(appPort, service.get("Port").asInt(), "a porta registrada e o listener HTTP real do JVM");
         assertEquals("host.docker.internal", service.get("Address").asText());
 
@@ -57,15 +56,6 @@ class ReservationRegistersInConsulTest {
 
         registration.deregister();
         awaitCondition("sair do catalogo apos o deregister", this::catalogIsEmpty);
-    }
-
-    private boolean catalogIsEmpty() {
-        try {
-            HttpResponse<String> response = get(catalog());
-            return response.statusCode() == 200 && new ObjectMapper().readTree(response.body()).isEmpty();
-        } catch (Exception e) {
-            return false;
-        }
     }
 
     private JsonNode awaitEntriesMatching(URI uri, java.util.function.Predicate<JsonNode> matcher, String what)
@@ -79,7 +69,7 @@ class ReservationRegistersInConsulTest {
             }
             Thread.sleep(500);
         }
-        throw new AssertionError("reservation-service nao conseguiu " + what + " em 30s: " + last);
+        throw new AssertionError("rental-service nao conseguiu " + what + " em 30s: " + last);
     }
 
     private void awaitCondition(String what, java.util.function.BooleanSupplier condition) throws Exception {
@@ -90,7 +80,16 @@ class ReservationRegistersInConsulTest {
             }
             Thread.sleep(500);
         }
-        throw new AssertionError("reservation-service nao conseguiu " + what + " em 15s");
+        throw new AssertionError("rental-service nao conseguiu " + what + " em 15s");
+    }
+
+    private boolean catalogIsEmpty() {
+        try {
+            HttpResponse<String> response = get(catalog());
+            return response.statusCode() == 200 && new ObjectMapper().readTree(response.body()).isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private HttpResponse<String> get(URI uri) throws Exception {
@@ -100,7 +99,7 @@ class ReservationRegistersInConsulTest {
     }
 
     private URI catalog() {
-        return URI.create("http://" + consulHost() + ":" + consulPort() + "/v1/health/service/reservations");
+        return URI.create("http://" + consulHost() + ":" + consulPort() + "/v1/health/service/rentals");
     }
 
     private URI passingCatalog() {

@@ -80,14 +80,17 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
         </dependency>
-        <!-- Cap.10 item 9 - discovery de saida (Stork) e registro automatico no Consul. -->
+        <!-- Cap.10 item 9 - discovery de saida (Stork) para o rental; o proprio registro no
+        Consul e por adapter proprio (ConsulServiceRegistration), porque o auto-registro
+        do Stork em 3.39.3 registra health-check-url relativo e deregistra apos o CDI
+        fechado - ver docs/knowledge/14-cloud-native-patterns.md secao 1.7. -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-stork</artifactId>
         </dependency>
         <dependency>
             <groupId>io.smallrye.stork</groupId>
-            <artifactId>stork-service-registration-consul</artifactId>
+            <artifactId>stork-service-discovery-consul</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

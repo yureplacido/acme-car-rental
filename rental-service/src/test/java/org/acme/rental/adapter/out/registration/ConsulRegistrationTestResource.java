@@ -1,4 +1,4 @@
-package org.acme.reservation.adapter.out.registration;
+package org.acme.rental.adapter.out.registration;
 
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import org.testcontainers.containers.GenericContainer;
@@ -10,7 +10,7 @@ import java.util.Map;
  *
  * O consulo ganha o alias host.docker.internal (host-gateway) para conseguir alcancar
  * o /q/health/live do proprio JVM do teste e o check sair "passing"; a assercao de
- * registro vive em {@link ReservationRegistersInConsulTest} e consulta este Consul.
+ * registro vive em {@link RentalRegistersInConsulTest} e consulta este Consul.
  */
 public class ConsulRegistrationTestResource implements QuarkusTestResourceLifecycleManager {
 

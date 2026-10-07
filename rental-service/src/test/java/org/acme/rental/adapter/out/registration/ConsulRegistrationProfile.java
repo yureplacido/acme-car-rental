@@ -1,4 +1,4 @@
-package org.acme.reservation.adapter.out.registration;
+package org.acme.rental.adapter.out.registration;
 
 import io.quarkus.test.junit.QuarkusTestProfile;
 
@@ -22,6 +22,6 @@ public class ConsulRegistrationProfile implements QuarkusTestProfile {
         return Map.of(
                 "acme.consul.registration.enabled", "true",
                 "acme.consul.registration.address", "host.docker.internal",
-                "quarkus.http.test-port", "18081");
+                "quarkus.http.test-port", "18082");
     }
 }
