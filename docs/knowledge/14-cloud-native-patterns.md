@@ -3,9 +3,10 @@
 > Capítulo 10 do *Quarkus in Action* (p. 273–302 no impresso; PDF p. 299–329).
 > Norma do projeto: [ddd-tdd-standards.md](../ddd-tdd-standards.md) §9 (regras de negócio em
 > agregados, não em adapters) e AGENTS.md regra 16 (API verificada contra Quarkus 3.39.3).
-> Última atualização: 2026-10-05 (itens health 1–5, métricas do pipeline/relay — item 6 —,
-> tracing ponta a ponta — item 7 — e fault tolerance nas chamadas externas — item 8 —
-> concluídos; service discovery, configuração cloud-native e graceful shutdown ainda pendentes).
+> Última atualização: 2026-10-07 (itens health 1–5, métricas do pipeline/relay — item 6 —,
+> tracing ponta a ponta — item 7, fault tolerance nas chamadas externas — item 8 — e service
+> discovery (Stork/Consul) — item 9 — concluídos; configuração cloud-native e graceful shutdown
+> ainda pendentes).
 
 ---
 
@@ -83,9 +84,22 @@
   fronteira técnica. O retry só entra onde a operação é idempotente, e o fallback **sinaliza**
   em vez de devolver valor falso. Detalhes e alternativas em
   [adr/009](../adr/009-fault-tolerance-chamadas-externas.md); resumo abaixo.
-- **Quando usar / quando não usar:** service discovery e graceful shutdown — ver
-  [roadmap.md](../roadmap.md) cap. 10 — os três itens em aberto (service discovery, configuração
-  cloud-native e graceful shutdown) ainda **não concluídos**.
+- **Service discovery (implementado, item 9):** Stork + Consul para as saídas REST Client
+  (`users→reservation` como `stork://reservations`, `reservation→rental` como `stork://rentals`).
+  O lado da **publicação** é um adapter próprio de registro
+  (`adapter/out/registration/ConsulServiceRegistration`, em `reservation-service` e
+  `rental-service`): publica `reservations`/`rentals` no boot com health check HTTP de URL
+  absoluta e deregistra no shutdown — o auto-registro do Stork tem dois defectos na 3.39.3
+  (ver "Armadilhas medidas"), então **o registro é assumido pelo serviço e só a descoberta
+  é Stork**. Decisão em [adr/010](../adr/010-service-discovery.md). Configuração essencial em
+  [services.md](../services.md) (notas dos respectivos serviços) e detalhes em "Armadilhas medidas
+  neste projeto".
+- **Quando usar / quando não usar:** o Stork integra **REST Client e gRPC** — o cliente GraphQL
+  (SmallRye GraphQL Client) **não** participa, e a saída `reservation→inventory` segue com URL
+  externalizada (`INVENTORY_SERVICE_URL`), **divergência documentada**. O livro (*Quarkus in
+  Action* 10.6, p. 301–302) não implementa o Stork: para produção aponta o **service discovery
+  da plataforma (Kubernetes/OpenShift)**. Para configuração cloud-native e graceful shutdown —
+  ver [roadmap.md](../roadmap.md) cap. 10 — itens ainda **não concluídos**.
 - **Armadilhas medidas neste projeto:**
   - **`@Timeout` do SmallRye FT em método que devolve `Uni` não cancela a subscription a
     montante.** Emite `TimeoutException` para o chamador e deixa a chamada em voo. Caracterizado
@@ -101,6 +115,46 @@
   - **`@InjectMock` de um REST client exige o qualifier `@RestClient` no campo**
     (`@InjectMock @RestClient RentalClient client`); sem ele a resolução do bean falha, porque
     o bean registrado só tem o qualifier `@RestClient`.
+  - **Stork exige o provider no classpath no build-time.** Configurar
+    `quarkus.stork.<svc>.service-discovery.type=consul` sem o artefato
+    `stork-service-discovery-consul` quebra o boot com "config property ... is required" —
+    um dos RED do item 9. O artefato está no BOM do Quarkus (versão SmallRye Stork gerenciada).
+  - **Consul no classpath exige esse Jackson.** `SmallRyeStorkProcessor.
+    checkThatJacksonExtensionIsUsedWhenConsulIsOnTheClasspath` derruba a augmentação quando há
+    provider Consul do Stork e **não** há `quarkus-jackson`. Nos consumidores cai de passagem pelo
+    REST Client (`quarkus-rest-client-jackson` → `quarkus-jackson`); um módulo Stork-Consul sem
+    REST Client precisa acrescentar `quarkus-jackson` explicitamente.
+  - **As chaves do provider Consul entram direto no prefixo do serviço**, sem sub-bloco
+    `params`: `quarkus.stork.<svc>.service-discovery.type=consul` + `.consul-host`/`.consul-port`
+    (+ `.use-health-checks=true` default, `.refresh-period` em segundos). O provedor filtra o
+    catálogo por `?passing=true` quando o use-health-checks está ligado, então o registro do
+    serviço de destino **precisa ter check HTTP que o Consul consiga executar** — foi o defeito
+    que a primeira implementação tinha (abaixo). **Consul agent `-dev` não conserta checks de
+    instâncias que morrem sem deregistrar**; aqui os serviços deregistram no shutdown e, nos
+    testes, o próximo registro do mesmo ID sobrescreve.
+  - **O auto-registro do Stork em 3.39.3 é defeituoso; o registro é adapter próprio.** (1) O
+    recorder `StorkRegistrarConfigRecorder`/`StorkConfigUtil.addRegistrarTypeIfAbsent` injeta
+    `health-check-url` **relativa** (`q/health/live`, derivada dos defaults do SmallRye Health),
+    que o Consul marca como **critical desde o boot** e que o `DeregisterCriticalServiceAfter`
+    default (1m) remove do catálogo — discovery com `passing=true` volta 0 em `%prod`/`%docker`
+    e o usuário não tem override possível (o `put` sobrescreve). (2) O deregister roda como
+    última shutdown task, **depois do CDI fechado**, e explode com "No CDI container is
+    available" quando o classpath tem narayana-jta (caso que o rental tinha). Por isso
+    `ConsulServiceRegistration` (adapter em cada serviço que se publica) registra via API do
+    Consul com URL absoluta `http://<address>:<port>/q/health/live` e deregistra no
+    `@PreDestroy` (garantido pelo container). Os testes negam os dois sintomas: check
+    **passing** (o Consul alcança o `/q/health/live` do JVM via host-gateway) e saída limpa do
+    catálogo após o deregister.
+  - **REST Client com `@AccessToken` aborta 401 sem request autenticado.** O
+    `AccessTokenRequestReactiveFilter` sintetiza 401 quando o token propagado é nulo
+    ("Injected access token is null, aborting the request with HTTP 401 error"), e o
+    `OidcTokenCredentialProducer` é request-scoped (roda no event-loop, sem request context no
+    teste). Por isso a prova do BFF fica no nível do **Stork**; o caminho completo
+    REST Client→Stork→Consul é provado onde não há token (`RentalServiceDiscoveryTest`).
+  - **`@AccessToken` só faz sentido quando a saída ecoa o token do chamador.** O BFF
+    (users→reservation) propaga o token OIDC do usuário da sessão. Já o salto **interno**
+    reservation→rental **não** propaga (cliente sem `@AccessToken`): reencaminhar token do
+    próprio serviço (de serviço a serviço) raramente é o pretendido.
 
 ---
 
@@ -604,12 +658,21 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ## 9. Checklist de fecho (parcial — capítulo em progresso)
 
-- [x] roadmap.md com status e evidência executável dos itens 1–8
-- [ ] service discovery, configuração cloud-native e graceful shutdown ainda pendentes — 🔜
+- [x] roadmap.md com status e evidência executável dos itens 1–9
+- [x] service discovery (Stork/Consul) — item 9 — : Stork somente nas saídas REST Client; a
+      **publicação** é por adapter próprio (`acme.consul.registration.*` +
+      `ConsulServiceRegistration` com health check absoluto e dereg no shutdown), a **resolução**
+      é `stork://<nome>`, e instâncias deregistram no shutdown. A saída GraphQL (inventory) não é
+      coberta pelo Stork e vira **divergência documentada**. Configuração cloud-native e graceful
+      shutdown ainda pendentes — 🔜
 - [x] suíte do billing verde (62 testes)
 - [x] suíte do inventory verde (45 testes)
-- [x] suíte do reservation verde (42 testes) depois do item 8
+- [x] suíte do reservation verde (45 testes) depois do item 9 (registro no boot com check
+      passing e dereg no shutdown + teste de Consul inalcançável não derrubar o boot; antes do
+      item 9: 42 após o item 8)
 - [x] ADR do item 8 registrada (`adr/009-fault-tolerance-chamadas-externas.md`)
+- [x] ADR 010 do item 9 registrada (`adr/010-service-discovery.md`): descoberta Stork + publicação
+      por adapter próprio, com os dois defectos do auto-registro Stork 3.39.3 documentados
 - [x] guardiões do item 8 — DDD, TDD e arquitetura rodaram; achados corrigidos
 
 ---
@@ -640,4 +703,4 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ---
 
-_Última atualização: 2026-10-05 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 — e fault tolerance nas chamadas externas do reservation — item 8 — concluídos; snippets alinhados ao código real; service discovery, configuração cloud-native e graceful shutdown ainda pendentes)._
+_Última atualização: 2026-10-07 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 —, fault tolerance nas chamadas externas do reservation — item 8 — e service discovery via Stork/Consul — item 9 — concluídos; snippets e seção 1.7 alinhados ao código real; configuração cloud-native e graceful shutdown ainda pendentes)._

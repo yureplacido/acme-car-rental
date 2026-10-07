@@ -244,6 +244,7 @@ reservation-service/src/main/java/org/acme/reservation/
     └── out/
         ├── inventory/                 (GraphQLInventoryGateway)
         ├── rental/                    (RentalRestGateway)
+        ├── registration/              (ConsulServiceRegistration — cap.10 item 9)
         └── persistence/
 ~~~
 
@@ -257,7 +258,9 @@ rental-service/src/main/java/org/acme/rental/
 │   └── port/out/
 └── adapter/
     ├── in/rest/
-    └── out/persistence/
+    └── out/
+        ├── persistence/
+        └── registration/              (ConsulServiceRegistration — cap.10 item 9)
 ~~~
 
 ## Billing — estrutura inicial

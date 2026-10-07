@@ -17,6 +17,7 @@ As ADRs também são material de estudo: devem explicar **por que** uma decisão
 | 7 | [ADR 007 — Inbox transacional com o efeito de negócio](./007-transactional-inbox.md) | claim + efeito na mesma transação | Accepted / implementada |
 | 8 | [ADR 008 — Transactional outbox (versão final)](./008-transactional-outbox.md) | outbox transacional, substitui a ADR 004 | Accepted / implementada |
 | 9 | [ADR 009 — Fault tolerance nas chamadas externas](./009-fault-tolerance-chamadas-externas.md) | timeout, retry seletivo e fallback que sinaliza indisponibilidade | Accepted / implementada |
+| 10 | [ADR 010 — Service discovery](./010-service-discovery.md) | descoberta Stork + Consul e publicação por adapter próprio (item 9) | Accepted / implementada |
 
 ### Fundamentos que antecedem essas decisões
 
@@ -54,4 +55,4 @@ Uma ADR deve ser criada quando houver uma decisão arquitetural que altere respo
 
 > A ordem acima é um roteiro de estudo. Uma ADR futura só deve ser marcada como implementada quando existir evidência executável no código e nos testes.
 ---
-_Last updated: 2026-10-05 (ADR 009 do cap. 10 item 8 registrada)_
+_Last updated: 2026-10-07 (ADR 010 do cap. 10 item 9 — service discovery — registrada)_

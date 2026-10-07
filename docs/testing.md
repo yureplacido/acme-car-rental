@@ -101,7 +101,9 @@ comportamento é medido em tentativas — não em mensagem de log:
   `Uni` não cancela a chamada a montante, então a escrita também tem prazo de transporte
   (`quarkus.rest-client."<cliente>".read-timeout`) e um teste compara os dois
   (`RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout`, uma
-  guarda de configuração — o abort em voo é provado por integração, no item 9).
+  guarda de configuração — o abort em voo não é provado por aqui e permanece como dívida
+  aberta (roadmap/knowledge: o `read-timeout` é inatividade com rearmamento, e a prova do
+  cancelamento exige integração real).
 - **Taxonomia caracterizada antes da política:** quando a `@Retry`/`@Fallback` depende do tipo de
   falha que o **cliente** lança, esse contrato se mede em JUnit puro com socket real
   (`GraphQLInventoryClientFailureTest`), sem Quarkus — o que se mede é a biblioteca, não a CDI. E
@@ -113,8 +115,61 @@ comportamento é medido em tentativas — não em mensagem de log:
   serviço dono dela (`StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`).
 
 `@InjectMock` de um REST client MicroProfile exige o qualifier no campo
-(`@InjectMock @RestClient RentalClient client`): sem ele a resolução do bean falha, porque o
-bean registrado só carrega o qualifier `@RestClient`.
+(`@InjectMock @RestClient RentalClient client`): sem ele a resolução do bean falha, porque
+o bean registrado só carrega o qualifier `@RestClient`.
+
+### Service discovery (Stork + Consul)
+
+Estratégia adotada no cap. 10 item 9 (evidência da fronteira, com **Consul real de
+testcontainers** — sem mock) e padrões que valem para quem vier a tocar nesse assunto:
+
+- **Prova completa onde dá, resolução pura onde não dá.** O caminho inteiro
+  REST Client→Stork→Consul→instância é provado no `reservation-service`
+  (`RentalServiceDiscoveryTest`): o `RentalClient` não tem `@AccessToken`, então a chamada
+  sai mesmo sem request autenticado. No `users-service` isso é impossível: o `ReservationsClient`
+  carrega `@AccessToken`, e o filtro de propagação **aborta com 401** fora de request
+  autenticado (`AccessTokenRequestReactiveFilter` sintetiza o 401 quando o token é nulo; o
+  producer é request-scoped, roda no event loop, e nem `Arc.requestContext().activate()` no
+  thread do JUnit resolve). A prova do BFF fica no nível do **Stork**
+  (`Stork.getInstance().getService(...).getInstances().await().indefinitely()`) + requisição
+  direta ao endereço resolvido - registrado na javadoc do teste. Não tentar "empurrar" o
+  BFF para o cliente OIDC: é comportamento do framework, não da fronteira dele.
+- **Registro de serviço se testa no boot, com perfil dedicado e assert de "passing".** O
+  registro é síncrono no boot (adapter próprio em `adapter/out/registration`, `@Observes
+  StartupEvent`/`@PreDestroy`); o `application.properties` desliga em `%test` e o teste
+  religa via `QuarkusTestProfile` setando `enabled=true`. Asserções sobre o catálogo: 1
+  instância, `Service.Service`/`Port`/`Address` certos e, principalmente, o health check
+  com **Status passing** (query `?passing=true`) - presença de `Checks` não basta (ver o
+  RED abaixo). Para o Consul alcançar o `/q/health/live` do JVM, o container de teste sobe
+  com `withExtraHost("host.docker.internal", "host-gateway")` e o profile aponta o endereço
+  registrado para `host.docker.internal`.
+- **Porta registrada = listener real.** Com `%test...test-port=0` (aleatória) o valor em
+  config continua `0` na hora do `StartupEvent` - e o Consul **omite `Port` do catálogo**
+  (omitempty), fazendo o teste estourar NPE. Nos testes de registro a porta é fixa por
+  perfil (`quarkus.http.test-port=18081`/`18082`, uma por módulo) e o DEFAULT do registrar
+  (a porta HTTP de config) produz a mesma; não inventar porta "só para o catálogo" — senão
+  nada escuta nela e o check nunca passa.
+- **Poll com deadline, nunca sleep fixo.** Registro acontece no boot e o check leva um
+  intervalo (5s) para virar passing; os testes pollam o catálogo com deadline (30s) e
+  re-assertam. Os test resources registram/são síncronos (PUT 200) e não precisam retry.
+- **RED real do item 9 (regra 17).** Dois defectos do auto-registro do **Stork** na 3.39.3:
+  o recorder injeta `health-check-url` **relativa** (o Consul marca critical desde o boot e
+  remove do catálogo após o `DeregisterCriticalServiceAfter` default de 1m, então discovery
+  com `passing=true` volta 0) e o deregister roda como última shutdown task, **depois do CDI
+  fechado**, explodindo com "No CDI container is available" quando o classpath tem
+  narayana-jta (caso do rental). Foi o que motivou o adapter próprio
+  (`ConsulServiceRegistration`), e os testes atuais negam os dois sintomas (passing + saida
+  limpa do catálogo).
+- **Sem Dev Service para o Consul, e "Consul fora" tem evidência própria.** `%dev`/prod sem
+  Consul em `localhost:8500` não derruba o boot: o registro falha, loga ERROR e o serviço
+  continua no ar **mas não é descoberto** (a discovery só aponta em ambientes com Consul).
+  Esse contrato é provado por `ConsulRegistrationFailureTest` (em `reservation-service` e
+  `rental-service`): perfil aponta para um Consul inalcançável (porta 1), o boot segue, e
+  `register()` contém a falha sem estourar. Para "não travar" valer de verdade, as chamadas
+  HTTP do adapter têm prazos curtos (connect e request de 5 s), e o deregister trata **404
+  como sucesso** (duplo deregister é idempotente — o Consul responde 404 para id já ausente,
+  não 200). Em dev use o compose (`--profile services` sobe o Consul) ou rode o Consul do
+  catálogo.
 
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
@@ -147,6 +202,7 @@ Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é pr
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
 ---
-_Last updated: 2026-10-05 (seção "Fault tolerance": cenário de falha medido em tentativas e em
-tempo, deadline medido porque a unidade da annotation difere da config, prazo de transporte
-abaixo do deadline de FT, `@InjectMock` de REST client com `@RestClient`)._
+_Last updated: 2026-10-07 (seção "Service discovery (Stork + Consul)": fronteira real com Consul
+de testcontainers, registro com assert de "passing" e dereg limpando o catálogo, porta fixa por
+módulo pelo omitempty do Consul, RED documentado dos dois defectos do auto-registro do Stork 3.39.3
+e teste do Contrato "Consul fora não derruba o boot")._

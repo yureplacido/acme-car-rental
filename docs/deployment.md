@@ -1,6 +1,7 @@
 # Deploy / Ambiente
 
-> **Última atualização:** 2026-09-27 (cap.9 - listeners do broker, tópicos e fluxo dev) ·
+> **Última atualização:** 2026-10-07 (cap.10 item 9 — service discovery Stork/Consul: serviço
+> `consul` no compose, `%docker` apontando para o host `consul`) ·
 > **Fonte da verdade:** o código.
 
 Três modos de execução:
@@ -25,7 +26,9 @@ Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-servic
 (cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft `apache/kafka:3.9.1`, **dois
 listeners**: `INTERNAL` e `EXTERNAL` — ver [Kafka](#kafka-cap9)) e **`kafka-init`**
 (provisiona os tópicos antes de `inventory-service`/`billing-service` via
-`depends_on: service_completed_successfully`; `KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`).
+`depends_on: service_completed_successfully`; `KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`) +
+**Catálogo do cap.10 item 9: `consul`** (`hashicorp/consul:1.20`, `agent -dev
+-client=0.0.0.0`, porta **8500**, healthcheck e `profiles [services, all]`).
 Os serviços de messaging usam o perfil `QUARKUS_PROFILE=docker` com
 `%docker.kafka.bootstrap.servers=kafka:29092`.
 
@@ -39,19 +42,25 @@ Cada serviço pertence ao seu grupo **e** ao perfil `all`. Definido em `others/.
 | Perfil | Serviços | Comando |
 |---|---|---|
 | `infra` | traefik + swagger | `docker compose up -d` |
-| `services` | 5 aplicações + seus 3 bancos | `docker compose up -d --profile services` |
+| `services` | 5 aplicações + seus 3 bancos + mensageria (kafka/kafka-init) + `consul` | `docker compose up -d --profile services` |
 | `databases` | só os 3 bancos dos serviços | `docker compose up -d --profile databases` |
 | `identity` | keycloak + postgres | `docker compose up -d --profile identity` |
 | `all` | tudo | `docker compose up -d --profile all` |
 
 - Cada serviço recebe `QUARKUS_PROFILE=docker`, ativando os overrides `%docker.` no
-  `application.properties` (ex.: reservation aponta para `http://rental-service:8082`
-  e `http://inventory-service:8083/graphql` — **nomes de container**, não `localhost`).
+  `application.properties`. Desde o item 9 (service discovery), o reservation resolve o
+  rental por **`stork://rentals`** (Stork consulta o **Consul** — `%docker.quarkus.stork.rentals.
+  service-discovery.consul-host=consul`), e rental/reservation se publicam no Consul com
+  check HTTP apontando para o **host `consul`** (`%docker.acme.consul.registration.consul-host`).
+  A saída GraphQL do reservation para o inventory segue **URL externalizada**
+  (`INVENTORY_SERVICE_URL` → `http://inventory-service:8083/graphql`) — nomes de container,
+  não `localhost`.
 - `extra_hosts: host.docker.internal:host-gateway` permite o **Traefik** alcançar
   serviços que rodam no host (dev sem Docker) — por isso dá para subir **só o agregador**
   no compose e as aplicações no **IntelliJ** (dev mode), desde que as portas batam com o `others/.env`.
 - Bancos têm `healthcheck`; aplicações usam `depends_on: condition: service_healthy`.
-- Portas publicadas via env do `others/.env`.
+- Portas publicadas via env do `others/.env` — exceto o **`consul`**, que expõe `8500:8500`
+  fixo no compose (o provider Stork e os adapters de registro defaultam para `localhost:8500`).
 
 **Subir tudo:**
 
@@ -324,7 +333,12 @@ cada serviço expõe o documento no próprio prefixo do gateway (`others/swagger
 | `COMPOSE_PROFILES` | `infra` | Perfil ativo por padrão no `docker compose up` |
 
 Serviços também leem os mesmos `${NOME}` nos `application.properties` (overrides i.e.
-`RENTAL_SERVICE_URL`, `INVENTORY_SERVICE_URL`).
+`INVENTORY_SERVICE_URL`). As URIs de saída REST **usuários→reservation e reservation→rental não
+são mais externalizadas por env** desde o cap. 10 item 9 (service discovery): o destino vira
+`stork://reservations` e `stork://rentals`, resolvido no **Consul** (`others/docker-compose.yml`,
+serviço `consul`, porta `8500`, hostname `consul` na rede do compose para o `%docker`); foram
+aposentadas `RESERVATIONS_SERVICE_URL` e `RENTAL_SERVICE_URL`. O `inventory` (GraphQL) segue com
+`INVENTORY_SERVICE_URL` — divergência documentada do item 9.
 
 ## Build das imagens
 
