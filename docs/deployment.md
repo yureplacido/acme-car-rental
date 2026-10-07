@@ -201,6 +201,41 @@ dev mode registra beans que não existem mais no código (ex.: um consumer `@Inc
 cria tópico com o nome do canal). Foi esse resíduo que gerou o `UNKNOWN_TOPIC_OR_PARTITION`
 de `vehicle-registered-in` no `inventory-service` depois do cap.9.
 
+## Observabilidade (cap.10)
+
+### Traces em dev: Dev Service LGTM
+
+Com `quarkus-opentelemetry` no pom, o Quarkus 3.39.3 sobe automaticamente em dev o **LGTM Dev
+Service** (Grafana + Tempo), sem Docker manual:
+
+| Aspecto | Valor |
+|---|---|
+| Habilitado | automático com o extension (no `%test` fica desligado) |
+| Compartilhado | `shared` entre serviços (mesma instância LGTM vê inventory e billing) |
+| Portas | **aleatórias** (sem porta fixa declarada; `%dev.quarkus.observability.lgtm.grafana-port` é opcional) |
+| URL | aparece no log de dev (`Quarkus Dev Services` → Grafana/Tempo) |
+
+> A LGTM usa porta aleatória porque os Dev Services de observabilidade não entram na regra
+> de "porta fixa de dev" (tabela acima): ela não é dependência de dados consultada por
+> ferramentas como o DBeaver. Se um dia a URL precisar ser previsível, fixe
+> `%dev.quarkus.observability.lgtm.grafana-port` no serviço — como os outros Dev Services.
+
+### Exporter OTLP em prod/docker
+
+O compose **não tem collector OTLP** (Tempo/Jaeger). Para não logar falhas de export contínuas
+no modo container/jar, o exporter OTLP fica **desligado** em `%prod` e `%docker` nos serviços
+com o extension:
+
+```properties
+%prod.quarkus.otel.exporter.otlp.enabled=false
+%docker.quarkus.otel.exporter.otlp.enabled=false
+```
+
+Quando existir coletor (ex.: Otel Collector + Tempo no compose), definir
+`quarkus.otel.exporter.otlp.endpoint` e remover os desligues. A propagação de contexto no
+Kafka (header `traceparent`) independe do exporter: ela acontece sempre que o extension está
+presente.
+
 ## Keycloak + PostgreSQL (produção — cap.6.4)
 
 Serviços `keycloak` (quay.io/keycloak/keycloak:25.0.6) e `postgres` (postgres:14) sob o

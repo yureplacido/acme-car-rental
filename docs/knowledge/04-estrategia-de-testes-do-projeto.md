@@ -256,9 +256,9 @@ O teste precisa de CDI, HTTP, banco ou broker?
 | Domain (8) | `InvoiceTest`, `InvoiceLineTest`, `VehicleTest`, `VehicleDailyRateTest`, `VehicleTelemetryTest`, `MaintenanceOrderTest`, `RentalTest`, `ReservationTest` |
 | Application (19) | `CreateInvoiceTest`, `OpenInvoiceForRentalTest`, `ConsumeVehicleRegisteredTest`, `ConsumeReservationConfirmedTest`, `ConsumeRentalCompletedTest`, `PublishPendingOutboxEventsTest`, `RegisterVehicleTest`, `RegisterVehicleEventTest`, `RegisterVehicleRetryTest`, `RegisterVehicleTimeoutTest`, `BulkRegisterVehiclesTest`, `BulkRegisterVehiclesBackpressureTest`, `BulkRegisterVehiclesCancellationTest`, `DecommissionVehicleTest`, `FindVehicleByPlateTest`, `SearchVehiclesTest`, `StartRentalTest`, `CreateReservationTest`, `ReservationFacadeTest` |
 | Adapter unit (8) | `KafkaVehicleRegisteredConsumerTest`, `KafkaReservationConfirmedConsumerTest`, `KafkaRentalCompletedConsumerTest`, `VehicleRegisteredEventPublisherTest`, `EventJsonCodecTest` (inventory), `EventJsonCodecTest` (billing), `MicrometerOutboxMetricsTest`, `MicrometerInventoryMetricsTest` |
-| Adapter/Integration (21) | `ReservationResourceTest`, `ReservationPersistenceTest`, `ReactiveExecutionResourceTest`, `StagingTest`, `BillingPersistenceTest`, `BillingOutboxIntegrationTest`, `BillingFlowKafkaIntegrationTest`, `DelayedRetryKafkaIntegrationTest`, `DlqKafkaIntegrationTest`, `TransactionalInboxRetryKafkaIntegrationTest`, `TransactionalInboxProcessorIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `OutboxMetricsIntegrationTest`, `VehicleRegisteredEventPublisherIntegrationTest`, `BusinessMetricsIntegrationTest`, `VehicleEntityMappingTest`, `HealthEndpointTest` (billing), `HealthEndpointTest` (inventory), `HealthEndpointTest` (rental), `HealthEndpointTest` (reservation), `HealthEndpointTest` (users) |
+| Adapter/Integration (23) | `ReservationResourceTest`, `ReservationPersistenceTest`, `ReactiveExecutionResourceTest`, `StagingTest`, `BillingPersistenceTest`, `BillingOutboxIntegrationTest`, `BillingFlowKafkaIntegrationTest`, `DelayedRetryKafkaIntegrationTest`, `DlqKafkaIntegrationTest`, `TransactionalInboxRetryKafkaIntegrationTest`, `TransactionalInboxProcessorIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `OutboxMetricsIntegrationTest`, `VehicleRegisteredEventPublisherIntegrationTest`, `VehicleRegisteredTracePropagationIntegrationTest`, `BusinessMetricsIntegrationTest`, `BillingTracePropagationIntegrationTest`, `VehicleEntityMappingTest`, `HealthEndpointTest` (billing), `HealthEndpointTest` (inventory), `HealthEndpointTest` (rental), `HealthEndpointTest` (reservation), `HealthEndpointTest` (users) |
 
-**Total: 57 classes de teste** = 21 `@QuarkusTest` + 35 JUnit puro + 1 `@QuarkusIntegrationTest`
+**Total: 59 classes de teste** = 23 `@QuarkusTest` + 35 JUnit puro + 1 `@QuarkusIntegrationTest`
 (`ReservationResourceIT`).
 `BillingPersistenceTest` é `@QuarkusTest` (Postgres via Dev Services), portanto está em
 Adapter/Integration e **não** em "Adapter unit" — a camada "adapter unit" é JUnit puro,
@@ -267,6 +267,16 @@ com um `SimpleMeterRegistry` real (shape inaugurada pelo cap. 10: adapter de mé
 sem Quarkus — ver [14-cloud-native-patterns.md](./14-cloud-native-patterns.md) §4 e
 [testing.md](../testing.md) §Observability).
 
+Tracing (cap. 10 item 7) usa `@QuarkusTest` porque o comportamento sob prova **é** a fronteira
+(propagação automática do OTel no Kafka): `VehicleRegisteredTracePropagationIntegrationTest`
+(produtor — o record carrega o `traceparent` do **span do request**, filtrado por
+`SpanKind.SERVER`) e `BillingTracePropagationIntegrationTest` (consumidor — o span do consumer
+**herda o span do record como pai** via `assertEquals(parentSpanId, span.getParentSpanId(), …)`,
+o que prova extração do header de verdade). O exporter em memória vem do padrão oficial "Using
+CDI to produce a test exporter" (ver [testing.md](../testing.md) §Tracing). Ao mexer em
+matchers de métrica depois de adicionar OTel, lembrar da armadilha dos exemplars
+([14-cloud-native-patterns.md](./14-cloud-native-patterns.md) §5.4).
+
 **Veja também:** [03-testes-quarkus.md](./03-testes-quarkus.md) ·
 [11-armadilhas-e-licoes.md](./11-armadilhas-e-licoes.md) ·
 [10-exemplos-contrarios-ao-dominio.md](./10-exemplos-contrarios-ao-dominio.md)
@@ -274,5 +284,6 @@ sem Quarkus — ver [14-cloud-native-patterns.md](./14-cloud-native-patterns.md)
 ---
 
 _Última atualização: 2026-09-28 (padrão derivado das correções de `billing-service`,
-commit `a6fddc0`, e do inventário conferido: 57 classes de teste; cap. 10 acrescenta a
-shape de teste de adapter de métrica com `SimpleMeterRegistry` puro, no billing e no inventory)._
+commit `a6fddc0`, e do inventário conferido: 59 classes de teste; cap. 10 acrescenta a
+shape de teste de adapter de métrica com `SimpleMeterRegistry` puro e a shape de teste de
+tracing com `InMemorySpanExporter` CDI — billing e inventory)._

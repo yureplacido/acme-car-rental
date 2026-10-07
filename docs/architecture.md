@@ -500,6 +500,7 @@ Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; 
 | 13 | OpenCode funciona como architecture gate | impedir divergência entre futuras implementações |
 | 14 | Agregador raiz **somente para testes** (`packaging=pom`, sem parent/dependencyManagement) | rodar todos os testes com `./mvnw test` sem acoplar os microserviços |
 | 15 | Métrica de negócio/pipeline por **porta da aplicação** → adapter Micrometer em `adapter/out/observability` | regra 9 do AGENTS.md (efeito observável ≠ regra de negócio) e precedente do inventory; a intenção fica na aplicação, o instrumento no adapter. **Exceção registrada (billing):** o gauge de backlog faz o adapter chamar `OutboxEventStore.countPending()` na direção oposta — billing-specific, documentada em `ddd-tdd-standards.md` §5-Observability |
+| 16 | Tracing ponta a ponta = **efeito de plataforma, sem porta**: `quarkus-opentelemetry` nos serviços com Kafka (billing/inventory) e propagação automática de contexto no header `traceparent` (guia Messaging, seção OpenTelemetry Tracing) | o discriminador entre decisão 15 e 16 é **quem inventa o sinal**: o caso de uso inventa a métrica de negócio (→ porta); o runtime já mede health/tracing (→ sem porta, mesma lógica do health do cap. 10 item 1). Criar porta seria desacoplar de nada. O contexto viaja no header, nunca no payload; o contrato do evento não muda. **Escopo atual:** o salto Kafka inventory→billing; os hops REST/GraphQL (users→reservation, reservation→inventory/rental) não são tracejados porque esses serviços não têm o extension. Evidência: `VehicleRegisteredTracePropagationIntegrationTest` + `BillingTracePropagationIntegrationTest` |
 
 ## Construção e testes
  
@@ -626,4 +627,6 @@ flowchart TD
 A aplicação só ganha complexidade quando um comportamento exigir essa complexidade.
 ---
 _Last updated: 2026-09-28 (diagramas sincronizados com o código; estilo Mermaid unificado; decisão 15 —
-métricas por porta da aplicação + adapter de observabilidade; billing com `/q/metrics`, cap. 10)._
+métricas por porta da aplicação + adapter de observabilidade; decisão 16 — tracing ponta a ponta
+como efeito de plataforma com `quarkus-opentelemetry`; billing e inventory com `/q/metrics` e
+propagação de contexto no Kafka, cap. 10)._

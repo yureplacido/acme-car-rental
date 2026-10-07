@@ -3,7 +3,8 @@
 > Capítulo 10 do *Quarkus in Action* (p. 273–302 no impresso; PDF p. 299–329).
 > Norma do projeto: [ddd-tdd-standards.md](../ddd-tdd-standards.md) §9 (regras de negócio em
 > agregados, não em adapters) e AGENTS.md regra 16 (API verificada contra Quarkus 3.39.3).
-> Última atualização: 2026-09-28 (itens health 1–5 e métricas do pipeline/relay — item 6 — concluídos).
+> Última atualização: 2026-09-28 (itens health 1–5, métricas do pipeline/relay — item 6 — e
+> tracing ponta a ponta — item 7 — concluídos).
 
 ---
 
@@ -67,12 +68,17 @@
   Observação não cobre canais com tipo de payload customizado tipo `IncomingKafkaRecord`.
 - **Armadilha clássica:** assumir que a métrica por canal existe sem habilitar a observação.
 
-### 1.7 Tracing, fault tolerance, service discovery 🔜
+### 1.7 Tracing, fault tolerance, service discovery
 
 - **O que é:** OpenTelemetry (propagação de contexto via Kafka), SmallRye Fault Tolerance
   (timeout/retry/fallback), Stork (descoberta de serviço).
-- **Quando usar / quando não usar:** ver [roadmap.md](../roadmap.md) cap. 10 — itens 7–10 ainda
-  **não concluídos**.
+- **Tracing (implementado, item 7):** com `quarkus-opentelemetry` presente, a propagação de
+  contexto pelo Kafka é **automática** (guia oficial "Messaging", seção OpenTelemetry Tracing):
+  mensagens de saída propagam o span corrente no header `traceparent`; mensagens de entrada
+  herdam o span do record como pai. Nenhum código de domínio ou adapter muda — o contexto
+  viaja no header, nunca no payload. Em dev, o Dev Service LGTM (Grafana+Tempo) sobe sozinho.
+- **Quando usar / quando não usar:** fault tolerance e service discovery — ver
+  [roadmap.md](../roadmap.md) cap. 10 — itens 8–10 ainda **não concluídos**.
 
 ---
 
@@ -88,7 +94,7 @@
 | Métricas do relay da outbox | billing `port/out/OutboxMetrics.java` + `adapter/out/observability/MicrometerOutboxMetrics.java` | `PublishPendingOutboxEventsTest`, `MicrometerOutboxMetricsTest`, `OutboxMetricsIntegrationTest` |
 | Client metrics Kafka (lag) | billing `smallrye.messaging.observation.enabled` + binder kafka | `OutboxMetricsIntegrationTest` (scrape `/q/metrics`) |
 | Channel metrics `quarkus.messaging.message.*` | billing `application.properties` | `OutboxMetricsIntegrationTest` |
-| Tracing ponta a ponta | 🔜 ainda não implementado | — |
+| Tracing ponta a ponta (propagação via Kafka) | `quarkus-opentelemetry` nos dois serviços; propagação automática (guia Messaging, seção OpenTelemetry Tracing) | `VehicleRegisteredTracePropagationIntegrationTest` (inventory), `BillingTracePropagationIntegrationTest` (billing) |
 | Fault tolerance (SmallRye FT) | 🔜 ainda não implementado | — |
 | Service discovery (Stork) | 🔜 ainda não implementado | — |
 
@@ -241,6 +247,40 @@ sobrepostas (regra 14). Falha ao medir não é silenciosa: conta em
 `billing.outbox.backlog.refresh.errors` e loga em WARN — a ausência de dados nunca vira um
 gauge congelado "de mentira".
 
+### 2.1.5 Tracing ponta a ponta: propagação automática, sem porta
+
+O tracing **não** ganhou porta da aplicação — é efeito de plataforma, como health. Com
+`quarkus-opentelemetry` no pom, o Quarkus instrumenta HTTP, Kafka e Reactive Messaging e
+propaga o contexto automaticamente (guia oficial "Messaging", seção OpenTelemetry Tracing):
+
+- **Saída (inventory):** a mutation GraphQL `register` roda sob um trace; o record
+  `vehicle-registered` produzido carrega o header `traceparent` do span corrente.
+- **Entrada (billing):** o consumidor de `vehicle-registered` herda o span do record como pai
+  e processa o evento sob o mesmo trace.
+
+Configuração mínima nos dois serviços:
+
+```properties
+# Cap.10 - tracing ponta a ponta (item 7).
+quarkus.application.name=<billing-service|inventory-service>
+%test.quarkus.otel.exporter.otlp.enabled=false
+%test.quarkus.otel.simple=true
+```
+
+**Por que importa:** regra 9 do AGENTS.md vale para **regra de negócio**; tracing é
+infraestrutura transversal que o runtime já faz — criar porta seria desacoplar de nada
+(mesma lógica da decisão de health). O contexto viaja no header, nunca no
+payload: o contrato do evento (payload) não muda. Em dev, o Dev Service LGTM (Grafana+Tempo)
+sobe sozinho para visualizar os traces; em teste, o exporter OTLP fica desligado e um bean
+CDI de teste (`InMemorySpanExporter`, padrão oficial "Using CDI to produce a test exporter")
+recebe os spans — `simple=true` exporta na hora, sem esperar o batch de 5s. Em prod/docker o
+exporter OTLP fica **desligado** (não há collector no compose; ver [deployment.md](../deployment.md#observabilidade-cap10)).
+
+**Escopo atual:** o tracing cobre o salto Kafka inventory→billing. Os hops REST/GraphQL
+(users→reservation, reservation→inventory/rental) não são tracejados porque esses serviços não
+têm o extension — o item 7 evidencia a capacidade de propagação no pipeline de mensageria, não
+o mesh inteiro.
+
 ### 2.2 Configuração
 
 `billing-service/src/main/resources/application.properties` — as duas linhas que ligam a
@@ -261,13 +301,25 @@ smallrye.messaging.observation.enabled=true
 </dependency>
 ```
 
+Tracing (item 7) — o extension que liga a propagação automática de contexto no Kafka:
+
+```xml
+<dependency>
+    <groupId>io.quarkus</groupId>
+    <artifactId>quarkus-opentelemetry</artifactId>
+</dependency>
+```
+
+Nos testes, o exporter em memória vem de `io.opentelemetry:opentelemetry-sdk-testing`
+(scope `test`), seguindo o padrão oficial "Using CDI to produce a test exporter".
+
 ### 2.3 Dependências
 
-| Serviço | `quarkus-micrometer` | `quarkus-micrometer-registry-prometheus` | `quarkus-smallrye-health` |
-|---|---|---|---|
-| billing | ✅ | ✅(cap.10 item 6) | ✅ |
-| inventory | ✅ | ✅ | ✅ |
-| rental / reservation / users | ✅ | — | ✅ |
+| Serviço | `quarkus-micrometer` | `quarkus-micrometer-registry-prometheus` | `quarkus-smallrye-health` | `quarkus-opentelemetry` |
+|---|---|---|---|---|
+| billing | ✅ | ✅(cap.10 item 6) | ✅ | ✅(cap.10 item 7) |
+| inventory | ✅ | ✅ | ✅ | ✅(cap.10 item 7) |
+| rental / reservation / users | ✅ | — | ✅ | — |
 
 ---
 
@@ -279,6 +331,7 @@ smallrye.messaging.observation.enabled=true
 | 2 | Livro usa nomes/versões do Quarkus 3.15.1 | API conferida contra 3.39.3 | regra 16 do AGENTS.md | roadmap `[3.39.3]` |
 | 3 | Health/metrics "de módulo" sem separar dependência | decisão explícita de itens 1–5: **sem** abstração própria para o que é padrão; abstração só onde é porta da aplicação | ddd-tdd-standards §9 | roadmap cap. 10 |
 | 4 | Adapter de métrica só implementa a porta que usa | o gauge de backlog do billing **inverte a direção**: `MicrometerOutboxMetrics` chama `OutboxEventStore.countPending()` (porta que ele não implementa) | exceção billing-specific documentada em ddd-tdd-standards §5-Observability ("Recorded exception") e decisão 15 do architecture.md; só billing tem relay com backlog | §2.1.4, §3 |
+| 5 | Livro cobre tracing com propagação HTTP e um Jaeger externo gerenciado à mão (docker run) | propagação **automática** do Quarkus 3.39.3 com `quarkus-opentelemetry` (guia Messaging, seção OpenTelemetry Tracing): via Kafka no nosso pipeline; em dev o Dev Service LGTM sobe sozinho; em teste, exporter CDI em memória | regra 16: API verificada na doc oficial; o livro nem menciona `TracingMetadata` nem exige instrumentação manual no caso Kafka | §2.1.5 + `VehicleRegisteredTracePropagationIntegrationTest` + `BillingTracePropagationIntegrationTest` |
 
 ---
 
@@ -289,6 +342,8 @@ smallrye.messaging.observation.enabled=true
 | Application | `PublishPendingOutboxEventsTest` | contadores no caminho de sucesso e de falha; retry x falha | `./mvnw -pl billing-service test -Dtest=PublishPendingOutboxEventsTest` |
 | Adapter | `MicrometerOutboxMetricsTest` | counter publicado/falhas, gauge de backlog via `refreshBacklog()` | `./mvnw -pl billing-service test -Dtest=MicrometerOutboxMetricsTest` |
 | Integration | `OutboxMetricsIntegrationTest` | `/q/metrics` real: counter >= 1, gauge, client metric Kafka (lag), `quarkus_messaging_message_count_total{channel="invoice-opened-out"}` | `./mvnw -pl billing-service test -Dtest=OutboxMetricsIntegrationTest` |
+| Integration (tracing) | `VehicleRegisteredTracePropagationIntegrationTest` (inventory) | o record produzido pela mutation GraphQL carrega o header `traceparent` bem formado, com traceId de um span do próprio serviço | `./mvnw -pl inventory-service test -Dtest=VehicleRegisteredTracePropagationIntegrationTest` |
+| Integration (tracing) | `BillingTracePropagationIntegrationTest` (billing) | consumidor processa o evento sob o trace propagado no header do record (traceId do header == traceId do span) | `./mvnw -pl billing-service test -Dtest=BillingTracePropagationIntegrationTest` |
 
 Critérios do padrão (ver [04](./04-estrategia-de-testes-do-projeto.md)): fake da porta em teste
 de application; `await()` não usado sob `@RunOnVertxContext` (o `OutboxMetricsIntegrationTest`
@@ -326,6 +381,29 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 - **Correção:** filtrar a linha pela substring com o canal (`{channel="invoice-opened-out"`).
 - **Prevenção:** métricas são **dimensionadas por tags**; assertar série = nome + tag.
 
+### 5.4 Exemplar OTel quebrava o matcher exato do contador
+
+- **Sintoma:** `BusinessMetricsIntegrationTest` (inventory) passou a falhar depois de adicionar
+  `quarkus-opentelemetry`, com `AssertionFailedError` e o corpo do `/q/metrics` na mensagem.
+- **Causa:** com o extension presente, o Micrometer anexa **exemplars OTel** às linhas de
+  contador no formato Prometheus: `inventory_vehicles_registered_total 1.0 # {span_id="...",trace_id="..."} 1.0 <ts>`.
+  O matcher `line.matches(name + " [0-9.]+")` (linha inteira) deixava de casar.
+- **Correção:** trocar por `Pattern.compile(name + "\\s+([0-9.]+)")` + `matcher.find()` — o
+  `find()` casa o primeiro número após o nome e ignora o sufixo do exemplar (mesmo padrão que o
+  `OutboxMetricsIntegrationTest` do billing já usava).
+- **Prevenção:** ao adicionar tracing, revisar matchers de métricas que usam `matches()` de
+  linha inteira; preferir `find()` com `Pattern`.
+
+### 5.5 Warning benigno `io.opentelemetry.usage` no boot
+
+- **Sintoma:** todo boot com `quarkus-opentelemetry` loga
+  `WARNING [io.opentelemetry.usage] OpenTelemetry API usage issue detected`.
+- **Causa:** o SDK de telemetria do Micrometer/Outbox usa a API OTel de uma forma que o módulo
+  de uso registra como não recomendada (ex.: chamar a API global fora do contexto autocapturado).
+- **Correção:** nenhuma — é um aviso do próprio SDK, não uma falha de configuração nossa.
+- **Prevenção:** não investigar de novo; se algum dia uma das métricas parar de sair, aí sim o
+  warning vira sintoma. Fonte: logs de boot dos testes/`quarkus:dev` após o cap.10 item 7.
+
 ---
 
 ## 6. Conceitos que NÃO usamos (e por quê)
@@ -347,7 +425,8 @@ expectativa do gauge seja derivada da própria consulta sob observação.
   4. Como o client Kafka (lag) e as métricas por canal chegam ao scrape?
   5. Por que métrica de negócio fica atrás de uma porta da aplicação?
 - [ ] 3 perguntas que não sei responder (viram tarefa):
-  1. Como o contexto de tracing viaja pelo Kafka (headers) sem vazar para o payload?
+  1. ~~Como o contexto de tracing viaja pelo Kafka (headers) sem vazar para o payload?~~
+     → respondida no item 7: header `traceparent`, propagação automática (§2.1.5)
   2. Stork resolve qual caso real aqui? (a resposta pode ser "nenhum, usa-se Kafka/DNS")
   3. Graceful shutdown: drenar outbox pendente como evidência executável?
 
@@ -368,10 +447,11 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ## 9. Checklist de fecho (parcial — capítulo em progresso)
 
-- [x] roadmap.md com status e evidência executável dos itens 1–6
-- [ ] tracing, fault tolerance e service discovery (itens 7–10) ainda pendentes — 🔜
-- [x] suíte do billing verde (61 testes)
-- [x] guardians executados ao terminar o item 6 (dd-domain, architecture, tdd, quarkus-book)
+- [x] roadmap.md com status e evidência executável dos itens 1–7
+- [ ] fault tolerance, service discovery e graceful shutdown (itens 8–10) ainda pendentes — 🔜
+- [x] suíte do billing verde (62 testes)
+- [x] suíte do inventory verde (45 testes)
+- [x] guardians executados ao terminar o item 7 (dd-domain, architecture, tdd, quarkus-book)
 
 ---
 
@@ -386,7 +466,7 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 [x] API verificada contra 3.39.3 (regra 16)
 [x] armadilhas reais registradas (§5)
 [x] conceitos recusados registrados com motivo (§6)
-[x] índice + roadmap + README da docs atualizados (item 6 + doc 14 indexados)
+[x] índice + roadmap + README da docs atualizados (item 7 + doc 14 indexados)
 [x] suíte verde
 [x] guardians rodados (4) e fixes de sincronização aplicados após o fecho
 ```
@@ -400,4 +480,4 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ---
 
-_Última atualização: 2026-09-28 (cap. 10 itens health 1–5 e métricas do pipeline/relay da outbox — item 6 — concluídos; snippets alinhados ao código real e guardians executados; tracing/FT/service discovery/graceful shutdown pendentes)._
+_Última atualização: 2026-09-28 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 — e tracing ponta a ponta — item 7 — concluídos; snippets alinhados ao código real e guardians executados; FT/service discovery/graceful shutdown pendentes)._
