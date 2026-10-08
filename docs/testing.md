@@ -170,6 +170,21 @@ testcontainers** — sem mock) e padrões que valem para quem vier a tocar nesse
   como sucesso** (duplo deregister é idempotente — o Consul responde 404 para id já ausente,
   não 200). Em dev use o compose (`--profile services` sobe o Consul) ou rode o Consul do
   catálogo.
+- **Dois backends de discovery, seleção por tag — sem pagar o outro backend no baseline.**
+  Os testes de descoberta ganharam `@Tag("consul")` (fronteira real, testcontainers) e
+  `@Tag("kubernetes")` (Stork-k8s contra **mock do API server** — sem kind/k3s, ver abaixo).
+  Cada pom define `acme.test.discovery.excludedGroups=kubernetes` no surefire e o profile
+  `-P kubernetes` troca para `consul`; assim o build CI roda o backend Consul e `-P kubernetes`
+  valida o Kubernetes com o mesmo classpath. Valores medidos: reservation baseline 45 /
+  `-P kubernetes` 43 (o k8s tem 1 teste), users 6/5, rental 10/8, inventory 45, billing 62.
+- **O mock do API server substitui o cluster, sem virar testes de Kong.** O resource de teste
+  (`KubernetesRentalDiscoveryTestResource` / `KubernetesReservationsDiscoveryTestResource`)
+  arranca `KubernetesServer` (fabric8) e injeta recursos com o client do teste; o teste pede
+  a instância ao Stork com `use-endpoint-slices=false` (o caminho de Endpoints; medido na
+  3.39.3 o provider exige `k8s-namespace` e `targetRef` no EndpointAddress, e no CRUD mock os
+  Endpoints só sobem de forma determinística via `client.resource(ep).create()` — o form
+  `.endpoints().inNamespace().resource(...).create()` falha em emitir o POST). Isso prova a
+  resolução de instância pelo **provider real** sem depender de cluster ambulante.
 
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
@@ -202,7 +217,7 @@ Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é pr
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
 ---
-_Last updated: 2026-10-07 (seção "Service discovery (Stork + Consul)": fronteira real com Consul
-de testcontainers, registro com assert de "passing" e dereg limpando o catálogo, porta fixa por
-módulo pelo omitempty do Consul, RED documentado dos dois defectos do auto-registro do Stork 3.39.3
-e teste do Contrato "Consul fora não derruba o boot")._
+_Last updated: 2026-10-08 (service discovery: dois backends de discovery testáveis por tag
+`consul`/`kubernetes` com seleção no surefire (`acme.test.discovery.excludedGroups`, profile
+`-P kubernetes`), e o backend K8s provado com mock do API server sem cluster — armadilha medida
+do CRUD de Endpoints no fabric8)._

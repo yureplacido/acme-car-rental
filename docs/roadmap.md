@@ -212,8 +212,32 @@ Notas de escopo:
       silêncio: com `@AccessToken` o REST Client só sai dentro de request autenticado — o filtro
       aborta **401 sem token** fora dele, então a prova do BFF é no nível do Stork, não dentro do
       cliente OIDC (detalhe no `services.md`).
-- [ ] Configuração cloud-native: a mesma imagem sobe em qualquer ambiente,
+- [x] Configuração cloud-native: a mesma imagem sobe em qualquer ambiente,
       comportamento stateless entre instâncias
+      — **imagem pré-construída imutável + perfis de runtime** [3.39.3]. Cada dos 5
+      serviços publica `acme/<módulo>:${project.version}` via Maven **profile docker**
+      (`quarkus-container-image-docker`, `quarkus.container-image.{group,name,tag}`
+      nas `<properties>` — o nome é fixado no **artifactId**, desacoplando a imagem do
+      `quarkus.application.name` de discovery `reservations`/`rentals`); o compose
+      **não builda**: consome `image: acme/…:${ACME_IMAGE_TAG}` com `pull_policy: never`
+      (`scripts/build-images.sh` para JVM `-P docker` ou nativa `-P native,docker`, a
+      última exigindo `QUARKUS_NATIVE_CONTAINER_BUILD=true` sem GraalVM local). O
+      comportamento difere só por **`QUARKUS_PROFILE`** no mesmo artefato:
+      `%docker` (Compose/Consul) e `%kubernetes` (Stork provider `kubernetes`,
+      k8s-namespace, registro Consul desligado na reservation) — sem rebuild entre
+      ambientes. **Evidência executável**: smoke `docker compose --profile all up -d`
+      com as 5 imagens acme, healths respondendo (users devolve 302 de OIDC — esperado),
+      catálogo Consul com `reservations`/`rentals` **passing** e realm do keycloak 200;
+      durante o smoke o compose exigiu 3 correções que hoje estão no repo
+      (aliases DNS explícitos na rede custom; `billing-postgres` criado — faltava o
+      serviço que o `%docker` do billing usa; Dockerfiles `openjdk-17` ultrapassados
+      de reservation/inventory → `openjdk-21`, baseline do projeto), documentadas
+      como ADR 011 e no commit `e27c208`. Seleção dos testes de discovery por
+      backend: `surefire` exclui `@Tag("kubernetes")` por padrão; `-P kubernetes`
+      troca para excluir `@Tag("consul")` (validado: baseline e backend K8s).
+      Manifests Kubernetes (Deployment+Service+probes) também versionados
+      (`others/k8s/` via `scripts/generate-manifests.sh`), com as mesmas imagens
+      `acme/…` — item do cap. 11 já adiantado; deploy real fica para lá.
 - [ ] Graceful shutdown drenando requisição in-flight e outbox pendente
 
 ## Cap. 11 — Quarkus applications in the cloud
@@ -290,10 +314,12 @@ Architecture + DDD + TDD + Quarkus guardians
 Use `/domain-design` antes de implementar uma feature e `/preflight` para o fluxo completo.
 
 ---
-_Last updated: 2026-10-07 (item 9 fechado: service discovery Stork + Consul — descoberta via
-Stork nos REST Clients e publicação por adapter próprio (`ConsulServiceRegistration`) com health
-check HTTP absoluto e dereg no shutdown; decisão em `docs/adr/010-service-discovery.md`).
-Pendentes no cap. 10: configuração cloud-native e graceful shutdown. Itens 7 (tracing ponta a
-ponta via propagação automática de contexto no Kafka com `quarkus-opentelemetry`) e 8 (fault
-tolerance nas chamadas externas do reservation) permanecem implementados e aguardando merge
+_Last updated: 2026-10-08 (item 10 fechado: imagem pré-construída imutável por Maven
+profile docker + runtime por `QUARKUS_PROFILE` (`%docker` Consul / `%kubernetes` Stork-k8s),
+seleção de testes de discovery por backend e manifests K8s versionados em `others/k8s/`;
+smoke `docker compose up` verde com as 5 imagens acme e Consul `passing` — decisão em
+`docs/adr/011-imagens-e-perfis-cloud-native.md`). Pendentes no cap. 10: graceful shutdown.
+Itens 7 (tracing ponta a ponta via propagação automática de contexto no Kafka com
+`quarkus-opentelemetry`) e 8 (fault tolerance nas chamadas externas do reservation)
+permanecem implementados e aguardando merge
 junto deste._
