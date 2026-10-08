@@ -6,6 +6,7 @@ import io.smallrye.stork.Stork;
 import io.smallrye.stork.api.ServiceInstance;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.List;
 
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @QuarkusTest
 @Tag("kubernetes")
 @QuarkusTestResource(value = KubernetesRentalDiscoveryTestResource.class, restrictToAnnotatedClass = true)
+@Timeout(30)
 class RentalServiceDiscoveryKubernetesTest {
 
     @Test
