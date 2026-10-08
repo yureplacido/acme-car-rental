@@ -197,6 +197,14 @@
     os apps. Correção: `networks.default.aliases` explícitos por serviço (compromisso do smoke,
     ADR 011 §2). A rede default `172.18.0.0/16` também colide com rota estática da VPN do host —
     o compose declara `172.28.0.0/16`.
+  - **Testcontainers: o subnet do broker Kafka é determinístico, não a sorte do Docker.** O
+    `Network.SHARED` do `StrimziKafkaContainer` recebe o primeiro `/16` livre (172.18, logo após
+    o bridge default 172.17); a mesma rota estática da VPN que o compose encontrou (item acima)
+    sequestra esse range → `ip route get <container-ip>` devolve a interface do túnel e o
+    AdminClient de `KafkaCompanionResource` morre com `TimeoutException` em `fetchMetadata`.
+    Cada módulo Kafka fixa a rede: `Network.builder().createNetworkCmdModifier(
+    cmd.withIpam(... subnet 172.29 billing / 172.30 inventory ...))` no `createContainer` —
+    subnet própria por módulo permite rodar as duas suítes Kafka em paralelo (ADR 011 §2).
 
 ---
 

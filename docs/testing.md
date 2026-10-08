@@ -186,6 +186,19 @@ testcontainers** — sem mock) e padrões que valem para quem vier a tocar nesse
   `.endpoints().inNamespace().resource(...).create()` falha em emitir o POST). Isso prova a
   resolução de instância pelo **provider real** sem depender de cluster ambulante.
 
+### Kafka (testcontainers)
+As suítes Kafka do billing e do inventory usam **uma** instância do broker Strimzi por JVM de teste
+(`KafkaCompanionResource`, `restrictToAnnotatedClass=false`). O broker é fixado numa rede
+testcontainers dedicada de **subnet determinística** (`172.29.0.0/16` billing, `172.30.0.0/16`
+inventory) em vez do `Network.SHARED` default: o Docker aloca o SHARED como o primeiro `/16`
+livre (172.18 após o bridge 172.17) e VPNs corporativas injetam **rotas estáticas** que sequestram
+esses RFC1918 — com o broker num range sequestrado o forwarding host→container da porta publicada
+morre e o AdminClient falha com `TimeoutException` em `fetchMetadata` (medido 2026-10-08: o
+`ip route get 172.18.0.2` devolvia a interface do túnel). Subnets próprias por módulo também
+permitem rodar billing e inventory Kafka em paralelo sem overlap. A medida está replicada em
+`BillingKafkaCompanionResource`/`InventoryKafkaCompanionResource` (override de `createContainer`
++ `Network.builder().createNetworkCmdModifier(...)`).
+
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
 
@@ -219,5 +232,7 @@ Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige 
 ---
 _Last updated: 2026-10-08 (service discovery: dois backends de discovery testáveis por tag
 `consul`/`kubernetes` com seleção no surefire (`acme.test.discovery.excludedGroups`, profile
-`-P kubernetes`), e o backend K8s provado com mock do API server sem cluster — armadilha medida
-do CRUD de Endpoints no fabric8)._
+`-P kubernetes`), o backend K8s provado com mock do API server sem cluster — armadilha medida
+do CRUD de Endpoints no fabric8 —, e o broker Strimzi dos Kafka companions fixado numa rede
+testcontainers de subnet determinística (172.29/172.30) porque o `Network.SHARED` default
+cai no primeiro /16 livre (172.18), sequestrado por rotas estáticas de VPN corporativa)._
