@@ -18,6 +18,7 @@ As ADRs também são material de estudo: devem explicar **por que** uma decisão
 | 8 | [ADR 008 — Transactional outbox (versão final)](./008-transactional-outbox.md) | outbox transacional, substitui a ADR 004 | Accepted / implementada |
 | 9 | [ADR 009 — Fault tolerance nas chamadas externas](./009-fault-tolerance-chamadas-externas.md) | timeout, retry seletivo e fallback que sinaliza indisponibilidade | Accepted / implementada |
 | 10 | [ADR 010 — Service discovery](./010-service-discovery.md) | descoberta Stork + Consul e publicação por adapter próprio (item 9) | Accepted / implementada |
+| 11 | [ADR 011 — Imagens e perfis cloud-native](./011-imagens-e-perfis-cloud-native.md) | imagem pré-construída imutável e runtime por `QUARKUS_PROFILE` (item 10) | Accepted |
 
 ### Fundamentos que antecedem essas decisões
 
