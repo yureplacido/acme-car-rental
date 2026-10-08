@@ -151,6 +151,8 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+      billing-postgres:
+        condition: service_healthy
 
   # ---------------- databases ----------------
 
@@ -171,6 +173,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - reservation-postgres
 
   inventory-mysql:
     container_name: acme-inventory-mysql
@@ -187,6 +193,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - inventory-mysql
 
   rental-mongo:
     container_name: acme-rental-mongo
@@ -198,6 +208,33 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - rental-mongo
+
+  # Cap.7 - billing-postgres: banco do billing-service. Precisa existir como
+  # servico proprio porque o %docker do billing aponta para billing-postgres:5432
+  # (os bancos sao por-servico; o postgres do perfil identity e so do Keycloak).
+
+  billing-postgres:
+    container_name: acme-billing-postgres
+    image: docker.io/library/postgres:14
+    restart: always
+    profiles: ["databases", "services", "all"]
+    environment:
+      POSTGRES_DB: billing
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing -d billing"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      default:
+        aliases:
+          - billing-postgres
 
   # ---------------- messaging ----------------
 
@@ -241,6 +278,13 @@ services:
       interval: 10s
       timeout: 10s
       retries: 30
+    networks:
+      # Alias `kafka` e obrigatorio: os apps (%docker), o kafka-init E o proprio
+      # broker (controller quorum 1@kafka:29093 / advertised INTERNAL://kafka:29092)
+      # resolvem o broker pelo nome de servico, nao pelo container_name.
+      default:
+        aliases:
+          - kafka
 
   # Provisiona os tópicos de messaging antes dos serviços iniciarem
   # (one-shot; inventory/billing dependem de service_completed_successfully).
@@ -300,6 +344,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - consul
 
   # ---------------- identity ----------------
 
@@ -320,6 +368,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - postgres
 
   keycloak:
     container_name: acme-keycloak
@@ -343,6 +395,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - keycloak
 
 volumes:
   kafka-data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
