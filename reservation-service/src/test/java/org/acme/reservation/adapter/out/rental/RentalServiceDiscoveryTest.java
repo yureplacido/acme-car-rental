@@ -4,6 +4,7 @@ import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,8 +16,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * E o caminho completo: o REST Client (stork://rentals), ao lado do Stork, resolve a
  * instancia no Consul e chega ao stub registrado - a mesma fronteira que o users-service
  * exercita no dele (que carrega @AccessToken e nao sai sem request context autenticado).
+ *
+ * Tag "consul": com o Maven profile kubernetes ({@code -P kubernetes}) esta classe e a
+ * contraposicao dela (RentalServiceDiscoveryKubernetesTest) sao trocadas pela suite.
  */
 @QuarkusTest
+@Tag("consul")
 @QuarkusTestResource(value = ConsulRentalDiscoveryTestResource.class, restrictToAnnotatedClass = true)
 class RentalServiceDiscoveryTest {
 

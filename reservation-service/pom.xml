@@ -92,6 +92,18 @@
             <groupId>io.smallrye.stork</groupId>
             <artifactId>stork-service-discovery-consul</artifactId>
         </dependency>
+        <!-- Cap.10 item 10 (roadmap item 10) - discovery via Kubernetes: o mesmo
+        Stork, outro provider (type=kubernetes), selecionado em runtime por
+        QUARKUS_PROFILE=kubernetes. O extension quarkus-kubernetes-client carrega o
+        suporte nativo do fabric8 (reflection/config) e o cliente HTTP Vert.x. -->
+        <dependency>
+            <groupId>io.smallrye.stork</groupId>
+            <artifactId>stork-service-discovery-kubernetes</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-kubernetes-client</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-micrometer</artifactId>
@@ -124,6 +136,15 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-test-hibernate-reactive-panache</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Cap.10 item 10 - mock do API server Kubernetes para o teste de discovery
+        via provider Stork kubernetes (roadmap item 10): o QuarkusTestResource herda
+        do KubernetesServerTestResource e o provider fabric8 do Stork le os
+        kubernetes.master/namespace setados por ele. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-kubernetes-client</artifactId>
             <scope>test</scope>
         </dependency>
         <!-- Cap.10 item 9 - testcontainers sobe o Consul real usado pelo teste de registro. -->

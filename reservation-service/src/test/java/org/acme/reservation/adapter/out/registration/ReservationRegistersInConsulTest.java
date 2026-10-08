@@ -7,6 +7,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.Config;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -28,8 +29,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * explodindo no shutdown; aqui o teste exige o oposto: check com Status "passing" (o
  * Consul alcanca o /q/health/live do JVM via host.docker.internal) e saida limpa do
  * catalogo apos o deregister.
+ *
+ * Tag "consul": a publicacao via Consul so faz sentido com esse backend de discovery;
+ * com o Maven profile kubernetes esta classe fica de fora da suite.
  */
 @QuarkusTest
+@Tag("consul")
 @TestProfile(ConsulRegistrationProfile.class)
 @QuarkusTestResource(value = ConsulRegistrationTestResource.class, restrictToAnnotatedClass = true)
 class ReservationRegistersInConsulTest {

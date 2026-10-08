@@ -7,6 +7,7 @@ import io.smallrye.stork.api.Service;
 import io.smallrye.stork.api.ServiceInstance;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.Config;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -27,8 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code @AccessToken} e a propagacao sem token de uma requisicao autenticada aborta com
  * 401 antes de sair do app. O caminho completo (REST client -> Stork -> Consul -> alvo)
  * fica comprovado no reservation-service, cujo cliente de saude nao propaga token.
+ *
+ * Tag "consul": a descoberta via Consul so faz sentido com esse backend; com o Maven
+ * profile kubernetes esta classe fica de fora da suite.
  */
 @QuarkusTest
+@Tag("consul")
 @QuarkusTestResource(value = ConsulTestResource.class, restrictToAnnotatedClass = true)
 class ReservationsServiceDiscoveryTest {
 

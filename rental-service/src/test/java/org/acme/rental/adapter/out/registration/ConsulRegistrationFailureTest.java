@@ -3,6 +3,7 @@ package org.acme.rental.adapter.out.registration;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * captura - e por isso a chamada de baixo nivel aparece com throws esperado aqui.
  */
 @QuarkusTest
+@Tag("consul")
 @TestProfile(ConsulRegistrationFailureProfile.class)
 class ConsulRegistrationFailureTest {
 
