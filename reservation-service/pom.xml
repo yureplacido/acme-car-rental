@@ -17,6 +17,9 @@
         <quarkus.platform.version>3.39.3</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <!-- Testes de discovery selecionados por backend: por padrao a suite roda sem os
+             @Tag("kubernetes"); com -P kubernetes exclui os @Tag("consul") e inclui os kubernetes. -->
+        <acme.test.discovery.excludedGroups>kubernetes</acme.test.discovery.excludedGroups>
     </properties>
 
     <dependencyManagement>
@@ -188,6 +191,7 @@
                 <version>${surefire-plugin.version}</version>
                 <configuration>
                     <argLine>@{argLine}</argLine>
+                    <excludedGroups>${acme.test.discovery.excludedGroups}</excludedGroups>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
@@ -218,6 +222,12 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>kubernetes</id>
+            <properties>
+                <acme.test.discovery.excludedGroups>consul</acme.test.discovery.excludedGroups>
+            </properties>
+        </profile>
         <profile>
             <id>native</id>
             <activation>

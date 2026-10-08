@@ -80,4 +80,3 @@ public class KubernetesRentalDiscoveryTestResource extends KubernetesServerTestR
                 .build()).create();
     }
 }
-}
