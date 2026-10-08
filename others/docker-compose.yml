@@ -2,7 +2,14 @@ name: acme-car-rental
 
 # Este arquivo vive em others/ (assets não-Java). Rode os comandos a partir de
 # others/ (cd others && docker compose up ...) para o compose resolver o .env,
-# os volumes (./swagger, ./traefik, ./keycloak) e os build contexts (../<módulo>).
+# os volumes (./swagger, ./traefik, ./keycloak) e os nomes das imagens.
+#
+# Cap.10 item 10 - as imagens dos servicos NAO sao mais buildadas pelo compose:
+# sao pre-construidas via Maven profile docker (quarkus-container-image-docker),
+# com tag imutavel ACME_IMAGE_TAG (= project.version, ex. 1.0.0-SNAPSHOT), e o
+# compose apenas as consome com image: + pull_policy: never. Build de todas:
+#   scripts/build-images.sh            (JVM;   -P docker)
+#   scripts/build-images.sh native     (nativa; -P native,docker)
 # ──────────────────────────────────────────────────────────────────────────
 # Perfis do compose — cada serviço participa do seu grupo E do perfil "all":
 #
@@ -15,6 +22,10 @@ name: acme-car-rental
 #
 # Kafka (cap.9) entra no perfil services/all: broker KRaft + kafka-init provê os
 # tópicos de messaging antes de inventory/billing iniciarem.
+#
+# Consul (cap.10, service discovery) entra no perfil services/all: users →
+# reservation (stork://) e reservation ↔ rental ("reservations"/"rentals" registrados
+# e deregistrados no boot/shutdown).
 #
 # Bancos pertencem a `services` E `databases`: --profile services sobe apps com
 # seus bancos (respeitando o depends_on); --profile databases sobe so os bancos.
@@ -62,9 +73,8 @@ services:
 
   users-service:
     profiles: ["services", "all"]
-    build:
-      context: ../users-service
-      dockerfile: Dockerfile
+    image: acme/users-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: users-service
     env_file:
       - .env
@@ -72,12 +82,14 @@ services:
       QUARKUS_PROFILE: docker
     ports:
       - "${USER_SERVICE_PORT:-8080}:${USER_SERVICE_PORT:-8080}"
+    depends_on:
+      consul:
+        condition: service_healthy
 
   reservation-service:
     profiles: ["services", "all"]
-    build:
-      context: ../reservation-service
-      dockerfile: Dockerfile
+    image: acme/reservation-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: reservation-service
     env_file:
       - .env
@@ -88,12 +100,13 @@ services:
     depends_on:
       reservation-postgres:
         condition: service_healthy
+      consul:
+        condition: service_healthy
 
   rental-service:
     profiles: ["services", "all"]
-    build:
-      context: ../rental-service
-      dockerfile: Dockerfile
+    image: acme/rental-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: rental-service
     env_file:
       - .env
@@ -104,15 +117,13 @@ services:
     depends_on:
       rental-mongo:
         condition: service_healthy
+      consul:
+        condition: service_healthy
 
   inventory-service:
     profiles: ["services", "all"]
-    build:
-      # Contexto RAIZ do repositório: o Dockerfile multi-modulo compila o contrato
-      # inventory-proto (schema-first) antes do servico. O .dockerignore da raiz
-      # restringe o contexto a inventory-proto/ + inventory-service/.
-      context: ..
-      dockerfile: inventory-service/Dockerfile
+    image: acme/inventory-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: inventory-service
     env_file:
       - .env
@@ -128,9 +139,8 @@ services:
 
   billing-service:
     profiles: ["services", "all"]
-    build:
-      context: ../billing-service
-      dockerfile: Dockerfile
+    image: acme/billing-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: billing-service
     env_file:
       - .env
@@ -141,6 +151,8 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+      billing-postgres:
+        condition: service_healthy
 
   # ---------------- databases ----------------
 
@@ -161,6 +173,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - reservation-postgres
 
   inventory-mysql:
     container_name: acme-inventory-mysql
@@ -177,6 +193,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - inventory-mysql
 
   rental-mongo:
     container_name: acme-rental-mongo
@@ -188,6 +208,33 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - rental-mongo
+
+  # Cap.7 - billing-postgres: banco do billing-service. Precisa existir como
+  # servico proprio porque o %docker do billing aponta para billing-postgres:5432
+  # (os bancos sao por-servico; o postgres do perfil identity e so do Keycloak).
+
+  billing-postgres:
+    container_name: acme-billing-postgres
+    image: docker.io/library/postgres:14
+    restart: always
+    profiles: ["databases", "services", "all"]
+    environment:
+      POSTGRES_DB: billing
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing -d billing"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      default:
+        aliases:
+          - billing-postgres
 
   # ---------------- messaging ----------------
 
@@ -231,6 +278,13 @@ services:
       interval: 10s
       timeout: 10s
       retries: 30
+    networks:
+      # Alias `kafka` e obrigatorio: os apps (%docker), o kafka-init E o proprio
+      # broker (controller quorum 1@kafka:29093 / advertised INTERNAL://kafka:29092)
+      # resolvem o broker pelo nome de servico, nao pelo container_name.
+      default:
+        aliases:
+          - kafka
 
   # Provisiona os tópicos de messaging antes dos serviços iniciarem
   # (one-shot; inventory/billing dependem de service_completed_successfully).
@@ -270,6 +324,31 @@ services:
         done
         echo "messaging topics provisioned"
 
+  # ---------------- service discovery ----------------
+
+  # Cap.10 item 9 - Consul (hashicorp/consul), single-node dev, serve de catalogo de
+  # service discovery. A UI fica em http://localhost:8500/ui. No %docker os servicos
+  # o resolvem pelo nome `consul` (quarkus.stork.<svc>.*.consul-host=consul); o
+  # reservation-service e o rental-service se registram ("reservations"/"rentals") e
+  # deregistram no shutdown, e o users-service resolve o reservation via stork://.
+  consul:
+    container_name: acme-consul
+    image: hashicorp/consul:1.20
+    restart: unless-stopped
+    profiles: ["services", "all"]
+    command: ["agent", "-dev", "-client=0.0.0.0"]
+    ports:
+      - "8500:8500"
+    healthcheck:
+      test: ["CMD-SHELL", "consul members | grep -q alive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      default:
+        aliases:
+          - consul
+
   # ---------------- identity ----------------
 
   # Cap.6.4 - Keycloak + PostgreSQL (perfil identity). Na rede default para que
@@ -289,6 +368,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      default:
+        aliases:
+          - postgres
 
   keycloak:
     container_name: acme-keycloak
@@ -312,6 +395,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - keycloak
 
 volumes:
   kafka-data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

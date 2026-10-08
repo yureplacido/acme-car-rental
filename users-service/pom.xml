@@ -17,6 +17,15 @@
         <quarkus.platform.version>3.39.3</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <!-- Testes de discovery selecionados por backend: por padrao a suite roda sem os
+             @Tag("kubernetes"); com -P kubernetes exclui os @Tag("consul") e inclui os kubernetes. -->
+        <acme.test.discovery.excludedGroups>kubernetes</acme.test.discovery.excludedGroups>
+        <!-- Imagem quarkus-container-image: o nome acme/<artifactId>:<version> e o MESMO
+             que o compose consome (ACME_IMAGE_TAG) e que o quarkus-kubernetes embute nos
+             manifests (-P kubernetes). O build em si so acontece com o profile docker. -->
+        <quarkus.container-image.group>acme</quarkus.container-image.group>
+        <quarkus.container-image.name>${project.artifactId}</quarkus.container-image.name>
+        <quarkus.container-image.tag>${project.version}</quarkus.container-image.tag>
     </properties>
 
     <dependencyManagement>
@@ -54,6 +63,30 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-stork</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.smallrye.stork</groupId>
+            <artifactId>stork-service-discovery-consul</artifactId>
+        </dependency>
+        <!-- Cap.10 item 10 - discovery via Kubernetes: provider Stork kubernetes para o
+             profile %kubernetes; quarkus-kubernetes-client e o HTTP do fabric8 e
+             quarkus-test-kubernetes-client da o mock do API server para os testes (@Tag kubernetes). -->
+        <dependency>
+            <groupId>io.smallrye.stork</groupId>
+            <artifactId>stork-service-discovery-kubernetes</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-kubernetes-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-kubernetes-client</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-openapi</artifactId>
         </dependency>
         <dependency>
@@ -88,10 +121,28 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>${lombok.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <!-- Cap.10 item 10 - profile docker: gera a imagem do servico (quarkus-container-image-docker)
+             com tag imutavel ${project.version}; o compose a consome via image: + pull_policy: never. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-container-image-docker</artifactId>
+        </dependency>
+        <!-- Cap.10 item 10 - profile kubernetes: gera os manifests (Deployment/Service) com
+             a imagem acme/<artifactId>:<version>; arquivos versionados em others/k8s/.
+             A implantacao em si (aplicar/registrar o servico no Service) fica p/ itens 11/12. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-kubernetes</artifactId>
         </dependency>
     </dependencies>
 
@@ -122,6 +173,7 @@
                 <version>${surefire-plugin.version}</version>
                 <configuration>
                     <argLine>@{argLine}</argLine>
+                    <excludedGroups>${acme.test.discovery.excludedGroups}</excludedGroups>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
@@ -152,6 +204,23 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>kubernetes</id>
+            <!-- Seleciona os testes @Tag("kubernetes") no lugar dos @Tag("consul");
+                 package com este profile gera tambem os manifests (quarkus-kubernetes). -->
+            <properties>
+                <acme.test.discovery.excludedGroups>consul</acme.test.discovery.excludedGroups>
+            </properties>
+        </profile>
+        <profile>
+            <id>docker</id>
+            <!-- Imagem pre-construida com tag imutavel (${project.version}) consumida pelo
+                 compose (image: + pull_policy: never, scripts/build-images.sh). Com
+                 -P native,docker a mesma instrucao gera a imagem NATIVA do servico. -->
+            <properties>
+                <quarkus.container-image.build>true</quarkus.container-image.build>
+            </properties>
+        </profile>
         <profile>
             <id>native</id>
             <activation>

@@ -244,6 +244,7 @@ reservation-service/src/main/java/org/acme/reservation/
     └── out/
         ├── inventory/                 (GraphQLInventoryGateway)
         ├── rental/                    (RentalRestGateway)
+        ├── registration/              (ConsulServiceRegistration — cap.10 item 9)
         └── persistence/
 ~~~
 
@@ -257,7 +258,9 @@ rental-service/src/main/java/org/acme/rental/
 │   └── port/out/
 └── adapter/
     ├── in/rest/
-    └── out/persistence/
+    └── out/
+        ├── persistence/
+        └── registration/              (ConsulServiceRegistration — cap.10 item 9)
 ~~~
 
 ## Billing — estrutura inicial
@@ -503,6 +506,7 @@ Quarkus documenta Hibernate Reactive como API voltada a acesso não bloqueante; 
 | 15 | Métrica de negócio/pipeline por **porta da aplicação** → adapter Micrometer em `adapter/out/observability` | regra 9 do AGENTS.md (efeito observável ≠ regra de negócio) e precedente do inventory; a intenção fica na aplicação, o instrumento no adapter. **Exceção registrada (billing):** o gauge de backlog faz o adapter chamar `OutboxEventStore.countPending()` na direção oposta — billing-specific, documentada em `ddd-tdd-standards.md` §5-Observability |
 | 16 | Tracing ponta a ponta = **efeito de plataforma, sem porta**: `quarkus-opentelemetry` nos serviços com Kafka (billing/inventory) e propagação automática de contexto no header `traceparent` (guia Messaging, seção OpenTelemetry Tracing) | o discriminador entre decisão 15 e 16 é **quem inventa o sinal**: o caso de uso inventa a métrica de negócio (→ porta); o runtime já mede health/tracing (→ sem porta, mesma lógica do health do cap. 10 item 1). Criar porta seria desacoplar de nada. O contexto viaja no header, nunca no payload; o contrato do evento não muda. **Escopo atual:** o salto Kafka inventory→billing; os hops REST/GraphQL (users→reservation, reservation→inventory/rental) não são tracejados porque esses serviços não têm o extension. Evidência: `VehicleRegisteredTracePropagationIntegrationTest` + `BillingTracePropagationIntegrationTest` |
 | 17 | `application/exception` é o pacote de **falha de aplicação** (não de domínio) | regras de negócio que valem para qualquer adapter (`InventoryUnavailable`: "não deu para saber" não é `[]`) não pertencem nem ao domínio nem à infraestrutura. É mais preciso que `application/error` genérico: a palavra "exception" já diz que é sinal de falha, e o prefixo `application` diz de quem é a decisão. Nenhum tipo de domínio mora aqui; exceções do domínio continuam no seu agregado (`domain/**`) |
+| 18 | A **mesma imagem** por serviço para todo ambiente (cap.10 item 10): Maven profile `docker` publica `acme/<artifactId>:<version>` (`quarkus-container-image-docker`), o compose **consome** (`image:` + `pull_policy: never`), e o comportamento difere só por `QUARKUS_PROFILE` no launch (`%docker` Consul / `%kubernetes` Stork-k8s / `%prod` host) | runtime ≠ build: o catálogo de discovery e o registro são questão do ambiente (ADR 010/011), não do artefato. Nome da imagem ≠ nome de catálogo (`container-image.name=${artifactId}`; `application.name` continua `reservations`/`rentals`). Testes de discovery já selecionam o backend por tag (`consul`/`kubernetes`) e os manifests K8s são versionados em `others/k8s/` |
 
 ## Construção e testes
  

@@ -1,6 +1,8 @@
 # Deploy / Ambiente
 
-> **Última atualização:** 2026-09-27 (cap.9 - listeners do broker, tópicos e fluxo dev) ·
+> **Última atualização:** 2026-10-08 (cap.10 item 10 — imagem pré-construída imutável via Maven
+> profile `docker`, compose consome `image:` + `pull_policy: never`, `ACME_IMAGE_TAG`, rede custom
+> `172.28.0.0/16` + aliases DNS, `billing-postgres`, e manifests K8s versionados em `others/k8s/`) ·
 > **Fonte da verdade:** o código.
 
 Três modos de execução:
@@ -21,13 +23,26 @@ Três modos de execução:
 
 Serviços no compose: `traefik`, `swagger`, `users-service`, `reservation-service`,
 `rental-service`, `inventory-service`, `billing-service` + bancos do cap.7
-(`reservation-postgres`, `inventory-mysql`, `rental-mongo`) + **`keycloak`**, **`postgres`**
-(cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft `apache/kafka:3.9.1`, **dois
-listeners**: `INTERNAL` e `EXTERNAL` — ver [Kafka](#kafka-cap9)) e **`kafka-init`**
-(provisiona os tópicos antes de `inventory-service`/`billing-service` via
-`depends_on: service_completed_successfully`; `KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`).
+(`reservation-postgres`, `inventory-mysql`, `rental-mongo`; desde o item 10 o `billing-postgres`
+também é serviço próprio — o `%docker` do billing aponta para `billing-postgres:5432`) +
+**`keycloak`**, **`postgres`** (cap.6.4) + mensageria do cap.9: **`kafka`** (broker KRaft
+`apache/kafka:3.9.1`, **dois listeners**: `INTERNAL` e `EXTERNAL` — ver
+[Kafka](#kafka-cap9)) e **`kafka-init`** (provisiona os tópicos antes de
+`inventory-service`/`billing-service` via `depends_on: service_completed_successfully`;
+`KAFKA_AUTO_CREATE_TOPICS_ENABLE=false`) + **Catálogo do cap.10 item 9: `consul`**
+(`hashicorp/consul:1.20`, `agent -dev -client=0.0.0.0`, porta **8500**, healthcheck e
+`profiles [services, all]`).
 Os serviços de messaging usam o perfil `QUARKUS_PROFILE=docker` com
 `%docker.kafka.bootstrap.servers=kafka:29092`.
+
+> **Item 10 — o compose não builda mais as imagens.** Cada serviço declara
+> `image: acme/<módulo>:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}` com `pull_policy: never`; as imagens
+> são pré-construídas via Maven profile `docker` (ver [Build das imagens](#build-das-imagens)).
+> A rede do compose é **custom** (`172.28.0.0/16`) e os serviços carregam **aliases de DNS
+> explícitos** (`networks.default.aliases`): dois achados do smoke (ADR 011) — a sub-rede
+> default `172.18.0.0/16` colide com rota estática da VPN do host (portas publicadas cegas) e o
+> compose v5 não registra os aliases implícitos numa rede com ipam custom (quebra `kafka`/KRaft,
+> `keycloak`, `consul` e os bancos por nome).
 
 ### Perfis
 
@@ -39,19 +54,25 @@ Cada serviço pertence ao seu grupo **e** ao perfil `all`. Definido em `others/.
 | Perfil | Serviços | Comando |
 |---|---|---|
 | `infra` | traefik + swagger | `docker compose up -d` |
-| `services` | 5 aplicações + seus 3 bancos | `docker compose up -d --profile services` |
+| `services` | 5 aplicações + seus 3 bancos + mensageria (kafka/kafka-init) + `consul` | `docker compose up -d --profile services` |
 | `databases` | só os 3 bancos dos serviços | `docker compose up -d --profile databases` |
 | `identity` | keycloak + postgres | `docker compose up -d --profile identity` |
 | `all` | tudo | `docker compose up -d --profile all` |
 
 - Cada serviço recebe `QUARKUS_PROFILE=docker`, ativando os overrides `%docker.` no
-  `application.properties` (ex.: reservation aponta para `http://rental-service:8082`
-  e `http://inventory-service:8083/graphql` — **nomes de container**, não `localhost`).
+  `application.properties`. Desde o item 9 (service discovery), o reservation resolve o
+  rental por **`stork://rentals`** (Stork consulta o **Consul** — `%docker.quarkus.stork.rentals.
+  service-discovery.consul-host=consul`), e rental/reservation se publicam no Consul com
+  check HTTP apontando para o **host `consul`** (`%docker.acme.consul.registration.consul-host`).
+  A saída GraphQL do reservation para o inventory segue **URL externalizada**
+  (`INVENTORY_SERVICE_URL` → `http://inventory-service:8083/graphql`) — nomes de container,
+  não `localhost`.
 - `extra_hosts: host.docker.internal:host-gateway` permite o **Traefik** alcançar
   serviços que rodam no host (dev sem Docker) — por isso dá para subir **só o agregador**
   no compose e as aplicações no **IntelliJ** (dev mode), desde que as portas batam com o `others/.env`.
 - Bancos têm `healthcheck`; aplicações usam `depends_on: condition: service_healthy`.
-- Portas publicadas via env do `others/.env`.
+- Portas publicadas via env do `others/.env` — exceto o **`consul`**, que expõe `8500:8500`
+  fixo no compose (o provider Stork e os adapters de registro defaultam para `localhost:8500`).
 
 **Subir tudo:**
 
@@ -322,21 +343,48 @@ cada serviço expõe o documento no próprio prefixo do gateway (`others/swagger
 | `DASHBOARD_PORT` | 8095 | Porta do dashboard do Traefik |
 | `KEYCLOAK_PORT` | 7777 | Porta do Keycloak (produção, realm car-rental) |
 | `COMPOSE_PROFILES` | `infra` | Perfil ativo por padrão no `docker compose up` |
+| `ACME_IMAGE_TAG` | `1.0.0-SNAPSHOT` | Tag das imagens `acme/*` consumidas (`pull_policy: never`) |
 
 Serviços também leem os mesmos `${NOME}` nos `application.properties` (overrides i.e.
-`RENTAL_SERVICE_URL`, `INVENTORY_SERVICE_URL`).
+`INVENTORY_SERVICE_URL`). As URIs de saída REST **usuários→reservation e reservation→rental não
+são mais externalizadas por env** desde o cap. 10 item 9 (service discovery): o destino vira
+`stork://reservations` e `stork://rentals`, resolvido no **Consul** (`others/docker-compose.yml`,
+serviço `consul`, porta `8500`, hostname `consul` na rede do compose para o `%docker`); foram
+aposentadas `RESERVATIONS_SERVICE_URL` e `RENTAL_SERVICE_URL`. O `inventory` (GraphQL) segue com
+`INVENTORY_SERVICE_URL` — divergência documentada do item 9.
 
-## Build das imagens
+## Build das imagens (cap.10 item 10 / cap.11)
 
-Cada serviço tem `Dockerfile` (multi-stage):
+Cada serviço publica `acme/<artifactId>:${project.version}` via **`quarkus-container-image-docker`**
+(Maven **profile `docker`**). O nome da imagem é fixado nas `<properties>` do pom
+(`quarkus.container-image.{group,name,tag}`) — **não** herda o `quarkus.application.name` de
+discovery (`reservations`/`rentals`, ADR 010). O `Dockerfile.jvm` do módulo
+(`src/main/docker/`) é o usado pelo extension; o **base é `ubi9/openjdk-21-runtime`** (baseline
+Java 21 do projeto — reservation e inventory foram corrigidos para 21 no smoke).
 
-1. `maven:3.9-eclipse-temurin-21` compila (`mvn package -DskipTests`);
-2. `eclipse-temurin:21-jre` roda `quarkus-run.jar`.
+```bash
+# JVM  → 5 imagens acme/<módulo>:1.0.0-SNAPSHOT
+./scripts/build-images.sh
+# Nativa → -P native,docker; sem GraalVM local seta QUARKUS_NATIVE_CONTAINER_BUILD=true
+./scripts/build-images.sh native
+```
 
-⚠️ O **inventory-service** usa contexto de build = **raiz do repositório**
-(`context: ..` + `dockerfile: inventory-service/Dockerfile` no `others/docker-compose.yml`),
-pois seu Dockerfile compila o contrato standalone `inventory-proto` antes do serviço
-(`.dockerignore` na raiz restringe o contexto a `inventory-proto/` + `inventory-service/`).
+O **compose consome** essas imagens (`image:` + `pull_policy: never`); trocar a tag
+(`ACME_IMAGE_TAG` no `others/.env`, espelhando `project.version`) é o deploy local.
+
+Manifests **Kubernetes versionados** em `others/k8s/<módulo>.yml` (Deployment+Service+probes com
+as mesmas imagens `acme/*`) via:
+
+```bash
+./scripts/generate-manifests.sh        # instala inventory-proto e roda package -P kubernetes
+```
+
+Cada manifest remove as anotações transitórias `app.quarkus.io/*` para ficar diffável. Deploy em
+cluster é item 11.6 (hoje os manifests usam `imagePullPolicy: Always` e as imagens vivem só local).
+
+> ⚠️ O **inventory-service** compila contra o contrato standalone `inventory-proto`; o
+> `build-images.sh` instala `inventory-proto` antes (`./mvnw -q -pl inventory-proto install`),
+> refletindo o contexto de build que antes era a raiz do repositório.
 
 ---
 

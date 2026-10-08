@@ -115,7 +115,7 @@ Adapters:
 - REST in
 - OIDC/security in
 - GraphQL out to Inventory
-- REST out to Rental
+- REST out to Rental (via Stork: `stork://rentals`, catálogo Consul)
 - Hibernate Reactive/Panache out to PostgreSQL
 
 Availability is derived in the Reservation context by combining Inventory data and reservation conflicts. Inventory does not own period availability.
@@ -136,6 +136,22 @@ Aqui mora a política de fault tolerance das duas chamadas síncronas de saída 
 - A política é **das annotations dos adapters**, não das portas nem dos casos de uso;
   os prazos operacionais ficam em `application.properties`
   (`quarkus.fault-tolerance."<classe>/<método>".*`), com `timeout.unit` sempre explícito.
+
+Service discovery (cap. 10 item 9): as duas saídas síncronas **não** compartilham o mesmo
+mecanismo. A REST para o rental usa **Stork + Consul** (`stork://rentals`): a localização sai da
+configuração e vira resolução de instância no catálogo. A publicação é feita por **adapter
+próprio de registro** (`reservation-service` e `rental-service` têm
+`adapter/out/registration/ConsulServiceRegistration`): publicam `rentals`/`reservations` no boot
+com health check HTTP absoluto e deregistram no shutdown — o auto-registro do Stork tem dois
+defectos na 3.39.3 documentados no [ADR 010](./adr/010-service-discovery.md) (health-check-url
+relativa → critical desde o boot; dereg depois do CDI fechado). A GraphQL para o inventory
+**não** está no Stork — o Stork integra REST Client e gRPC, e o cliente aqui é o SmallRye GraphQL
+Client — e segue com URL externalizada (`INVENTORY_SERVICE_URL`): **divergência documentada** do
+item 9. Evidências em `%test` (ao vivo, com Consul de testcontainers):
+`RentalRestGateway`→`RentalClient` atravessa a fronteira via a instância `rentals` do catálogo
+(`RentalServiceDiscoveryTest`), e cada serviço que se publica tem teste de registro que nega os
+defectos acima (`ReservationRegistersInConsulTest`, `RentalRegistersInConsulTest`: check
+**passing** no boot e saída limpa do catálogo após o deregister).
 
 O `users-service` também tem chamada síncrona de saída (`ReservationsRestGateway` →
 `GET /reservations/availability`), com cliente **bloqueante** e sem prazo nem política, e ainda
@@ -260,9 +276,17 @@ Port:
 Adapters:
 - Qute/web
 - OIDC/security
-- REST to reservation
+- REST to reservation (via Stork: `stork://reservations`, catálogo Consul)
 
 Transport models from reservation remain inside the outbound adapter.
+
+A saída resolve a localização do reservation no Consul (`stork://reservations`), publicado pelo
+adapter próprio de registro (`ConsulServiceRegistration`) como `reservations`. Como `ReservationsClient`
+carrega `@AccessToken`, o caminho completo só roda dentro de request autenticado (o filtro aborta 401
+sem token). Por isso a prova de discovery do BFF (`ReservationsServiceDiscoveryTest`) atua no nível do
+**Stork** — resolução da instância no catálogo + requisição direta ao endereço resolvido — em vez de
+dentro do cliente OIDC; o caminho completo REST Client→Stork→Consul fica evidenciado no
+reservation-service (sem token).
 
 ## inventory-cli
 
@@ -282,6 +306,28 @@ Not a bounded context.
 Contract-only module.
 
 Contains the protobuf schema and build configuration used to generate consumer/server stubs. No domain logic.
+
+## Runtime por ambiente e imagem (cap.10 item 10)
+
+Os 5 serviços publicam a **mesma imagem** `acme/<artifactId>:<version>` (Maven profile
+`docker`, `quarkus-container-image-docker`); o comportamento do runtime é config no launch via
+`QUARKUS_PROFILE` — não rebuild:
+
+- `%docker` (compose): Consul para a descoberta (`consul-host=consul`), registro dos publishers
+  pela ADR 010, keycloak/o banco/mensageria por nome de serviço no compose.
+- `%kubernetes` (cluster): Stork provider `kubernetes` nos que descobrem (`users`,
+  `reservation`) com `k8s-namespace`; `%kubernetes.acme.consul.
+  registration.enabled=false` nos publishers (reservation e rental — quem publica em K8s é a
+  plataforma). O dev service do kubernetes-client é desligado globalmente (vale p/ dev/test
+  também — ver `application.properties` de users/reservation). `use-endpoint-slices` não é
+  fixado no runtime: o provider auto-deteta EndpointSlices/Endpoints, e só o mock dos testes
+  (`@Tag("kubernetes")`) pinça `false` para o caminho de Endpoints ser determinístico.
+- `%prod` (jar no host): localhost para tudo, registra no Consul `localhost:8500` quando ativo.
+
+Os testes de discovery seguem o mesmo eixo: `@Tag("consul")` (default no CI) e
+`@Tag("kubernetes")` (mock do API server, com `-P kubernetes` no Maven). Manifests Kubernetes
+versionados em `others/k8s/`. Decisão e evidência em
+[docs/adr/011-imagens-e-perfis-cloud-native.md](adr/011-imagens-e-perfis-cloud-native.md).
 
 ## Dependency rule
 
@@ -314,7 +360,8 @@ Messaging cross-cutting concerns such as idempotency belong to the messaging inf
 | inventory-proto | ✅ | — | — | contract |
 
 ---
-_Last updated: 2026-10-05 (item 8 do cap. 10 — fault tolerance no reservation e contrato de
-falha da escrita; dívida do users-service explicitada; billing/inventory: seção de observability do cap. 10 item 6;
-métricas do relay da outbox e pipeline Kafka em `/q/metrics` — e tracing ponta a ponta do
-item 7 — propagação automática de contexto no Kafka com `quarkus-opentelemetry`)._
+_Last updated: 2026-10-07 (item 9 do cap. 10 — service discovery: users e reservation resolvem o
+destino via Stork/Consul (`stork://reservations`, `stork://rentals`), rental e reservation se
+publicam no catálogo com health check HTTP absoluto e deregistram no shutdown via adapter próprio
+(`ConsulServiceRegistration`) — o auto-registro do Stork foi descartado na 3.39.3 (ver ADR 010);
+divergência documentada: a saída GraphQL para o inventory fica com URL externalizada)._
