@@ -2,7 +2,14 @@ name: acme-car-rental
 
 # Este arquivo vive em others/ (assets não-Java). Rode os comandos a partir de
 # others/ (cd others && docker compose up ...) para o compose resolver o .env,
-# os volumes (./swagger, ./traefik, ./keycloak) e os build contexts (../<módulo>).
+# os volumes (./swagger, ./traefik, ./keycloak) e os nomes das imagens.
+#
+# Cap.10 item 10 - as imagens dos servicos NAO sao mais buildadas pelo compose:
+# sao pre-construidas via Maven profile docker (quarkus-container-image-docker),
+# com tag imutavel ACME_IMAGE_TAG (= project.version, ex. 1.0.0-SNAPSHOT), e o
+# compose apenas as consome com image: + pull_policy: never. Build de todas:
+#   scripts/build-images.sh            (JVM;   -P docker)
+#   scripts/build-images.sh native     (nativa; -P native,docker)
 # ──────────────────────────────────────────────────────────────────────────
 # Perfis do compose — cada serviço participa do seu grupo E do perfil "all":
 #
@@ -66,9 +73,8 @@ services:
 
   users-service:
     profiles: ["services", "all"]
-    build:
-      context: ../users-service
-      dockerfile: Dockerfile
+    image: acme/users-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: users-service
     env_file:
       - .env
@@ -82,9 +88,8 @@ services:
 
   reservation-service:
     profiles: ["services", "all"]
-    build:
-      context: ../reservation-service
-      dockerfile: Dockerfile
+    image: acme/reservation-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: reservation-service
     env_file:
       - .env
@@ -100,9 +105,8 @@ services:
 
   rental-service:
     profiles: ["services", "all"]
-    build:
-      context: ../rental-service
-      dockerfile: Dockerfile
+    image: acme/rental-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: rental-service
     env_file:
       - .env
@@ -118,12 +122,8 @@ services:
 
   inventory-service:
     profiles: ["services", "all"]
-    build:
-      # Contexto RAIZ do repositório: o Dockerfile multi-modulo compila o contrato
-      # inventory-proto (schema-first) antes do servico. O .dockerignore da raiz
-      # restringe o contexto a inventory-proto/ + inventory-service/.
-      context: ..
-      dockerfile: inventory-service/Dockerfile
+    image: acme/inventory-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: inventory-service
     env_file:
       - .env
@@ -139,9 +139,8 @@ services:
 
   billing-service:
     profiles: ["services", "all"]
-    build:
-      context: ../billing-service
-      dockerfile: Dockerfile
+    image: acme/billing-service:${ACME_IMAGE_TAG:-1.0.0-SNAPSHOT}
+    pull_policy: never
     container_name: billing-service
     env_file:
       - .env
