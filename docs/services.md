@@ -307,6 +307,25 @@ Contract-only module.
 
 Contains the protobuf schema and build configuration used to generate consumer/server stubs. No domain logic.
 
+## Runtime por ambiente e imagem (cap.10 item 10)
+
+Os 5 serviços publicam a **mesma imagem** `acme/<artifactId>:<version>` (Maven profile
+`docker`, `quarkus-container-image-docker`); o comportamento do runtime é config no launch via
+`QUARKUS_PROFILE` — não rebuild:
+
+- `%docker` (compose): Consul para a descoberta (`consul-host=consul`), registro dos publishers
+  pela ADR 010, keycloak/o banco/mensageria por nome de serviço no compose.
+- `%kubernetes` (cluster): Stork provider `kubernetes` nos que descobrem (`users`,
+  `reservation`) com `k8s-namespace` + `use-endpoint-slices=false`; `%kubernetes.acme.consul.
+  registration.enabled=false` na reservation (quem publica em K8s é a plataforma). Dev services
+  do kubernetes-client desligados.
+- `%prod` (jar no host): localhost para tudo, registra no Consul `localhost:8500` quando ativo.
+
+Os testes de discovery seguem o mesmo eixo: `@Tag("consul")` (default no CI) e
+`@Tag("kubernetes")` (mock do API server, com `-P kubernetes` no Maven). Manifests Kubernetes
+versionados em `others/k8s/`. Decisão e evidência em
+[docs/adr/011-imagens-e-perfis-cloud-native.md](adr/011-imagens-e-perfis-cloud-native.md).
+
 ## Dependency rule
 
 ~~~text
