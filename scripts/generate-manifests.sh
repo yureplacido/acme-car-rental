@@ -9,9 +9,13 @@ set -euo pipefail
 # Uso:
 #   scripts/generate-manifests.sh
 #
-# Nao roda testes (skipTests): a configuracao do runtime (%kubernetes, envs via
-# K8S_NAMESPACE etc.) ja nasce nos manifests; a validacao funcional da descoberta
-# fica nos testes @Tag("kubernetes") (Maven profile kubernetes).
+# Nao roda testes (skipTests): a configuracao funcional da descoberta fica nos
+# testes @Tag("kubernetes") (Maven profile kubernetes). O manifest nasce com o env
+# KUBERNETES_NAMESPACE (downward API: o namespace do pod, consumido pelo cliente
+# fabric8 quando k8s-namespace nao e setado), mas NAO ativa QUARKUS_PROFILE=kubernetes
+# nem seta K8S_NAMESPACE - ativar o perfil de runtime no Deployment e decidir o
+# namespace que o Stork consome sao itens do 11.6 (deploy real), junto com
+# imagePullPolicy/registry (hoje as imagens vivem so local e o default e "Always").
 
 cd "$(dirname "$0")/.."
 

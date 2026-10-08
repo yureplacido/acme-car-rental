@@ -3,10 +3,10 @@
 > Capítulo 10 do *Quarkus in Action* (p. 273–302 no impresso; PDF p. 299–329).
 > Norma do projeto: [ddd-tdd-standards.md](../ddd-tdd-standards.md) §9 (regras de negócio em
 > agregados, não em adapters) e AGENTS.md regra 16 (API verificada contra Quarkus 3.39.3).
-> Última atualização: 2026-10-07 (itens health 1–5, métricas do pipeline/relay — item 6 —,
-> tracing ponta a ponta — item 7, fault tolerance nas chamadas externas — item 8 — e service
-> discovery (Stork/Consul) — item 9 — concluídos; configuração cloud-native e graceful shutdown
-> ainda pendentes).
+> Última atualização: 2026-10-08 (itens health 1–5, métricas do pipeline/relay — item 6 —,
+> tracing ponta a ponta — item 7, fault tolerance nas chamadas externas — item 8 —, service
+> discovery (Stork/Consul) — item 9 — e configuração cloud-native — item 10 — concluídos;
+> graceful shutdown ainda pendente).
 
 ---
 
@@ -105,8 +105,9 @@
   (`quarkus-container-image-docker`), o compose **consome** (`image:` + `pull_policy: never`,
   `ACME_IMAGE_TAG` no `others/.env`) e o runtime decide o catálogo: `%docker` → **Consul**,
   `%kubernetes` → **Stork provider `kubernetes`**, `%prod` → jar no host (localhost). Em
-  `%kubernetes` o registro Consul é desligado na reservation (`%kubernetes.acme.consul.
-  registration.enabled=false`): em K8s quem publica é a plataforma (Service), não o app.
+  `%kubernetes` o registro Consul é desligado nos publishers reservation e rental
+  (`%kubernetes.acme.consul.registration.enabled=false`): em K8s quem publica é a plataforma
+  (Service), não o app.
   Testes de discovery selecionam o backend por tag (`@Tag("consul")`/`@Tag("kubernetes")`, no
   surefire via `acme.test.discovery.excludedGroups`, profile `-P kubernetes` troca o excluído).
   Manifests Kubernetes versionados em `others/k8s/` (`quarkus-kubernetes`). Decisão em
@@ -167,13 +168,16 @@
     (users→reservation) propaga o token OIDC do usuário da sessão. Já o salto **interno**
     reservation→rental **não** propaga (cliente sem `@AccessToken`): reencaminhar token do
     próprio serviço (de serviço a serviço) raramente é o pretendido.
-  - **Stork-k8s (3.39.3) exige `k8s-namespace` e `targetRef` e endpoin sem slice.** O provider
+  - **Stork-k8s (3.39.3) exige `k8s-namespace` e `targetRef` e endpoint sem slice.** O provider
     `kubernetes` (artefato `stork-service-discovery-kubernetes`, no BOM) NPE em
     `gatherBackendPods` sem `k8s-namespace`; o `EndpointAddress` precisa de `targetRef`
     preenchido (senão classifica a instância como inválida); e com `quarkus.stork.<svc>….
-    service-discovery.use-endpoint-slices` no default (true) o caminho muda de Endpoints —
-    para o teste com mock, fixamos `use-endpoint-slices=false` (caminho de Endpoints). Medido
-    no item 10; a config `%kubernetes` vive no `application.properties` de users e reservation.
+    service-discovery.use-endpoint-slices` no default (auto-detect) o provider usa
+    **EndpointSlices** quando o API server as oferece (falha → fallback Endpoints) — no mock dos
+    testes pinçamos `use-endpoint-slices=false` para o caminho de Endpoints ser determinístico
+    (`client.resource(ep).create()`). Medido no item 10; o runtime **não** fixa essa chave
+    (auto-detect em cluster real), e a config `%kubernetes` (type + `k8s-namespace`) vive no
+    `application.properties` de users e reservation.
   - **CRUD mock do fabric8 não emite o POST de Endpoints de qualquer forma.** No resource de
     teste (mock do API server), criar o Endpoints por `.endpoints().inNamespace().resource(ep).
     create()` **às vezes não destrava a descoberta** (o Stork continua sem instâncias); a forma
@@ -762,4 +766,4 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ---
 
-_Última atualização: 2026-10-07 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 —, fault tolerance nas chamadas externas do reservation — item 8 — e service discovery via Stork/Consul — item 9 — concluídos; snippets e seção 1.7 alinhados ao código real; configuração cloud-native e graceful shutdown ainda pendentes)._
+_Última atualização: 2026-10-08 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 —, fault tolerance nas chamadas externas do reservation — item 8 —, service discovery via Stork/Consul — item 9 — e configuração cloud-native — item 10 — concluídos; snippets e seção 1.7 alinhados ao código real; graceful shutdown ainda pendente)._

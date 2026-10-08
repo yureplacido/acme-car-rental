@@ -316,9 +316,12 @@ Os 5 serviços publicam a **mesma imagem** `acme/<artifactId>:<version>` (Maven 
 - `%docker` (compose): Consul para a descoberta (`consul-host=consul`), registro dos publishers
   pela ADR 010, keycloak/o banco/mensageria por nome de serviço no compose.
 - `%kubernetes` (cluster): Stork provider `kubernetes` nos que descobrem (`users`,
-  `reservation`) com `k8s-namespace` + `use-endpoint-slices=false`; `%kubernetes.acme.consul.
-  registration.enabled=false` na reservation (quem publica em K8s é a plataforma). Dev services
-  do kubernetes-client desligados.
+  `reservation`) com `k8s-namespace`; `%kubernetes.acme.consul.
+  registration.enabled=false` nos publishers (reservation e rental — quem publica em K8s é a
+  plataforma). O dev service do kubernetes-client é desligado globalmente (vale p/ dev/test
+  também — ver `application.properties` de users/reservation). `use-endpoint-slices` não é
+  fixado no runtime: o provider auto-deteta EndpointSlices/Endpoints, e só o mock dos testes
+  (`@Tag("kubernetes")`) pinça `false` para o caminho de Endpoints ser determinístico.
 - `%prod` (jar no host): localhost para tudo, registra no Consul `localhost:8500` quando ativo.
 
 Os testes de discovery seguem o mesmo eixo: `@Tag("consul")` (default no CI) e

@@ -134,8 +134,8 @@ Notas de escopo:
 
 > O capítulo está sendo implementado incrementalmente contra Quarkus 3.39.3.
 > As evidências já concluídas abaixo estão mergeadas; os itens restantes continuam
-> como trabalho explícito do capítulo. Itens 7 (tracing), 8 (fault tolerance) e
-> 9 (service discovery) implementados; item 10 pendente.
+> como trabalho explícito do capítulo. Itens 7 (tracing), 8 (fault tolerance),
+> 9 (service discovery) e 10 (configuração cloud-native) implementados.
 
 - [x] Decidir MicroProfile/SmallRye antes de abstração própria: health e metrics usam as extensões nativas do Quarkus/SmallRye; abstrações próprias só existem quando representam uma porta da aplicação
 - [x] Health de aplicação expondo liveness, readiness e startup como grupos distintos, com testes por serviço [3.39.3]
@@ -224,7 +224,7 @@ Notas de escopo:
       última exigindo `QUARKUS_NATIVE_CONTAINER_BUILD=true` sem GraalVM local). O
       comportamento difere só por **`QUARKUS_PROFILE`** no mesmo artefato:
       `%docker` (Compose/Consul) e `%kubernetes` (Stork provider `kubernetes`,
-      k8s-namespace, registro Consul desligado na reservation) — sem rebuild entre
+      k8s-namespace, registro Consul desligado nos publishers reservation e rental) — sem rebuild entre
       ambientes. **Evidência executável**: smoke `docker compose --profile all up -d`
       com as 5 imagens acme, healths respondendo (users devolve 302 de OIDC — esperado),
       catálogo Consul com `reservations`/`rentals` **passing** e realm do keycloak 200;

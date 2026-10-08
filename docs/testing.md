@@ -220,6 +220,14 @@ Um teste criado depois da implementação não é evidência suficiente de TDD.
 
 Os commits devem preferencialmente manter essa história visível: test(...), feat(...), refactor(...).
 
+**Dívida declarada do item 10 (backend K8s).** Os testes `@Tag("kubernetes")`
+(`RentalServiceDiscoveryKubernetesTest`, `ReservationsServiceDiscoveryKubernetesTest`) foram
+escritos GREEN-first: chegaram no mesmo commit que a config `%kubernetes` (a história RED não
+fica no git, e `b6c726e` ainda quebrava a compilação — corrigido em `8bd81cd`). É a mesma
+exceção já aceita para o item 9 (RED documentado acima, não commitado), agora tornada padrão:
+o cenário "nome não resolve" é coberto por asserção (size==1 e host/port do stub), não por um
+RED prévio no histórico. Reabilitar RED real fica como dívida aceita.
+
 ## Nomenclatura
 Prefira nomes como shouldRejectReservationWhenVehicleIsAlreadyReserved e evite nomes que descrevem implementação.
 

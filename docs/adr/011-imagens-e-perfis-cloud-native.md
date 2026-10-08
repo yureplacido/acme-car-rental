@@ -85,25 +85,32 @@ O jar é **um só**; o ambiente é config no launch:
 - `%docker` — catálogo **Consul** (`consul-host=consul` no compose), registro dos publishers
   via adapter próprio (ADR 010), `auth-server-url` do keycloak no container.
 - `%kubernetes` — Stork **provider `kubernetes`** (`stork-service-discovery-kubernetes`):
-  `k8s-namespace` obrigatório, `targetRef` obrigatório no EndpointAddress e
-  `use-endpoint-slices=false` (medido na 3.39.3 — ver knowledge §1.8). Na reservation também
-  desliga o registro Consul (`%kubernetes.acme.consul.registration.enabled=false`): em K8s quem
-  publica é a plataforma (Service/probe), não o app. Dev services do kubernetes-client ficam off.
+  `k8s-namespace` obrigatório, `targetRef` obrigatório no EndpointAddress (ver knowledge §1.8).
+  Nos publishers (reservation e rental) desliga o registro Consul (`%kubernetes.acme.consul.
+  registration.enabled=false`): em K8s quem publica é a plataforma (Service/probe), não o app.
+  O dev service do kubernetes-client fica desligado globalmente (vale para dev/test — o
+  provider `kubernetes` existir no classpath não pode subir um cluster fake de graça). O runtime
+  **não** fixa `use-endpoint-slices`: ela é auto-detectada; só o mock dos testes
+  (`@Tag("kubernetes")`) a pinça em `false` para o caminho de Endpoints ser determinístico.
 - `%prod` — jar no host (IntelliJ/CLI), localhost para tudo.
 
-Exemplo na reservation:
+Exemplo na reservation (`application.properties`):
 
 ```text
-%docker.quarkus.stork.rentals.service-discovery.type=kubernetes   # não! é %kubernetes
+quarkus.stork.rentals.service-discovery.type=consul               # base (default)
+%docker.quarkus.stork.rentals.service-discovery.consul-host=consul
 %kubernetes.quarkus.stork.rentals.service-discovery.type=kubernetes
 %kubernetes.quarkus.stork.rentals.service-discovery.k8s-namespace=${K8S_NAMESPACE:default}
-%kubernetes.quarkus.stork.rentals.service-discovery.use-endpoint-slices=false
 %kubernetes.acme.consul.registration.enabled=false
 ```
 
-(Nota de redação: em `%kubernetes` **o provider de discovery é `kubernetes`**; o `%docker` nem
-precisa setar o type, herda o default `consul` e só troca host. A chave `type` existe porque o
-comportamento por ambiente é diferente de propósito — é isso que o item 10 pede.)
+(Nota de redação: o `%docker` nem precisa setar o `type` — herda o default `consul` e só troca
+host, como no snippet. O `type` existe porque o comportamento por ambiente é diferente de
+propósito — é isso que o item 10 pede.)
+
+Nos testes K8s (mock do API server), o `%kubernetes` acima é replicado no resource de teste —
+**com** `use-endpoint-slices=false` (determinístico) — e a descoberta assere o Endpoints plantado
+via `client.resource(ep).create()`.
 
 ### 4. Seleção de testes de discovery por backend
 
