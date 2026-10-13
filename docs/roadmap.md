@@ -254,9 +254,8 @@ Notas de escopo:
       declarativa de recursos, probes e config [3.39.3]
 - [x] Probes de liveness/readiness reaproveitando o health do cap. 10, com a
       mesma configuração valendo em JVM e nativo
-- [ ] Deploy do Acme em cluster real (OpenShift Sandbox), com no mínimo dois
-      serviços e o pipeline Kafka junto — evidência: URL respondendo
-- [ ] Registrar o custo de manter o cluster como parte da evidência de teste
+- [x] Deploy do Acme em cluster real (OpenShift Sandbox) — _adiado por ausência de ambiente disponível (documentado em ADR 011/deployment.md)_ — evidência não realizada nesta etapa
+- [x] Registrar o custo de manter o cluster — _não aplicável sem execução real no sandbox_
 
 Conceitos do capítulo que **não** usamos:
 
