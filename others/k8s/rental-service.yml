@@ -32,15 +32,15 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/version: 1.0.0-SNAPSHOT
       app.kubernetes.io/name: rentals
+      app.kubernetes.io/version: 1.0.0-SNAPSHOT
   template:
     metadata:
       annotations:
       labels:
         app.kubernetes.io/managed-by: quarkus
-        app.kubernetes.io/version: 1.0.0-SNAPSHOT
         app.kubernetes.io/name: rentals
+        app.kubernetes.io/version: 1.0.0-SNAPSHOT
     spec:
       containers:
         - env:
@@ -50,7 +50,7 @@ spec:
                   fieldPath: metadata.namespace
             - name: QUARKUS_PROFILE
               value: kubernetes
-          image: docker.io/acme/rentals:1.0.0-SNAPSHOT
+          image: docker.io/acme/rentals:1.0.0
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3

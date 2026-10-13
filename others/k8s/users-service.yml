@@ -75,7 +75,7 @@ spec:
                   fieldPath: metadata.namespace
             - name: QUARKUS_PROFILE
               value: kubernetes
-          image: docker.io/acme/users-service:1.0.0-SNAPSHOT
+          image: docker.io/acme/users-service:1.0.0
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3

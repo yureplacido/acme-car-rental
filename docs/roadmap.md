@@ -248,9 +248,9 @@ Notas de escopo:
 
 - [x] Configuração externalizada por ambiente: mesma imagem em dev, staging e
       prod, sem rebuild [3.39.3] — evidência: dois ambientes com a mesma imagem
-- [ ] Imagem de container reproduzível para os 5 módulos, com tag imutável
+- [x] Imagem de container reproduzível para os 5 módulos, com tag imutável
       [3.39.3] — evidência: build local e digest registrado
-- [ ] Manifests Kubernetes versionados no repositório, com customização
+- [x] Manifests Kubernetes versionados no repositório, com customização
       declarativa de recursos, probes e config [3.39.3]
 - [x] Probes de liveness/readiness reaproveitando o health do cap. 10, com a
       mesma configuração valendo em JVM e nativo

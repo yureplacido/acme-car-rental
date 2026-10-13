@@ -391,4 +391,14 @@ cluster é item 11.6 (hoje os manifests usam `imagePullPolicy: Always` e as imag
 _Caps. 10-12 tratarão cloud — atualize este arquivo e [roadmap.md](./roadmap.md)._
 _⚠️ A rota `/users` do Traefik atende a UI do cap.6; o login OIDC exige cookies de
 sessão — as URLs de redirect (localhost:8080) devem bater com o client configurado
-(Dev Services faz isso sozinho; o realm manual usa redirect `*`)._
+(Dev Services faz isso sozinho; o realm manual usa redirect `*`)._## Cap.11 — Imagens reproduzíveis (tag imutável + digest) — evidência
+
+Build local com `quarkus-container-image-docker`, tag imutável `1.0.0`:
+
+- acme/reservation-service:1.0.0 → acme/reservation-service@sha256:e39e018035cce0b172943a898bcfb82b6bc2957cc4d0cd4eb550dd4712347831
+- acme/billing-service:1.0.0 → acme/billing-service@sha256:c6cd3e179186a57ec38aaa0e102db349b7985fb6f870abdf971ab2d881fbc029
+- acme/inventory-service:1.0.0 → acme/inventory-service@sha256:215e74a093a1c59ed63392d8f2c37524548e65cb69e2d185dc7f7b1ffb3b8324
+- acme/rentals:1.0.0 → acme/rentals@sha256:e0404466fdb065faead9c77968f8d1e301f699f60fb5e2275d50a7641bfe838f
+- acme/users-service:1.0.0 → acme/users-service@sha256:ecf768eac3d8769fa6ea8cb0d9e5faf45ae424e0bae291d8baab6dd08fde87e7
+
+Manifests em `others/k8s/*.yml` atualizados para `image: docker.io/acme/...:1.0.0`. Digests obtidos via `docker inspect --format='{{index .RepoDigests 0}}'`.
