@@ -286,7 +286,7 @@ Conceitos do capítulo que **não** usamos:
 - [x] Escopo do cap. 10 conferido contra o livro: o capítulo tem **seis** pilares
       (health, metrics, tracing, fault tolerance, service discovery, SmallRye/MP),
       não só health e metrics
-- [ ] Completar os documentos de estudo do cap. 10 à medida que cada capacidade for fechada
+- [x] Documentação de estudo do cap. 10 consolidada em `docs/knowledge/10-cap10-summary.md`
 
 ## Regra de evolução
 
