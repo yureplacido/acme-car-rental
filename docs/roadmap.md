@@ -271,13 +271,7 @@ Conceitos do capítulo que **não** usamos:
 > build items, Dev Services, Dev UI, modo nativo e testes de extensão. Onde o
 > assunto está: `docs/knowledge/book-index/cap12.txt`.
 
-- [ ] 🔜 Decidir qual extensão o projeto realmente precisa — o livro constrói uma
-      extensão de estatísticas; só criamos uma se o domínio pedir
-- [ ] Extensão com model de configuração próprio, sem contaminar os módulos de domínio
-- [ ] Build step, recorder e processor em módulo próprio, com o código de build
-      fora do domínio e da aplicação
-- [ ] Comportamento correto em dev mode (Dev Services, Dev UI) **e** em nativo
-- [ ] Testes da extensão: unitário do recorder e de integração do artefato
+**Não aplicável ao domínio.** Não identificamos necessidade de extensão Quarkus custom: a infraestrutura (health, métricas, tracing, discovery, etc.) já é provida por extensions existentes; o domínio não demanda processamento build-time específico. Verificado em `docs/domain.md` — nenhum requisito justifica criar `@BuildStep`/recorder/processor. Portanto, este capítulo é marcado como não necessário para este projeto.
 
 ## Base de estudo
 
