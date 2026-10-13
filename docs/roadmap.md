@@ -246,7 +246,7 @@ Notas de escopo:
 > Kubernetes/OpenShift, clients de cluster, serverless e deploy no OpenShift
 > Sandbox. Onde o assunto está: `docs/knowledge/book-index/cap11.txt`.
 
-- [ ] Configuração externalizada por ambiente: mesma imagem em dev, staging e
+- [x] Configuração externalizada por ambiente: mesma imagem em dev, staging e
       prod, sem rebuild [3.39.3] — evidência: dois ambientes com a mesma imagem
 - [ ] Imagem de container reproduzível para os 5 módulos, com tag imutável
       [3.39.3] — evidência: build local e digest registrado
