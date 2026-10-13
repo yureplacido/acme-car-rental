@@ -170,7 +170,8 @@ declara `networks.default.ipam.subnet=172.28.0.0/16`.
 
 - Imagens **nativas** ainda não buildadas (máquina sem GraalVM; usa `QUARKUS_NATIVE_CONTAINER_BUILD=true`,
   build longo) — fica como evidência pendente do cap. 11.
-- Os manifests apontam para `docker.io/acme/*:1.0.0-SNAPSHOT` com `imagePullPolicy: Always`;
+- Os manifests passaram a apontar para a tag imutável `docker.io/acme/*:1.0.0` (item 11.4);
+  o digest está registrado em `docs/deployment.md`. O `imagePullPolicy` continua `Always`, então
   aplicar em cluster exige registry ou policy `IfNotPresent` — decidido no item de deploy (11.6).
 - Re-registro do Consul continua sendo boot-once (ADR 010): o smoke pegou exatamente isso — ao
   recriar o Consul, o catálogo zerou até os apps reiniciarem. Aliases explícitos minimizam os
@@ -183,7 +184,8 @@ declara `networks.default.ipam.subnet=172.28.0.0/16`.
 | `scripts/build-images.sh` | 5 imagens `acme/<modulo>:1.0.0-SNAPSHOT` (JVM; validado) com base `ubi9/openjdk-21-runtime` |
 | smoke `docker compose --profile all up -d` | imagens imutáveis sobem iguais em runtime `%docker`: healths 200 (users 302 OIDC), Consul `passing`, realm 200 |
 | `@Tag("consul")`/`@Tag("kubernetes")` + `acme.test.discovery.excludedGroups` | baseline = Consul; `-P kubernetes` = backend K8s (mock do API server) — suítes verdes validadas nº `§4` |
-| `others/k8s/*.yml` + `scripts/generate-manifests.sh` | Deployments/Services/probes com as mesmas imagens `acme/*` |
+| `others/k8s/*.yml` + `scripts/generate-manifests.sh` | Deployments/Services/probes com as mesmas imagens `acme/*`, tag `1.0.0` e `QUARKUS_PROFILE=kubernetes` injetado no Deployment |
+| build `-Dquarkus.container-image.build=true -Dquarkus.container-image.tag=1.0.0` + `docker inspect` | 5 imagens `acme/*:1.0.0` com `RepoDigests` (sha256) registrados em `docs/deployment.md` |
 | `KubernetesRentalDiscoveryTest` / `ReservationsServiceDiscoveryKubernetesTest` | Stork-k8s resolve por `k8s-namespace`+`targetRef` com `use-endpoint-slices=false` (mock determinístico `client.resource(ep).create()`) |
 
 ## Relação com outras decisões
@@ -192,8 +194,9 @@ declara `networks.default.ipam.subnet=172.28.0.0/16`.
   (a plataforma publica); o `kubernetes` da ADR 010 sobre provider Stork vale igual aqui.
 - **ADR 002–007 (messaging)** — inalterado; o item 10 só altera como o app *sobe* (imagem), não
   o outbox/inbox.
-- **cap. 11** — o build de imagem (11.2) e os manifests (11.3) estão adiantados; o deploy real
-  (11.6) e o digest de imagem registrado continuam itens de lá.
+- **cap. 11** — o build de imagem com tag imutável + digest (11.2/11.4), os manifests com
+  `QUARKUS_PROFILE=kubernetes` (11.3) e os probes reaproveitando o health (11.3) estão feitos;
+  o deploy real em cluster (11.6) segue pendente por ausência de ambiente sandbox.
 
 ## Estado da decisão
 

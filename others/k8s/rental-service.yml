@@ -5,7 +5,7 @@ metadata:
   annotations:
   labels:
     app.kubernetes.io/name: rentals
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: rentals
 spec:
@@ -16,7 +16,7 @@ spec:
       targetPort: 8082
   selector:
     app.kubernetes.io/name: rentals
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -25,7 +25,7 @@ metadata:
   annotations:
   labels:
     app.kubernetes.io/name: rentals
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: rentals
 spec:
@@ -33,14 +33,14 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: rentals
-      app.kubernetes.io/version: 1.0.0-SNAPSHOT
+      app.kubernetes.io/version: 1.0.0
   template:
     metadata:
       annotations:
       labels:
         app.kubernetes.io/managed-by: quarkus
         app.kubernetes.io/name: rentals
-        app.kubernetes.io/version: 1.0.0-SNAPSHOT
+        app.kubernetes.io/version: 1.0.0
     spec:
       containers:
         - env:

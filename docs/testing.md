@@ -192,12 +192,36 @@ As suítes Kafka do billing e do inventory usam **uma** instância do broker Str
 testcontainers dedicada de **subnet determinística** (`172.29.0.0/16` billing, `172.30.0.0/16`
 inventory) em vez do `Network.SHARED` default: o Docker aloca o SHARED como o primeiro `/16`
 livre (172.18 após o bridge 172.17) e VPNs corporativas injetam **rotas estáticas** que sequestram
-esses RFC1918 — com o broker num range sequestrado o forwarding host→container da porta publicada
-morre e o AdminClient falha com `TimeoutException` em `fetchMetadata` (medido 2026-10-08: o
-`ip route get 172.18.0.2` devolvia a interface do túnel). Subnets próprias por módulo também
-permitem rodar billing e inventory Kafka em paralelo sem overlap. A medida está replicada em
-`BillingKafkaCompanionResource`/`InventoryKafkaCompanionResource` (override de `createContainer`
-+ `Network.builder().createNetworkCmdModifier(...)`).
+  esses RFC1918 — com o broker num range sequestrado o forwarding host→container da porta publicada
+  morre e o AdminClient falha com `TimeoutException` em `fetchMetadata` (medido 2026-10-08: o
+  `ip route get 172.18.0.2` devolvia a interface do túnel). Subnets próprias por módulo também
+  permitem rodar billing e inventory Kafka em paralelo sem overlap. A medida está replicada em
+  `BillingKafkaCompanionResource`/`InventoryKafkaCompanionResource`.
+
+  Os companions precisam ainda de um **nome de rede determinístico**. O builder do testcontainers
+  gera um nome aleatório por instância de `Network`; como os testes de config-evidence do cap.11
+  (item 11.1) sobem um **segundo** Quarkus app sob o perfil `kubernetes` enquanto o primeiro ainda
+  roda, o resource global reinicia e a segunda rede aleatória cairia na mesma subnet, que o Docker
+  rejeita com `403 Pool overlaps`. A solução é um `Network` anônimo cujo `getId()` devolve o nome
+  determinístico (`acme-car-rental-{billing,inventory}-kafka`): o Testcontainers usa o `id` como
+  `networkMode`, então o broker entra na rede já existente em vez de criar outra. A rede é criada
+  por `start()` (via `DockerClientFactory.lazyClient()`) só se ausente, com subnet/gateway pinados,
+  `withCheckDuplicate(true)` e os labels do `ResourceReaper` (limpeza por Ryuk); se existir com
+  subnet divergente e vazia é recriada, se estiver em uso lança `IllegalStateException`.
+
+### Config-evidence do perfil `%kubernetes` (cap.11 item 11.1)
+Cada serviço tem um `KubernetesConfigProfileTest` que **sobe o mesmo jar sob o config profile
+`kubernetes`** — não basta conferir a chave no `.properties`. O gatilho é um `@TestProfile` cujo
+`getConfigProfile()` devolve `"kubernetes"`; os `getConfigOverrides()` só adicionam `plain keys`
+de boot-safety (`quarkus.http.test-port=0`, `quarkus.oidc.tenant-enabled=false`,
+`quarkus.{hibernate-orm,mongodb,kafka,kubernetes-client}.devservices.enabled=false`, etc.) e
+**não** mascaram chaves de provider. O teste então lê a config efetiva
+(`ConfigProvider.getConfig().getValue(...)`) e assere o alvo do perfil — ex. datasource
+`vertx-reactive:postgresql://billing-postgres:5432/billing`, `mysql://inventory-mysql:3306/inventory`,
+`mongodb://rental-mongo:27017`, OIDC `http://keycloak:8080/realms/car-rental`, Stork-k8s. A
+asserção de Kafka é tolerante (`assertNotNull`) porque os Kafka companions globais
+(`restrictToAnnotatedClass=false`) mascaram `kafka.bootstrap.servers`; a evidência forte fica no
+datasource. `quarkus.hibernate-orm.sql-load-script=none` é inválido (gera `ConfigurationException`).
 
 ### Integration / native
 @QuarkusIntegrationTest é reservado para validar o artefato empacotado e o runtime.
@@ -238,9 +262,8 @@ Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é pr
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
 ---
-_Last updated: 2026-10-08 (service discovery: dois backends de discovery testáveis por tag
-`consul`/`kubernetes` com seleção no surefire (`acme.test.discovery.excludedGroups`, profile
-`-P kubernetes`), o backend K8s provado com mock do API server sem cluster — armadilha medida
-do CRUD de Endpoints no fabric8 —, e o broker Strimzi dos Kafka companions fixado numa rede
-testcontainers de subnet determinística (172.29/172.30) porque o `Network.SHARED` default
-cai no primeiro /16 livre (172.18), sequestrado por rotas estáticas de VPN corporativa)._
+_Last updated: 2026-10-13 (cap.11 item 11.1: `KubernetesConfigProfileTest` sobe o mesmo
+jar sob o config profile `kubernetes` com `getConfigProfile()` e overrides de boot-safety;
+Kafka companions com rede determinística nomeada (reuso entre boots, evita `403 Pool
+overlaps`; ver §Kafka). Antes, 2026-10-08: service discovery com dois backends testáveis
+por tag `consul`/`kubernetes` e subnets pinadas 172.29/172.30 contra rotas de VPN)._

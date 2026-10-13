@@ -373,14 +373,20 @@ O **compose consome** essas imagens (`image:` + `pull_policy: never`); trocar a 
 (`ACME_IMAGE_TAG` no `others/.env`, espelhando `project.version`) é o deploy local.
 
 Manifests **Kubernetes versionados** em `others/k8s/<módulo>.yml` (Deployment+Service+probes com
-as mesmas imagens `acme/*`) via:
+as mesmas imagens `acme/*`, `QUARKUS_PROFILE=kubernetes` injetado no Deployment e probes
+liveness/readiness/startup apontando para o health do cap.10) via:
 
 ```bash
-./scripts/generate-manifests.sh        # instala inventory-proto e roda package -P kubernetes
+./scripts/generate-manifests.sh                       # tag imutável default 1.0.0
+ACME_IMAGE_TAG=1.2.3 ./scripts/generate-manifests.sh  # outra tag
 ```
 
-Cada manifest remove as anotações transitórias `app.quarkus.io/*` para ficar diffável. Deploy em
-cluster é item 11.6 (hoje os manifests usam `imagePullPolicy: Always` e as imagens vivem só local).
+O env `QUARKUS_PROFILE=kubernetes` vem de `quarkus.kubernetes.env.vars` nos
+`application.properties` (item 11.2), então o Deployment sobe já no perfil certo sem override
+manual. Cada manifest remove as anotações transitórias `app.quarkus.io/*`; o gerador não ordena
+chaves/listas de forma estável, então pequenas reordenações podem aparecer entre execuções (o
+conteúdo é equivalente). Deploy em cluster é item 11.6 (hoje os manifests usam `imagePullPolicy:
+Always` e as imagens vivem só local).
 
 > ⚠️ O **inventory-service** compila contra o contrato standalone `inventory-proto`; o
 > `build-images.sh` instala `inventory-proto` antes (`./mvnw -q -pl inventory-proto install`),

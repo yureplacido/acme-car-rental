@@ -9,7 +9,7 @@ metadata:
     prometheus.io/scheme: http
   labels:
     app.kubernetes.io/name: inventory-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: inventory-service
 spec:
@@ -24,7 +24,7 @@ spec:
       targetPort: 9000
   selector:
     app.kubernetes.io/name: inventory-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -37,14 +37,14 @@ metadata:
     prometheus.io/scheme: http
   labels:
     app.kubernetes.io/name: inventory-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: inventory-service
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/version: 1.0.0-SNAPSHOT
+      app.kubernetes.io/version: 1.0.0
       app.kubernetes.io/name: inventory-service
   template:
     metadata:
@@ -55,7 +55,7 @@ spec:
         prometheus.io/scheme: http
       labels:
         app.kubernetes.io/managed-by: quarkus
-        app.kubernetes.io/version: 1.0.0-SNAPSHOT
+        app.kubernetes.io/version: 1.0.0
         app.kubernetes.io/name: inventory-service
     spec:
       containers:
@@ -134,14 +134,14 @@ metadata:
   annotations:
   labels:
     app.kubernetes.io/name: inventory-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: inventory-service
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: inventory-service
-      app.kubernetes.io/version: 1.0.0-SNAPSHOT
+      app.kubernetes.io/version: 1.0.0
   endpoints:
     - scheme: http
       targetPort: 8083

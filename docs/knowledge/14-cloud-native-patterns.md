@@ -206,9 +206,17 @@
     o bridge default 172.17); a mesma rota estática da VPN que o compose encontrou (item acima)
     sequestra esse range → `ip route get <container-ip>` devolve a interface do túnel e o
     AdminClient de `KafkaCompanionResource` morre com `TimeoutException` em `fetchMetadata`.
-    Cada módulo Kafka fixa a rede: `Network.builder().createNetworkCmdModifier(
-    cmd.withIpam(... subnet 172.29 billing / 172.30 inventory ...))` no `createContainer` —
-    subnet própria por módulo permite rodar as duas suítes Kafka em paralelo (ADR 011 §2).
+    Cada módulo Kafka fixa a rede num `Network` anônimo cujo `getId()` devolve um nome
+    determinístico (`acme-car-rental-{billing,inventory}-kafka`), criada por `start()` só se
+    ausente com subnet própria (`172.29` billing / `172.30` inventory) — subnet própria por módulo
+    permite rodar as duas suítes Kafka em paralelo (ADR 011 §2).
+  - **Nome determinístico, não só subnet fixa.** `Network.builder()`/`withNetworkMode` não bastam:
+    o `StrimziKafkaContainer` fixa `Network.SHARED` e é o `id` do `Network` que vira o
+    `networkMode` do container. Com o `id` = nome determinístico, um segundo boot do mesmo jar
+    (os `KubernetesConfigProfileTest` do item 11.1 sobem um segundo Quarkus app) reusa a rede em
+    vez de criar outra na mesma subnet, o que o Docker rejeita com `403 Pool overlaps`. A rede
+    leva os labels do `ResourceReaper` (Ryuk limpa ao fim) e há guarda: mesma subnet → reusa;
+    divergente e vazia → recria; em uso → `IllegalStateException`.
 
 ---
 

@@ -5,7 +5,7 @@ metadata:
   annotations:
   labels:
     app.kubernetes.io/name: users-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: users-service
 ---
@@ -14,7 +14,7 @@ kind: RoleBinding
 metadata:
   labels:
     app.kubernetes.io/name: users-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
   name: users-service-view
 roleRef:
   kind: ClusterRole
@@ -30,7 +30,7 @@ metadata:
   annotations:
   labels:
     app.kubernetes.io/name: users-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: users-service
 spec:
@@ -41,7 +41,7 @@ spec:
       targetPort: 8080
   selector:
     app.kubernetes.io/name: users-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -50,7 +50,7 @@ metadata:
   annotations:
   labels:
     app.kubernetes.io/name: users-service
-    app.kubernetes.io/version: 1.0.0-SNAPSHOT
+    app.kubernetes.io/version: 1.0.0
     app.kubernetes.io/managed-by: quarkus
   name: users-service
 spec:
@@ -58,14 +58,14 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: users-service
-      app.kubernetes.io/version: 1.0.0-SNAPSHOT
+      app.kubernetes.io/version: 1.0.0
   template:
     metadata:
       annotations:
       labels:
         app.kubernetes.io/managed-by: quarkus
         app.kubernetes.io/name: users-service
-        app.kubernetes.io/version: 1.0.0-SNAPSHOT
+        app.kubernetes.io/version: 1.0.0
     spec:
       containers:
         - env:
