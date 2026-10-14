@@ -57,15 +57,15 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: reservations
       app.kubernetes.io/version: 1.0.0
+      app.kubernetes.io/name: reservations
   template:
     metadata:
       annotations:
       labels:
         app.kubernetes.io/managed-by: quarkus
-        app.kubernetes.io/name: reservations
         app.kubernetes.io/version: 1.0.0
+        app.kubernetes.io/name: reservations
     spec:
       containers:
         - env:
@@ -113,4 +113,4 @@ spec:
             successThreshold: 1
             timeoutSeconds: 10
       serviceAccountName: reservations
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 45

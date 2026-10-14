@@ -3,10 +3,11 @@
 > Capítulo 10 do *Quarkus in Action* (p. 273–302 no impresso; PDF p. 299–329).
 > Norma do projeto: [ddd-tdd-standards.md](../ddd-tdd-standards.md) §9 (regras de negócio em
 > agregados, não em adapters) e AGENTS.md regra 16 (API verificada contra Quarkus 3.39.3).
-> Última atualização: 2026-10-08 (itens health 1–5, métricas do pipeline/relay — item 6 —,
-> tracing ponta a ponta — item 7, fault tolerance nas chamadas externas — item 8 —, service
-> discovery (Stork/Consul) — item 9 — e configuração cloud-native — item 10 — concluídos;
-> graceful shutdown ainda pendente).
+> Última atualização: 2026-10-13 (graceful shutdown — `quarkus.shutdown.timeout` nos 5 serviços +
+> `OutboxShutdownDrain` no billing — concluído, fechando o cap. 10. Antes: itens health 1–5,
+> métricas do pipeline/relay — item 6 —, tracing ponta a ponta — item 7, fault tolerance nas
+> chamadas externas — item 8 —, service discovery (Stork/Consul) — item 9 — e configuração
+> cloud-native — item 10 — concluídos).
 
 ---
 
@@ -112,7 +113,6 @@
   surefire via `acme.test.discovery.excludedGroups`, profile `-P kubernetes` troca o excluído).
   Manifests Kubernetes versionados em `others/k8s/` (`quarkus-kubernetes`). Decisão em
   [adr/011](../adr/011-imagens-e-perfis-cloud-native.md); async em "Armadilhas medidas".
-  Pendente no cap. 10: graceful shutdown.
 - **Armadilhas medidas neste projeto:**
   - **`@Timeout` do SmallRye FT em método que devolve `Uni` não cancela a subscription a
     montante.** Emite `TimeoutException` para o chamador e deixa a chamada em voo. Caracterizado
@@ -217,6 +217,21 @@
     vez de criar outra na mesma subnet, o que o Docker rejeita com `403 Pool overlaps`. A rede
     leva os labels do `ResourceReaper` (Ryuk limpa ao fim) e há guarda: mesma subnet → reusa;
     divergente e vazia → recria; em uso → `IllegalStateException`.
+  - **Graceful shutdown não agenda o drain: observer de `ShutdownEvent` roda sem contexto Vert.x.**
+    `quarkus.shutdown.timeout` só aguarda HTTP em voo; trabalho agendado (o relay da outbox) é
+    cortado. A drenagem final precisa de um `@Observes ShutdownEvent` — mas o Arc dispara o evento
+    sincronamente em `beanManager().getEvent().fire(...)`, numa thread comum **sem contexto Vert.x**.
+    Chamar Panache (`@WithSession`) aí lança `IllegalStateException("No current Vertx context
+    found")`; o erro foi absorvido pelo `try/catch` do drain e **mascarou um no-op** (o RED só
+    apareceu no `OutboxShutdownDrainIntegrationTest`, que drena a partir de uma `Thread` crua).
+    Correção: `VertxContext.createNewDuplicatedContext(vertx.getOrCreateContext())` +
+    `VertxContextSafetyToggle.setContextSafe(context, true)`, `context.runOnContext(...)` e a
+    thread de shutdown aguarda num `CompletableFuture` bounded pelo timeout (caracterizado em
+    `OutboxShutdownDrainTest`, contrato unitário, e `OutboxShutdownDrainIntegrationTest`, que drena
+    a partir de uma `Thread` crua — o teste **não** dispara o ciclo de shutdown real do Quarkus).
+    A janela do K8s precisa cobrir os dois drains somados: o quarkus-kubernetes 3.39.3 não expõe
+    config para `terminationGracePeriodSeconds` (default 10s hardcoded em `PodSpecLike`), então o
+    `scripts/generate-manifests.sh` fixa 45s (30s HTTP + 10s outbox) nos manifests versionados.
 
 ---
 
@@ -697,11 +712,15 @@ expectativa do gauge seja derivada da própria consulta sob observação.
   3. Quando `/q/metrics` existe e quando não?
   4. Como o client Kafka (lag) e as métricas por canal chegam ao scrape?
   5. Por que métrica de negócio fica atrás de uma porta da aplicação?
+  6. Por que só HTTP é drenado no graceful shutdown do Quarkus, e o que fazer com o relay agendado?
 - [ ] 3 perguntas que não sei responder (viram tarefa):
   1. ~~Como o contexto de tracing viaja pelo Kafka (headers) sem vazar para o payload?~~
      → respondida no item 7: header `traceparent`, propagação automática (§2.1.5)
   2. Stork resolve qual caso real aqui? (a resposta pode ser "nenhum, usa-se Kafka/DNS")
-  3. Graceful shutdown: drenar outbox pendente como evidência executável?
+  3. ~~Graceful shutdown: drenar outbox pendente como evidência executável?~~
+     → respondida: só HTTP é drenado pelo Quarkus (`quarkus.shutdown.timeout`); a outbox é
+       drenada por `OutboxShutdownDrain` no `ShutdownEvent` (§10.7 de
+       [10-cap10-summary](./10-cap10-summary.md)).
 
 ---
 
@@ -718,21 +737,27 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ---
 
-## 9. Checklist de fecho (parcial — capítulo em progresso)
+## 9. Checklist de fecho (capítulo fechado)
 
 - [x] roadmap.md com status e evidência executável dos itens 1–10
 - [x] service discovery (Stork/Consul) — item 9 — : Stork somente nas saídas REST Client; a
       **publicação** é por adapter próprio (`acme.consul.registration.*` +
       `ConsulServiceRegistration` com health check absoluto e dereg no shutdown), a **resolução**
       é `stork://<nome>`, e instâncias deregistram no shutdown. A saída GraphQL (inventory) não é
-      coberta pelo Stork e vira **divergência documentada**. Graceful shutdown ainda pendente — 🔜
+      coberta pelo Stork e vira **divergência documentada**. ✅
+- [x] graceful shutdown: `quarkus.shutdown.timeout` nos 5 serviços (só HTTP é drenado pelo
+      Quarkus) + `OutboxShutdownDrain` no billing (`@Observes ShutdownEvent`, drenagem bounded por
+      `acme.billing.outbox.shutdown-timeout`), com `OutboxShutdownDrainTest` (contrato) e
+      `OutboxShutdownDrainIntegrationTest` (thread sem contexto Vert.x; não dispara o shutdown real
+      do Quarkus), e a janela do K8s (`terminationGracePeriodSeconds: 45`) fixada no gerador de
+      manifests para cobrir os dois drains. ✅
 - [x] configuração cloud-native — item 10 —: imagem pré-construída imutável
       (`acme/<módulo>:<version>`, Maven profile `docker`, compose `image:` + `pull_policy: never`)
       com runtime por `QUARKUS_PROFILE` (`%docker` Consul / `%kubernetes` Stork-k8s / `%prod`
       host); seleção de testes de discovery por tag (`consul`/`kubernetes`, surefire +
       `-P kubernetes`) e manifests K8s versionados em `others/k8s/`. Smoke do compose verde
       (5 healths + Consul `passing`); ADR 011 registrada.
-- [x] suíte do billing verde (62 testes)
+- [x] suíte do billing verde (70 testes)
 - [x] suíte do inventory verde (45 testes)
 - [x] suíte do reservation verde (45 testes) depois do item 9 (registro no boot com check
       passing e dereg no shutdown + teste de Consul inalcançável não derrubar o boot; antes do
@@ -774,4 +799,4 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 
 ---
 
-_Última atualização: 2026-10-08 (cap. 10 itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 —, fault tolerance nas chamadas externas do reservation — item 8 —, service discovery via Stork/Consul — item 9 — e configuração cloud-native — item 10 — concluídos; snippets e seção 1.7 alinhados ao código real; graceful shutdown ainda pendente)._
+_Última atualização: 2026-10-13 (cap. 10 fechado: graceful shutdown — `quarkus.shutdown.timeout` nos 5 serviços + `OutboxShutdownDrain` no billing. Antes: itens health 1–5, métricas do pipeline/relay da outbox — item 6 —, tracing ponta a ponta — item 7 —, fault tolerance nas chamadas externas do reservation — item 8 —, service discovery via Stork/Consul — item 9 — e configuração cloud-native — item 10 — concluídos; snippets e seção 1.7 alinhados ao código real)._

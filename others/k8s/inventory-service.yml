@@ -44,8 +44,8 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/version: 1.0.0
       app.kubernetes.io/name: inventory-service
+      app.kubernetes.io/version: 1.0.0
   template:
     metadata:
       annotations:
@@ -55,8 +55,8 @@ spec:
         prometheus.io/scheme: http
       labels:
         app.kubernetes.io/managed-by: quarkus
-        app.kubernetes.io/version: 1.0.0
         app.kubernetes.io/name: inventory-service
+        app.kubernetes.io/version: 1.0.0
     spec:
       containers:
         - env:
@@ -126,7 +126,7 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             timeoutSeconds: 10
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 45
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

@@ -261,6 +261,17 @@ LGTM (Grafana+Tempo) sobe sozinho; em teste, exporter CDI em memória (`InMemory
 serviços não são tracejados (não têm o extension). Evidência: `BillingTracePropagationIntegrationTest`.
 Decisão: 16 do [architecture.md](./architecture.md).
 
+**Graceful shutdown (implementada, cap. 10 item 8).** `quarkus.shutdown.timeout=30s` nos 5 serviços
+faz o Quarkus aguardar requisições HTTP em voo. Trabalho agendado não é aguardado, então o billing
+fecha com `adapter/out/messaging/OutboxShutdownDrain.java` (`@Observes ShutdownEvent`): drenagem final
+bounded por `acme.billing.outbox.shutdown-timeout` (default 10s), que nunca falha nem trava o shutdown.
+Como o observador roda sem contexto Vert.x e o caso de uso usa Hibernate Reactive/Panache, a drenagem
+cria um contexto duplicado e marcado como seguro. A janela do K8s (`terminationGracePeriodSeconds`) é
+fixada em 45s pelo `scripts/generate-manifests.sh` (o quarkus-kubernetes 3.39.3 não expõe config para
+isso) para cobrir os 30s de HTTP + 10s da outbox. Evidência: `OutboxShutdownDrainTest` e
+`OutboxShutdownDrainIntegrationTest`.
+
+
 ## users-service
 
 **Role:** Web BFF.

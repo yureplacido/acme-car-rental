@@ -14,7 +14,10 @@ set -euo pipefail
 #
 # O Deployment ja sai com QUARKUS_PROFILE=kubernetes (quarkus.kubernetes.env.vars,
 # item 11.2) e com os probes liveness/readiness/startup apontando para o health do
-# cap.10 (item 11.3). O env KUBERNETES_NAMESPACE continua vindo da downward API.
+# cap.10 (item 11.3). Como o quarkus-kubernetes 3.39.3 nao expoe config para
+# terminationGracePeriodSeconds (default 10s hardcoded), o script fixa 45s para
+# cobrir quarkus.shutdown.timeout (30s) + o drain final da outbox do billing (10s).
+# O env KUBERNETES_NAMESPACE continua vindo da downward API.
 # Decidir o namespace que o Stork consome, imagePullPolicy/registry e o deploy real
 # ficam para o item 11.6. Nao roda testes (skipTests): a configuracao funcional da
 # descoberta fica nos testes @Tag("kubernetes") (Maven profile kubernetes).
@@ -38,8 +41,13 @@ for module in users-service reservation-service rental-service inventory-service
         -Dquarkus.kubernetes.version="${TAG}"
     # Remove as anotacoes transitorias app.quarkus.io/* (commit-id, vcs-uri,
     # build-timestamp) para o arquivo versionado ficar estavel entre regeneracoes.
+    # O quarkus-kubernetes 3.39.3 NAO expoe config para terminationGracePeriodSeconds (o default
+    # 10s e' hardcoded em PodSpecLike). A janela do K8s precisa cobrir o graceful shutdown
+    # (quarkus.shutdown.timeout=30s) + o drain final da outbox (10s), entao fixamos 45s.
     rg -v "app.quarkus.io/(quarkus-version|commit-id|vcs-uri|build-timestamp)" \
-        "${module}/target/kubernetes/kubernetes.yml" > "${DEST}/${module}.yml"
+        "${module}/target/kubernetes/kubernetes.yml" \
+        | sed -E 's/terminationGracePeriodSeconds: [0-9]+/terminationGracePeriodSeconds: 45/' \
+        > "${DEST}/${module}.yml"
 done
 
 echo "OK: manifests gerados em ${DEST}/ (imagens acme/*:${TAG})."

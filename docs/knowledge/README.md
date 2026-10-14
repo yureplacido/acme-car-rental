@@ -67,7 +67,7 @@ Estas páginas existem para tornar essas divergências **explícitas e reutiliz�
 | 7 | Database access | [06](./06-persistencia-transacoes-e-nosql.md) | [services.md](../services.md) |
 | 8 | Reactive programming | [07](./07-programacao-reativa.md) | [architecture.md](../architecture.md) |
 | 9 | Quarkus messaging | [08](./08-messaging-reativo.md) + [09](./09-padroes-de-resiliencia-em-messaging.md) | [adr/](../adr/README.md), [contracts.md](../contracts.md) |
-| 10+ | Cloud-native, observabilidade, extensões | [14](./14-cloud-native-patterns.md) (health/metrics/tracing/FT/discovery prontos; configuração cloud-native e graceful shutdown em andamento) | [roadmap.md](../roadmap.md) |
+| 10+ | Cloud-native, observabilidade, extensões | [14](./14-cloud-native-patterns.md) (health/metrics/tracing/FT/discovery, configuração cloud-native e graceful shutdown concluídos) | [roadmap.md](../roadmap.md) |
 | 10 | Health, metrics, tracing, FT, service discovery | [book-index/cap10.txt](./book-index/cap10.txt) (onde o livro trata) | [roadmap.md](../roadmap.md) |
 | 11 | Cloud, Kubernetes/OpenShift, serverless | [book-index/cap11.txt](./book-index/cap11.txt) | [deployment.md](../deployment.md) |
 | 12 | Custom extensions | [book-index/cap12.txt](./book-index/cap12.txt) | [roadmap.md](../roadmap.md) |

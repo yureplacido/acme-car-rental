@@ -306,6 +306,7 @@ billing-service/src/main/java/org/acme/billing/
     └── out/
         ├── messaging/
         │   ├── OutboxRelay.java                (@Scheduled every=5s, SKIP)
+        │   ├── OutboxShutdownDrain.java        (@Observes ShutdownEvent; drain final bounded)
         │   └── InvoiceOpenedKafkaPublisher.java (canal invoice-opened-out)
         ├── observability/
         │   └── MicrometerOutboxMetrics.java    (counters + gauge de backlog)

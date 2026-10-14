@@ -113,4 +113,4 @@ spec:
             successThreshold: 1
             timeoutSeconds: 10
       serviceAccountName: users-service
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 45

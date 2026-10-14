@@ -44,6 +44,14 @@ Evidências: `ReservationsServiceDiscoveryTest` (Consul) e `ReservationsServiceD
 - Outbox transacional (cap.9) integrado ao pipeline
 - Kafka companions com rede determinística (cap.11, correção de Pool overlaps)
 
+## 10.7 Graceful shutdown
+
+- `quarkus.shutdown.timeout` (guia oficial Lifecycle, 3.39) nos 5 serviços: o Quarkus aguarda requisições HTTP em voo terminarem antes de encerrar.
+- **Limite importante**: apenas HTTP é drenado automaticamente. Trabalho agendado (o relay da outbox) **não** é aguardado — por isso o billing tem `OutboxShutdownDrain` (`@Observes ShutdownEvent`) que faz uma drenagem final bounded (`acme.billing.outbox.shutdown-timeout`, default 10s).
+- **Armadilha (Hibernate Reactive em lifecycle observer)**: o `ShutdownEvent` é disparado de forma síncrona em `beanManager().getEvent().fire(...)`, ou seja, numa thread comum **sem contexto Vert.x**. Como o caso de uso usa Panache (`@WithSession`), isso lançava `IllegalStateException("No current Vertx context found")` — a drenagem virava um no-op silencioso. O drain agora cria um contexto Vert.x duplicado e marcado como seguro (`VertxContext.createNewDuplicatedContext(vertx.getOrCreateContext())` + `VertxContextSafetyToggle.setContextSafe(context, true)`), despacha o `handle()` via `context.runOnContext(...)` e a thread de shutdown aguarda num `CompletableFuture` bounded pelo timeout.
+- O drain nunca falha nem trava o shutdown: exceções e timeout são logados e absorvidos; o restante pendente é republicado no próximo boot (at-least-once).
+- Evidência: `OutboxShutdownDrainTest` (publica pendentes; no-op sem pendentes; não falha em erro de publicação; não trava no timeout; cancela a subscription em voo no timeout) + `OutboxShutdownDrainIntegrationTest` (evento real semeado, drenado a partir de `new Thread("simulated-shutdown-thread")` sem contexto Vert.x, com Kafka companion) — billing 70/70 verde.
+
 ## Decisões & ADRs
 
 - ADR 011: imagens e perfis cloud-native (Consul vs K8s)

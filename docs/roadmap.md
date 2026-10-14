@@ -238,7 +238,29 @@ Notas de escopo:
       Manifests Kubernetes (Deployment+Service+probes) também versionados
       (`others/k8s/` via `scripts/generate-manifests.sh`), com as mesmas imagens
       `acme/…` — item do cap. 11 já adiantado; deploy real fica para lá.
-- [ ] Graceful shutdown drenando requisição in-flight e outbox pendente
+- [x] Graceful shutdown drenando requisição in-flight e outbox pendente
+      — `quarkus.shutdown.timeout=30s` nos 5 serviços faz o Quarkus aguardar
+      requisições HTTP em voo terminarem antes de encerrar (guia oficial
+      Lifecycle, 3.39). Apenas HTTP é drenado automaticamente; trabalho agendado
+      não é aguardado, então o relay da outbox do billing ganha
+      `OutboxShutdownDrain` (`@Observes ShutdownEvent`) que faz uma drenagem final
+      bounded (`acme.billing.outbox.shutdown-timeout`, default 10s) e nunca falha
+      nem trava o shutdown (at-least-once cobre o resto no próximo boot).
+      O observador de `ShutdownEvent` roda numa thread comum (sem contexto Vert.x,
+      `beanManager().getEvent().fire(...)`); como o caso de uso usa Hibernate
+      Reactive/Panache (`@WithSession`), a drenagem cria um contexto Vert.x
+      duplicado e marcado como seguro (`VertxContext.createNewDuplicatedContext`
+      + `VertxContextSafetyToggle.setContextSafe`) e aguarda no máximo o timeout.
+      A janela do K8s (`terminationGracePeriodSeconds`) é fixada em 45s pelo
+      `scripts/generate-manifests.sh` (o quarkus-kubernetes 3.39.3 não expõe config
+      para isso; default 10s hardcoded em `PodSpecLike`) para cobrir os 30s de HTTP
+      + 10s da outbox, senão o SIGKILL chega antes do fim do drain.
+      **Evidência**: `OutboxShutdownDrainTest` (publica pendentes; no-op sem
+      pendentes; não falha em erro de publicação; não trava no timeout; cancela a
+      subscription em voo quando o timeout estoura) +
+      `OutboxShutdownDrainIntegrationTest` (semeia evento real, confirma pendente
+      antes e publicado depois da drenagem a partir de uma thread SEM contexto
+      Vert.x, com Kafka companion) + suite do billing 70/70 verde.
 
 ## Cap. 11 — Quarkus applications in the cloud
 
@@ -307,11 +329,14 @@ Architecture + DDD + TDD + Quarkus guardians
 Use `/domain-design` antes de implementar uma feature e `/preflight` para o fluxo completo.
 
 ---
-_Last updated: 2026-10-08 (item 10 fechado: imagem pré-construída imutável por Maven
+_Last updated: 2026-10-13 (cap. 10 fechado: graceful shutdown — `quarkus.shutdown.timeout`
+nos 5 serviços para requisições HTTP em voo e `OutboxShutdownDrain` no billing drenando a
+outbox pendente no `ShutdownEvent`, com `OutboxShutdownDrainTest`. Antes: item 10 fechado:
+imagem pré-construída imutável por Maven
 profile docker + runtime por `QUARKUS_PROFILE` (`%docker` Consul / `%kubernetes` Stork-k8s),
 seleção de testes de discovery por backend e manifests K8s versionados em `others/k8s/`;
 smoke `docker compose up` verde com as 5 imagens acme e Consul `passing` — decisão em
-`docs/adr/011-imagens-e-perfis-cloud-native.md`). Pendentes no cap. 10: graceful shutdown.
+`docs/adr/011-imagens-e-perfis-cloud-native.md`). Cap. 10 sem pendências.
 Itens 7 (tracing ponta a ponta via propagação automática de contexto no Kafka com
 `quarkus-opentelemetry`) e 8 (fault tolerance nas chamadas externas do reservation)
 permanecem implementados e aguardando merge
