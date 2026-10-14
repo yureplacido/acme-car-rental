@@ -37,6 +37,11 @@ import java.util.concurrent.TimeoutException;
  * <p>Nunca falha nem trava o shutdown: excecoes e timeout sao logados e absorvidos (no timeout a
  * subscription em voo e' cancelada). O restante pendente e' republicado no proximo boot (semantica
  * at-least-once da outbox).
+ *
+ * <p>O relay agendado ({@link OutboxRelay}) so para no {@code @PreDestroy}, que roda <em>depois</em>
+ * deste {@code ShutdownEvent}. Uma execucao do relay pode se sobrepor a drenagem e republicar um
+ * evento em duplicata (e, no caminho de falha, incrementar {@code attempts} duas vezes). E' aceito:
+ * a outbox e' at-least-once e os consumidores deduplicam por {@code eventId} (inbox durável).
  */
 @ApplicationScoped
 public class OutboxShutdownDrain {

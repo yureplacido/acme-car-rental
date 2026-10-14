@@ -691,6 +691,22 @@ expectativa do gauge seja derivada da própria consulta sob observação.
 - **Prevenção:** não investigar de novo; se algum dia uma das métricas parar de sair, aí sim o
   warning vira sintoma. Fonte: logs de boot dos testes/`quarkus:dev` após o cap.10 item 7.
 
+### 5.6 Relay agendado e drenagem de shutdown podem se sobrepor
+
+- **Sintoma:** nenhum em produção até agora — é uma janela **conhecida**, não um defeito observado.
+- **Causa:** o `OutboxRelay` é `@Scheduled(every=5s, SKIP)`, mas o scheduler só para no `@PreDestroy`
+  do bean, que roda **depois** do `ShutdownEvent` que dispara o `OutboxShutdownDrain`. Logo, uma
+  execução do relay pode começar durante a drenagem final e ambos lerem o mesmo lote pendente.
+- **Impacto:** publicação em **duplicata** (a outbox já é at-least-once; consumidores são
+  idempotentes por `eventId`) e, no caminho de falha, `attempts` pode ser incrementado 2x para o
+  mesmo evento. Nenhuma perda de evento.
+- **Correção:** aceita como consequência da semântica at-least-once; o contrato é o consumidor
+  deduplicar por `eventId` (inbox durável, ADR 005/007). Pausar o relay antes do drain exigiria
+  observar `ShutdownEvent` no próprio relay e cancelar o `@Scheduled` — complexidade que não se paga
+  para o ganho (só evita republicação).
+- **Prevenção:** ao mexer no relay ou no drain, manter a idempotência por `eventId` como invariante
+  do consumidor; não tratar `published_at` como "exatamente uma vez".
+
 ---
 
 ## 6. Conceitos que NÃO usamos (e por quê)

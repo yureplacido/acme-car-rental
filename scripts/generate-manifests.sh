@@ -48,6 +48,13 @@ for module in users-service reservation-service rental-service inventory-service
         "${module}/target/kubernetes/kubernetes.yml" \
         | sed -E 's/terminationGracePeriodSeconds: [0-9]+/terminationGracePeriodSeconds: 45/' \
         > "${DEST}/${module}.yml"
+    # Guarda: se o default do quarkus-kubernetes mudar (ou a chave sumir), o sed
+    # acima vira no-op silencioso e o pod passa a ser morto cedo demais. Falha o build.
+    if ! grep -q 'terminationGracePeriodSeconds: 45' "${DEST}/${module}.yml"; then
+        echo "ERRO: terminationGracePeriodSeconds: 45 ausente em ${DEST}/${module}.yml." >&2
+        echo "      O quarkus-kubernetes pode ter mudado; revise a janela de graceful shutdown." >&2
+        exit 1
+    fi
 done
 
 echo "OK: manifests gerados em ${DEST}/ (imagens acme/*:${TAG})."
