@@ -315,6 +315,48 @@ Testes reativos devem provar comportamento da pipeline. Não use await().indefin
 Em teste anotado com @RunOnVertxContext (que roda na event loop do Vert.x) é proibido await().indefinitely(): o await bloqueia a thread que precisa entregar o item, gerando deadlock. Nesses casos use UniAsserter/AssertSubscriber, ou isole a operação bloqueante com runSubscriptionOn(...).runSubscriptionOnIn(workerThread). Ver docs/knowledge/04-estrategia-de-testes-do-projeto.md §5.
 
 Para Hibernate Reactive, o Quarkus fornece suporte específico de teste e exige contexto/sessão reativa apropriados. Ver <https://quarkus.io/guides/hibernate-reactive-panache>.
+
+### O que "provar backpressure" significa (cap. 8)
+
+Concorrência limitada e backpressure são **medidas diferentes**, e um teste que só prova a primeira
+passa verde sem provar a segunda. O par que separa as duas:
+
+- **requests ao upstream** (`AssertSubscriber.create(0)` + `onRequest().invoke(...)`): mede
+  *demanda* — com o `merge`, o upstream recebe no máximo `maxConcurrency` requests.
+  (`BulkRegisterVehiclesBackpressureTest`)
+- **itens efetivamente produzidos pelo upstream** (`onItem().invoke(...)` contando emissões):
+  mede **materialização** — se o pipeline drenasse a fonte, produziria todos os itens mesmo sem
+  demanda a jusante. (`BulkRegisterVehiclesMaterializationTest`, fonte de 100 itens)
+
+O segundo tem um **contraponto obrigatório** (`shouldConsumeTheWholeSourceWhenDemandIsUnbounded`):
+sem ele, um pipeline que simplesmente não consome nada passaria pelo primeiro por engano. Teste
+negativo sem o positivo que o contradiz não prova nada.
+
+**Falha e cancelamento são eixos separados.** A ADR 006 (§Failure policy) exige três coisas da
+falha de um item: que ela propague como falha do stream, que os itens já concluídos permaneçam
+persistidos (fail-fast não é rollback) e que o cancelamento a jusante seja respeitado. O terceiro
+tem dois caminhos distintos, e ambos precisam de teste:
+
+- **cancelamento por decisão do consumidor** — `BulkRegisterVehiclesCancellationTest`: quem
+  cancela é o downstream, e as operações em voo recebem o cancelamento;
+- **cancelamento por falha de uma irmã** — `BulkRegisterVehiclesMaterializationTest.shouldCancelSiblingsInFlightWhenOneItemFails`:
+  quem cancela é a falha. O comportamento do `merge` (cancelar as subscriptions irmã) foi
+  **medido**, não presumido — um probe descartável mostrou `started=2 cancelled=1` antes de o
+  teste ser escrito.
+
+**Provar que o teste tem força é parte do trabalho.** Um teste novo que passa não prova que mede o
+que diz medir. O padrão do repositório é introduzir temporariamente o defeito e ver o teste
+falhar com a mensagem esperada — foi assim que se validou o teste de materialização (com
+`collect().asList()` antes do processamento, a asserção acusou "produziu 100 de 100"), o de
+fail-fast (com a política de erro trocada, a falha deixou de propagar e os 4 itens foram
+persistidos) e o de cancelamento das irmãs (com a falha engolida, 2 testes caíram). Nenhuma
+mudança de produção foi mantida dessas experiências.
+
+**RED genuíno também acontece na escrita da asserção.** O teste de cancelamento das irmãs falhou
+na primeira execução — e a asserção, não o código, estava errada: eu esperava zero gravações,
+mas o item em voo já havia alcançado o repositório (o que importa é ter sido *cancelado*, não
+gravado). A falha do RED corrigiu a expectativa, e não o código de produção.
+
 ---
 _Last updated: 2026-10-13 (cap.11 item 11.1: `KubernetesConfigProfileTest` sobe o mesmo
 jar sob o config profile `kubernetes` com `getConfigProfile()` e overrides de boot-safety;

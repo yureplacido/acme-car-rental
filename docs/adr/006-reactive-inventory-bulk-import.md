@@ -270,30 +270,28 @@ especifica existe e é testado.
 | `BulkRegisterVehicles` com `Multi<Command>` → `Multi<Vehicle>` | `BulkRegisterVehiclesTest.shouldRegisterAllCommandsFromStream` |
 | Concorrência limitada e configurável (`N` fora do domínio) | `inventory.bulk.max-concurrency` (default 4) + `shouldNeverExceedConfiguredConcurrency` (`maxInFlight == 2`) |
 | Cancelamento propagado e sem trabalho novo | `BulkRegisterVehiclesCancellationTest` (2 em voo canceladas, nenhuma terceira inicia) |
+| Backpressure: o pipeline **não materializa** o stream inteiro | `BulkRegisterVehiclesMaterializationTest.shouldNotMaterializeTheEntireInputStreamBeforeProcessing` (fonte de 100 itens, no máximo `maxConcurrency` produzidos sem demanda) + o contraponto `shouldConsumeTheWholeSourceWhenDemandIsUnbounded` |
+| Backpressure: trabalho em voo limitado | `BulkRegisterVehiclesBackpressureTest` (demanda 0 → exatamente 2 requests ao upstream) |
+| Política fail-fast: a falha propaga e o já persistido fica | `BulkRegisterVehiclesMaterializationTest.shouldPropagatePersistenceFailureWithoutLosingAlreadyPersistedItems` |
+| Política fail-fast: a falha cancela as irmãs em voo | `BulkRegisterVehiclesMaterializationTest.shouldCancelSiblingsInFlightWhenOneItemFails` (comportamento medido do `merge`, não presumido) |
 | Porta reativa `Uni<Vehicle> save(Vehicle)` | `BulkRegisterVehicles` + `VehicleRepository` reativo |
 | gRPC como fronteira, sem decidir política | `GrpcInventoryResource.add` só traduz e delega |
 | Falha de item não corrompe os demais | política fail-fast preservando os já persistidos |
 
 **Fora do primeiro slice, e o limite é deliberado:**
 
-1. **Backpressure ponta a ponta não existe.** O que está provado é o *prefetch do `Merge`*: com
-   demanda 0 a jusante, o upstream recebe exatamente `maxConcurrency` requests
-   (`BulkRegisterVehiclesBackpressureTest`). O gRPC **não** encaminha a demanda do cliente para o
-   repositório, então um cliente real não consegue hoje dizer "não me mande ainda". A distinção
-   importa porque esta própria ADR proíbe tratar limite de concorrência como backpressure.
-2. **`shouldNotMaterializeTheEntireInputStreamBeforeProcessing` não foi escrito.** A ADR o
-   listava nos cenários de teste (§Test-first scenarios / Application tests); segue ausente. É o
-   cenário que fecharia a distinção do item 1.
-3. **`shouldPropagatePersistenceFailure` não foi escrito.** A política fail-fast está descrita
-   (§Failure policy), mas não tem teste próprio.
-4. **Persistência:** o caminho sob teste usa repositório fake. Se o adapter real usa Hibernate
+1. **A demanda não atravessa a fronteira gRPC.** O que está provado é o *prefetch do `Merge`* e a
+   ausência de materialização — no `use case`, não no transporte. O gRPC **não** encaminha a
+   demanda do cliente para o repositório, então um cliente real não consegue hoje dizer "não me
+   mande ainda". É limite do adapter de transporte, e não do use case: a distinção importa porque
+   esta própria ADR proíbe tratar limite de concorrência como backpressure.
+2. **Persistência:** o caminho sob teste usa repositório fake. Se o adapter real usa Hibernate
    Reactive/Panache não bloqueante não é verificado por estes testes, e sim pela stack do
    inventory (cap. 7).
-5. **Operações de query** continuam a migração deliberada prevista em §Reactive output port —
+3. **Operações de query** continuam a migração deliberada prevista em §Reactive output port —
    não foram convertidas neste slice.
-
-O item 1 e o item 2 são o mesmo problema visto de dois ângulos e são o que resta para fechar o
-Cap. 8 no roadmap.
+4. **Retry e DLQ por item** não entram aqui, por decisão explícita da §Failure policy: pertencem
+   ao slice de Messaging/Resiliência (a política de retry do reservation é a ADR 002).
 
 ---
 _Last updated: 2026-10-21_

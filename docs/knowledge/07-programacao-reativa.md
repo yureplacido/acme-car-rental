@@ -111,9 +111,13 @@ Esse teste é o **contrato de backpressure do caso de uso**. Sem ele, aumentar
 teste é um **subscriber de teste**, não um cliente gRPC; o adapter gRPC não encaminha a demanda do
 cliente para o repositório. Então, hoje, nenhum cliente real consegue dizer "não me mande ainda" —
 e a [ADR 006 §Backpressure](../adr/006-reactive-inventory-bulk-import.md) proíbe explicitamente
-tratar limite de concorrência como backpressure. O cenário que fecharia essa distinção
-(`shouldNotMaterializeTheEntireInputStreamBeforeProcessing`, previsto na ADR 006) **ainda não foi
-escrito** e está aberto como item do Cap. 8 no [roadmap](../roadmap.md).
+tratar limite de concorrência como backpressure.
+
+A outra metade do contrato — o pipeline **não materializar o stream inteiro** — é medida por
+`BulkRegisterVehiclesMaterializationTest`, com uma fonte de 100 itens: sem demanda a jusante, o
+upstream produz no máximo `maxConcurrency`, não 100. Esse teste tem um contraponto
+(`shouldConsumeTheWholeSourceWhenDemandIsUnbounded`) para que um pipeline que simplesmente não
+consumisse nada não passasse por engano.
 
 ## 5. Cancelamento é comportamento observável (cap. 8.4)
 
