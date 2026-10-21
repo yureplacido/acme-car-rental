@@ -339,7 +339,7 @@ tem dois caminhos distintos, e ambos precisam de teste:
 
 - **cancelamento por decisão do consumidor** — `BulkRegisterVehiclesCancellationTest`: quem
   cancela é o downstream, e as operações em voo recebem o cancelamento;
-- **cancelamento por falha de uma irmã** — `BulkRegisterVehiclesMaterializationTest.shouldCancelSiblingsInFlightWhenOneItemFails`:
+- **cancelamento por falha de uma irmã** — `BulkRegisterVehiclesFailurePolicyTest.shouldCancelSiblingsInFlightWhenOneItemFails`:
   quem cancela é a falha. O comportamento do `merge` (cancelar as subscriptions irmã) foi
   **medido**, não presumido — um probe descartável mostrou `started=2 cancelled=1` antes de o
   teste ser escrito.

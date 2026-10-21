@@ -3,7 +3,6 @@ package org.acme.inventory.application;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.helpers.test.AssertSubscriber;
-import io.smallrye.mutiny.helpers.test.UniAssertSubscriber;
 import org.acme.inventory.application.port.out.VehicleRepository;
 import org.acme.inventory.application.usecase.BulkRegisterVehicles;
 import org.acme.inventory.application.usecase.RegisterVehicle;
@@ -13,6 +12,7 @@ import org.acme.inventory.domain.model.Vehicle;
 import org.acme.inventory.domain.model.VehicleCategory;
 import org.acme.inventory.domain.model.VehicleId;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -25,9 +25,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Fecha as lacunas da ADR 006 (import massivo reativo) que a evidencia anterior nao cobria.
+ * Prova que o pipeline de import massivo <b>nao materializa o stream inteiro</b> antes de
+ * comecar a processar.
  *
- * <p>A ADR 006 exige este cenario no nome exato
+ * <p>A ADR 006 (import massivo reativo) exige este cenario no nome exato
  * {@code shouldNotMaterializeTheEntireInputStreamBeforeProcessing} e proibe, no mesmo documento,
  * tratar um limite de concorrencia como se fosse backpressure. As duas coisas sao medidas de
  * formas diferentes:
@@ -35,21 +36,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ul>
  *   <li>o {@link BulkRegisterVehiclesBackpressureTest} mede <b>requests</b> ao upstream
  *       (demanda), provando que o {@code merge} nao pede mais que {@code maxConcurrency};</li>
- *   <li>este mede <b>itens efetivamente produzidos</b> pelo upstream, provando que a fonte e
+ *   <li>este mede os <b>itens efetivamente produzidos</b> pelo upstream, provando que a fonte e
  *       consumida sob demanda e nao drenada de uma vez para memoria.</li>
  * </ul>
  *
- * <p>Um pipeline que materializa (por exemplo {@code collect().asList()} antes de processar, ou
- * um operador que assina o upstream inteiro) produziria todos os elementos da fonte mesmo com
- * demanda zero a jusante - e este teste falharia. E o defeito que a ADR quer impedir: a
- * ingestao de um arquivo grande passaria a caber inteira na heap.
- *
- * <p>Alem da materializacao, a classe cobre a <b>politica de falha</b> da ADR 006
- * ({@code §Failure policy}): a falha propaga como falha do stream, os itens ja concluidos
- * permanecem persistidos (fail-fast nao e rollback), e a falha cancela as operacoes irmao em
- * voo. O ultimo foi <b>medido</b>, nao presumido: um probe descartavel mostrou que o
- * {@code merge} cancela as subscriptions irmao ({@code started=2 cancelled=1}).
+ * <p>A prova aqui e uma <b>identidade</b>, nao uma amostragem: o upstream so produz o que foi
+ * pedido, e o que foi pedido e limitado pela concorrencia do {@code merge}. Um pipeline que
+ * materializa (por exemplo {@code collect().asList()} antes de processar) pediria a fonte
+ * inteira e a primeira identidade quebraria.
  */
+@Timeout(30)
 class BulkRegisterVehiclesMaterializationTest {
 
     /**
@@ -67,11 +63,13 @@ class BulkRegisterVehiclesMaterializationTest {
         int maxConcurrency = 4;
         BulkRegisterVehicles useCase = new BulkRegisterVehicles(registerVehicle, maxConcurrency);
 
+        AtomicLong requested = new AtomicLong();
         AtomicInteger produced = new AtomicInteger();
         Multi<RegisterVehicle.Command> source = Multi.createFrom()
                 .range(0, SOURCE_SIZE)
                 .map(index -> command("PLATE%03d".formatted(index)))
-                .onItem().invoke(ignored -> produced.incrementAndGet());
+                .onItem().invoke(ignored -> produced.incrementAndGet())
+                .onRequest().invoke(requested::addAndGet);
 
         AssertSubscriber<Vehicle> subscriber = useCase.handle(source)
                 .subscribe()
@@ -79,13 +77,19 @@ class BulkRegisterVehiclesMaterializationTest {
 
         subscriber.awaitSubscription();
 
-        // Sem demanda a jusante, o upstream nao foi drenado: produziu no maximo o que a
-        // concorrencia do merge permite manter em voo, e nao os 100 itens da fonte.
+        // Identidade 1: a demanda ao upstream e limitada pela concorrencia. Um pipeline que
+        // materializasse pediria a fonte inteira (Long.MAX_VALUE) e esta leitura quebraria.
         assertTrue(
-                produced.get() <= maxConcurrency,
-                "esperava no maximo " + maxConcurrency + " itens produzidos sem demanda, mas o upstream produziu "
-                        + produced.get() + " de " + SOURCE_SIZE
+                requested.get() <= maxConcurrency,
+                "sem demanda a jusante, o upstream deveria receber no maximo " + maxConcurrency
+                        + " pedidos, mas recebeu " + requested.get()
                         + " - o pipeline parece estar materializando o stream inteiro");
+        // Identidade 2: o upstream produz no maximo o que foi pedido. E o par das duas
+        // identidades que prova a nao-materializacao: produced <= requested <= maxConcurrency.
+        assertTrue(
+                produced.get() <= requested.get(),
+                "o upstream produziu " + produced.get() + " itens com apenas " + requested.get()
+                        + " pedidos - produziu mais do que a demanda permite");
         subscriber.assertHasNotReceivedAnyItem();
 
         // Ao liberar demanda, o processamento acompanha - a fonte continua sendo consumida
@@ -118,93 +122,11 @@ class BulkRegisterVehiclesMaterializationTest {
 
         List<Vehicle> vehicles = useCase.handle(source)
                 .collect().asList()
-                .await().indefinitely();
+                .await().atMost(Duration.ofSeconds(5));
 
         assertEquals(SOURCE_SIZE, vehicles.size());
         assertEquals(SOURCE_SIZE, produced.get());
         assertEquals(SOURCE_SIZE, repository.saved.size());
-    }
-
-    /**
-     * ADR 006 (§Failure policy): a politica e fail-fast, a falha de um item propaga como falha do
-     * stream, o cancelamento a jusante e respeitado, e <b>os itens ja concluidos permanecem
-     * persistidos</b> - um item ruim nao pode desfazer o que outros ja gravaram.
-     */
-    @Test
-    void shouldPropagatePersistenceFailureWithoutLosingAlreadyPersistedItems() {
-        int failingAt = 3;
-        FakeVehicleRepository repository = new FailingVehicleRepository(failingAt);
-        RegisterVehicle registerVehicle = new RegisterVehicle(
-                repository,
-                event -> Uni.createFrom().voidItem());
-        // Concorrencia 1 para que a ordem de gravacao seja deterministica: com paralelismo, o
-        // item que falha pode ser processado antes de outros ja terem sido salvos.
-        BulkRegisterVehicles useCase = new BulkRegisterVehicles(registerVehicle, 1);
-
-        UniAssertSubscriber<List<Vehicle>> subscriber = useCase.handle(Multi.createFrom()
-                        .items(
-                                command("AAA111"),
-                                command("BBB222"),
-                                command("CCC333"),
-                                command("DDD444"),
-                                command("EEE555")))
-                .collect().asList()
-                .subscribe()
-                .withSubscriber(UniAssertSubscriber.create());
-
-        subscriber
-                .awaitFailure()
-                .assertFailedWith(RuntimeException.class, "database exploded");
-
-        // A falha propagou e interrompeu a ingestao: os itens posteriores ao que falhou nao
-        // foram gravados, e o que foi concluido antes continua persistido (fail-fast nao e
-        // rollback - um item ruim nao desfaz o que os outros ja gravaram).
-        assertEquals(
-                failingAt - 1,
-                repository.saved.size(),
-                "a falha deveria ter parado a ingestao no item " + failingAt
-                        + ", preservando os " + (failingAt - 1) + " itens ja concluidos");
-    }
-
-    /**
-     * ADR 006 (§Failure policy): "downstream cancellation is respected". Quando um item falha, as
-     * operacoes irmas **em voo** nao podem continuar working: o merge cancela as subscriptions
-     * irmao. Sem este teste, uma regressao que deixasse as irmas rodando passaria verde - e o
-     * efeito no mundo real e o contrario do desejado: a ingestao morta continuaria gastando
-     * conexoes com o banco depois que o stream ja falhou.
-     *
-     * <p>Contraste com o cancelamento por decisao do downstream
-     * ({@code BulkRegisterVehiclesCancellationTest}), que e o outro caminho: la quem cancela e o
-     * consumidor; aqui quem cancela e a falha.
-     */
-    @Test
-    void shouldCancelSiblingsInFlightWhenOneItemFails() {
-        SlowFailingVehicleRepository repository = new SlowFailingVehicleRepository(2);
-        RegisterVehicle registerVehicle = new RegisterVehicle(
-                repository,
-                event -> Uni.createFrom().voidItem());
-        // Concorrencia 2: o item 1 fica em voo (lento) e o item 2 falha, disparando o cancelamento.
-        BulkRegisterVehicles useCase = new BulkRegisterVehicles(registerVehicle, 2);
-
-        useCase.handle(Multi.createFrom()
-                        .items(
-                                command("AAA111"),
-                                command("BBB222"),
-                                command("CCC333")))
-                .collect().asList()
-                .subscribe()
-                .withSubscriber(UniAssertSubscriber.create())
-                .awaitFailure()
-                .assertFailedWith(RuntimeException.class, "database exploded");
-
-        // O item que falhou nao foi persistido; apenas o que estava em voo chegou ao repositorio
-        // (e nao se confirmou, porque foi cancelado).
-        assertEquals(1, repository.saved.size(),
-                "apenas o item que estava em voo deveria ter alcancado o repositorio");
-        // O que estava em voo foi CANCELADO, nao concluido: e o cancelamento que prova que a
-        // ingestao morta nao continua trabalhando depois da falha.
-        assertEquals(1, repository.cancelled.get(),
-                "a operacao irma em voo deveria ter sido cancelada pela falha, e nao deixada rodar");
     }
 
     private static RegisterVehicle.Command command(String plate) {
@@ -223,6 +145,11 @@ class BulkRegisterVehiclesMaterializationTest {
                 "BRL");
     }
 
+    /**
+     * Repositorio fake que so registra o item como persistido <b>quando ele e concluido</b>.
+     * Registrar na invocacao mediria "chamou save()", e nao "gravou" - e a distincao importa
+     * na politica de falha: um item cancelado nunca foi persistido.
+     */
     static class FakeVehicleRepository implements VehicleRepository {
 
         final List<Vehicle> saved = new ArrayList<>();
@@ -244,11 +171,12 @@ class BulkRegisterVehiclesMaterializationTest {
         @Override
         public Uni<Vehicle> save(Vehicle vehicle) {
             Vehicle persisted = persist(vehicle);
-            return Uni.createFrom().item(persisted);
+            return Uni.createFrom().item(persisted)
+                    .onItem().invoke(saved::add);
         }
 
         Vehicle persist(Vehicle vehicle) {
-            Vehicle persisted = Vehicle.rehydrate(
+            return Vehicle.rehydrate(
                     new VehicleId(ids.incrementAndGet()),
                     vehicle.licensePlate(),
                     vehicle.specifications(),
@@ -257,57 +185,6 @@ class BulkRegisterVehiclesMaterializationTest {
                     vehicle.dailyRate(),
                     vehicle.odometer(),
                     vehicle.condition());
-            saved.add(persisted);
-            return persisted;
-        }
-    }
-
-    /**
-     * Persiste os primeiros itens e falha no enesimo, para exercitar a politica fail-fast da
-     * ADR 006 sem depender de um banco real.
-     */
-    static class FailingVehicleRepository extends FakeVehicleRepository {
-
-        private final int failingAt;
-        private final AtomicInteger attempts = new AtomicInteger();
-
-        FailingVehicleRepository(int failingAt) {
-            this.failingAt = failingAt;
-        }
-
-        @Override
-        public Uni<Vehicle> save(Vehicle vehicle) {
-            if (attempts.incrementAndGet() == failingAt) {
-                return Uni.createFrom().failure(new RuntimeException("database exploded"));
-            }
-            return Uni.createFrom().item(persist(vehicle));
-        }
-    }
-
-    /**
-     * Persiste o primeiro item, mas **lentamente** (e de forma cancelavel), e falha no segundo.
-     * O primeiro fica em voo quando o segundo falha - e e ele que deve ser cancelado. O atraso
-     * e longo de proposito: um item rapido terminaria antes da falha e nao provaria nada.
-     */
-    static class SlowFailingVehicleRepository extends FakeVehicleRepository {
-
-        private final int failingAt;
-        private final AtomicInteger attempts = new AtomicInteger();
-        final AtomicInteger cancelled = new AtomicInteger();
-
-        SlowFailingVehicleRepository(int failingAt) {
-            this.failingAt = failingAt;
-        }
-
-        @Override
-        public Uni<Vehicle> save(Vehicle vehicle) {
-            if (attempts.incrementAndGet() == failingAt) {
-                return Uni.createFrom().failure(new RuntimeException("database exploded"));
-            }
-            Vehicle persisted = persist(vehicle);
-            return Uni.createFrom().item(persisted)
-                    .onItem().delayIt().by(Duration.ofSeconds(30))
-                    .onCancellation().invoke(cancelled::incrementAndGet);
         }
     }
 }

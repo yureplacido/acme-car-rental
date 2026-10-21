@@ -272,8 +272,8 @@ especifica existe e é testado.
 | Cancelamento propagado e sem trabalho novo | `BulkRegisterVehiclesCancellationTest` (2 em voo canceladas, nenhuma terceira inicia) |
 | Backpressure: o pipeline **não materializa** o stream inteiro | `BulkRegisterVehiclesMaterializationTest.shouldNotMaterializeTheEntireInputStreamBeforeProcessing` (fonte de 100 itens, no máximo `maxConcurrency` produzidos sem demanda) + o contraponto `shouldConsumeTheWholeSourceWhenDemandIsUnbounded` |
 | Backpressure: trabalho em voo limitado | `BulkRegisterVehiclesBackpressureTest` (demanda 0 → exatamente 2 requests ao upstream) |
-| Política fail-fast: a falha propaga e o já persistido fica | `BulkRegisterVehiclesMaterializationTest.shouldPropagatePersistenceFailureWithoutLosingAlreadyPersistedItems` |
-| Política fail-fast: a falha cancela as irmãs em voo | `BulkRegisterVehiclesMaterializationTest.shouldCancelSiblingsInFlightWhenOneItemFails` (comportamento medido do `merge`, não presumido) |
+| Política fail-fast: a falha propaga e o já persistido fica | `BulkRegisterVehiclesFailurePolicyTest.shouldPropagatePersistenceFailureWithoutLosingAlreadyPersistedItems` |
+| Política fail-fast: a falha cancela as irmãs em voo | `BulkRegisterVehiclesFailurePolicyTest.shouldCancelSiblingsInFlightWhenOneItemFails` (comportamento medido do `merge`, não presumido) |
 | Porta reativa `Uni<Vehicle> save(Vehicle)` | `BulkRegisterVehicles` + `VehicleRepository` reativo |
 | gRPC como fronteira, sem decidir política | `GrpcInventoryResource.add` só traduz e delega |
 | Falha de item não corrompe os demais | política fail-fast preservando os já persistidos |
