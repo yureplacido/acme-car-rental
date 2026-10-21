@@ -53,5 +53,18 @@
 
 </main>
 
+<script>
+  // A indisponibilidade da disponibilidade chega como 503 com o fragmento explicativo. O htmx
+  // nao troca respostas de erro por padrao; aqui o corpo da resposta ja e o que queremos exibir.
+  // Escopado ao alvo de disponibilidade de proposito: um 503 vindo de /get ou /reserve (outros
+  // hx-target) deve continuar sendo tratado como erro, nao ser trocado em silencio.
+  document.body.addEventListener('htmx:beforeSwap', function (event) {
+    if (event.detail.xhr.status === 503 && event.detail.target.id === 'availability') {
+      event.detail.shouldSwap = true;
+      event.detail.isError = false;
+    }
+  });
+</script>
+
 </body>
 </html>

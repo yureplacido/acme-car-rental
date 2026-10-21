@@ -416,14 +416,22 @@ users-service/src/main/java/org/acme/users/
 ├── application/
 │   ├── usecase/
 │   ├── model/           (AvailableCar, ReservationView)
+│   ├── exception/       (AvailabilityUnavailable — sinal de aplicação)
 │   └── port/out/
 └── adapter/
     ├── in/security/
-    ├── in/web/
-    └── out/reservation/ (ReservationsRestGateway)
+    ├── in/web/          (ReservationsResource, AvailabilityUnavailableMapper)
+    └── out/reservation/ (ReservationsRestGateway, ReservationsClient, AvailabilityClient)
 ~~~
 
 O BFF adapta o modelo remoto de Reservation para a UI. Ele não importa a classe Reservation do reservation-service.
+
+O BFF é o único consumidor do contrato de falha do `reservation-service`, e trata indisponibilidade
+como **tradução**, não como repetição (decisão na [ADR 009 §6](adr/009-fault-tolerance-chamadas-externas.md)):
+o adapter de saída converte a falha medida em `AvailabilityUnavailable` e o adapter inbound responde
+503 com `Retry-After` e fragmento Qute, nunca 200 com lista vazia. O prazo é do transporte
+(`connect-timeout`/`read-timeout`), não de fault tolerance — o BFF não instala
+`quarkus-smallrye-fault-tolerance`, porque o upstream já repete e já degrada.
 
 ## CLI
 

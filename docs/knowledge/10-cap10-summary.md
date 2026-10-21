@@ -29,6 +29,10 @@ Evidência: tracing ponta-a-ponta validado (cap.10 itens 7).
 
 - Retries, timeouts, circuit breakers, fallback conforme uso nos adapters outbound (chamadas a serviços externos: reservation→inventory/billing)
 - Aplicado em paths reativos, respeitando `Uni`/não-blocking (regra 14 AGENTS.md)
+- **Lição do capítulo**: a política vive no **adapter de saída**, e o lado que **consome** um contrato de falha não precisa repetir a política de quem o produz. O `users-service` (BFF) consome o `GET /reservations/availability` e limita o **transporte** (`connect-timeout=500`, `read-timeout=3000`, numa configKey própria —
+`quarkus.rest-client.<configKey>.*` é **por cliente**, e juntar leitura e escrita não idempotente
+numa só teria aplicado o prazo curto ao `POST /reservations`) em vez de instalar `quarkus-smallrye-fault-tolerance`: o reservation já tem timeout/retry/fallback e já devolve 503, então repetir aqui só multiplicaria a carga sobre um serviço em falha. A taxonomia da falha é **medida** contra o cliente real dos dois lados (`GraphQLInventoryClientFailureTest` no reservation, `ReservationsClientFailureTest` no BFF) — tipos deduzidos da documentação viram `@Retry`/`@Fallback` letra morta com teste verde. Decisão em [ADR 009 §6](../adr/009-fault-tolerance-chamadas-externas.md).
+- **Armadilha correlata**: lista vazia nunca é degradação. `InventoryUnavailable` (reservation) e `AvailabilityUnavailable` (BFF) existem porque `200 []` significa "não há veículo" — devolvê-lo quando a consulta falhou é resposta de negócio falsa.
 
 ## 10.5 Service Discovery (Consul + Stork)
 

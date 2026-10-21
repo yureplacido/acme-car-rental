@@ -593,8 +593,16 @@ mostra `microprofile-fault-tolerance-api` só por este caminho):
 ```
 
 O `reservation-service` recebeu a extensão porque é onde a política de fault tolerance deste
-capítulo está implementada. O `users-service` também tem chamada síncrona de saída e está
-**sem** prazo nem política — dívida declarada na [ADR 009](../adr/009-fault-tolerance-chamadas-externas.md).
+capítulo está implementada. O `users-service` também tem chamada síncrona de saída e **continua
+sem** a extensão — decisão, não esquecimento: ele consome um contrato de falha que já repete e já
+degrada do outro lado, então ele limita o transporte (`quarkus.rest-client.reservations-availability.connect-timeout=500`,
+`read-timeout=3000`) e traduz a falha em `AvailabilityUnavailable` na fronteira. Um `@Retry` no BFF
+triplicaria a carga sobre um serviço já em falha sem acrescentar sinal novo. Ver
+[ADR 009 §6](../adr/009-fault-tolerance-chamadas-externas.md).
+**Armadilha desta extensão no cliente REST**: `quarkus.rest-client.<configKey>.*` é configuração
+**por cliente**, não por método — pôr o `read-timeout` curto no cliente que também carrega o
+`POST /reservations` (não idempotente) teria transformado uma escrita em escrita de resultado
+incerto. Por isso a leitura mora em `AvailabilityClient`, com configKey própria.
 Versões resolvidas: `quarkus-smallrye-fault-tolerance` 3.39.3, SmallRye Fault Tolerance 6.11.2,
 MicroProfile Fault Tolerance API 4.1.2.
 

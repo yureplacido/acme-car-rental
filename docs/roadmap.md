@@ -55,7 +55,7 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [ ] Demonstrar event loop versus worker pool com teste/observabilidade
 - [ ] Demonstrar concorrência controlada
 - [ ] Demonstrar backpressure em um fluxo de ingestão
-- [ ] Definir timeout/cancellation/retry nos adapters externos (parcial: reservation, cap. 10 item 8 — ADR 009)
+- [ ] Definir timeout/cancellation/retry nos adapters externos (parcial: reservation, cap. 10 item 8 — ADR 009; users-service/BFF, §6 da mesma ADR — prazos de transporte, sem annotations de FT; falta o abort real da chamada em voo)
 
 ## Cap. 9 — Messaging
 
@@ -173,19 +173,36 @@ Notas de escopo:
       Evidência: `GraphQLInventoryClientFailureTest` (3), `GraphQLInventoryGatewayFaultToleranceTest` (6),
       `RentalRestGatewayFaultToleranceTest` (5), `AvailabilityThroughInventoryChainTest` (3),
       `ReservationWriteFailureTest` (3), `AvailabilityUnavailableTest` (3),
-      `FindAvailableVehiclesTest` (3, sendo 2 do item 8) e `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1). Três achados que custariam silêncio se não fossem medidos:
+      `FindAvailableVehiclesTest` (3, sendo 2 do item 8) e `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1).
+      No `users-service` (consumidor do mesmo contrato de falha, §6 da ADR 009): a política é
+      propositalmente diferente — prazo de transporte e sinal, sem repetir o que o reservation já
+      repete —, com a taxonomia **medida e fixada** contra o cliente REST real
+      (`ReservationsClientFailureTest` (3), com `assertInstanceOf`: 503 → `ClientWebApplicationException`,
+      conexão recusada e prazo → `ProcessingException`), o adapter de saída convertendo em
+      `AvailabilityUnavailable` **com log da causa** (`ReservationsRestGatewayTest` (5), incluindo a
+      guarda que mantém o prazo fora da escrita não idempotente), a fachada propagando em vez
+      de devolver lista vazia (`ReservationFacadeTest`) e a fronteira respondendo 503 com
+      `Retry-After` e fragmento explicativo (`ReservationsAvailabilityUnavailableTest` (3)).
+      A configKey da leitura é própria (`reservations-availability`) porque
+      `quarkus.rest-client.<configKey>.*` é **por cliente** e o `POST /reservations` não é
+      idempotente.
+      Três achados que custariam silêncio se não fossem medidos:
       o `@Timeout` do SmallRye FT em método que devolve `Uni` **não cancela** a subscription a
       montante (por isso o `read-timeout` do cliente REST é configurado abaixo do deadline de FT,
       com teste de guarda); a taxonomia precisa ser a que o cliente **real** lança, senão o
       `@Retry`/`@Fallback` vira letra morta e o teste passa assim mesmo; e `timeout.value` sem
       `timeout.unit` **herda a unidade da annotation** (as classes de teste medem o tempo
       decorrido com limites bilaterais e `@Timeout` de classe para quebrar rápido se a chave
-      deixar de valer). Dívida aberta: o `users-service`, que consome essa disponibilidade, ainda
-      não trata o 503 — e usa cliente bloqueante sem prazo, então o caminho de falha passou a
-      custar ~9 s em `%prod` segurando thread do BFF. Duas evidências ainda em aberto: o
+      deixar de valer). ~~Dívida aberta: o `users-service`, que consome essa disponibilidade, não
+      tratava o 503 — e usava cliente bloqueante sem prazo, custando ~9 s no caminho de falha em
+      `%prod` segurando thread do BFF~~ — **fechada em 2026-10-21**: o BFF tem prazo de transporte,
+      converte a falha medida em `AvailabilityUnavailable` e responde 503 com o fragmento
+      explicativo (§6 da ADR 009). Duas evidências ainda em aberto: o
       **abort** da chamada em voo é a única coisa que a guarda de configuração não prova
       (`read-timeout` é inatividade com rearmamento, não deadline — a prova exige integração
-      real), e o mapper do erro de GraphQL sai como 500 sem corpo estável
+      real; o caminho mais direto é `@QuarkusIntegrationTest` com um servidor que nunca responde,
+      o esqueleto já existe no `shouldCharacterizeTheFailureWhenReservationsNeverResponds`), e o
+      mapper do erro de GraphQL sai como 500 sem corpo estável
 - [x] Service discovery desacoplando localização de serviço da configuração
       — **Stork (REST Client) + Consul** [3.39.3]. **Descoberta via Stork**
       (`stork-service-discovery-consul`, 2.7.10, BOM) e **publicação por adapter próprio**
@@ -329,7 +346,13 @@ Architecture + DDD + TDD + Quarkus guardians
 Use `/domain-design` antes de implementar uma feature e `/preflight` para o fluxo completo.
 
 ---
-_Last updated: 2026-10-13 (cap. 10 fechado: graceful shutdown — `quarkus.shutdown.timeout`
+_Last updated: 2026-10-21 (cap. 10: dívida da ADR 009 fechada — o `users-service` passa a tratar
+a disponibilidade inconclusiva como 503 com fragmento explicativo, com prazo de transporte no
+REST client (configKey própria `reservations-availability`, para não alcançar a escrita não
+idempotente), log da causa no adapter de saída, taxonomia medida **e fixada** contra o cliente
+real e evidência em `ReservationsClientFailureTest`, `ReservationsRestGatewayTest`,
+`ReservationsAvailabilityUnavailableTest` e `ReservationFacadeTest`).
+Antes: cap. 10 fechado: graceful shutdown — `quarkus.shutdown.timeout`
 nos 5 serviços para requisições HTTP em voo e `OutboxShutdownDrain` no billing drenando a
 outbox pendente no `ShutdownEvent`, com `OutboxShutdownDrainTest`. Antes: item 10 fechado:
 imagem pré-construída imutável por Maven

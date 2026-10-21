@@ -192,6 +192,45 @@ Regras para quem consome:
 Evidência: `AvailabilityUnavailableTest` (3 cenários), `AvailabilityThroughInventoryChainTest`
 (3, incluindo o erro de GraphQL que **não** vira 503) e `GraphQLInventoryGatewayFaultToleranceTest` (6 cenários).
 
+## Disponibilidade no BFF (HTTP, users-service) ✅
+
+`GET /available?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD`
+
+O `users-service` consome o contrato acima e o **traduz para o browser** como HTML de fragmento
+(htmx), não como JSON. A superfície é o BFF web; o consumidor é o htmx, por isso o corpo de erro
+é o próprio fragmento a ser exibido (decisão na
+[ADR 009 §6](adr/009-fault-tolerance-chamadas-externas.md)).
+
+```text
+200  fragmento com a tabela de carros
+503  <div class="alert alert-warning" data-availability="unavailable">
+       <h3>Availability temporarily unavailable</h3>
+       <p>We could not reach the reservation system, so we cannot show the
+          available cars right now. Please try again in a moment.</p>
+     </div>     + header Retry-After: 30
+```
+
+Regras para quem consome:
+
+- **200 com tabela vazia** continua significando "nenhum veículo no período".
+- **503 significa "não deu para saber"** — nunca 200 com tabela vazia, que mentiria ao usuário
+  oferecendo outra data como se o catálogo estivesse completo.
+- O corpo **não** contém detalhe de infraestrutura (host, porta, stack); a causa entra no log do
+  adapter de saída do BFF.
+- O 503 cobre **qualquer** falha upstream medida no `ReservationsClientFailureTest` (503 do
+  reservation, conexão recusada, estouro do `read-timeout`) **e também** outros status não-2xx,
+  porque a decisão foi não inspecionar status cru no adapter. Um 500 determinístico do reservation
+  aparece aqui como "tente de novo em instantes".
+- O header `Retry-After` é uma promessa conservadora (30 s), não uma medição.
+- **O BFF não repete a chamada.** O `reservation-service` já tem retry/timeout/fallback; repetir
+  aqui multiplicaria o custo de um serviço já em falha.
+- O `GET /available` exige login em `%prod`/`%docker`; no `%test` o fluxo web de OIDC é contornado
+  por permissão dedicada, porque o contrato é testado via HTTP.
+
+Evidência: `ReservationsAvailabilityUnavailableTest` (3 cenários, contrato a partir da porta),
+`ReservationsRestGatewayTest` (5, incluindo a guarda que impede o prazo de vazar para a escrita
+não idempotente) e `ReservationsClientFailureTest` (3, taxonomia medida do cliente real).
+
 ## Criação de reserva (HTTP, reservation-service) — contrato de falha
 
 `POST /reservations` não tem mapper de falha: quando a escrita no `rental-service` estoura o
@@ -234,4 +273,6 @@ e `CreateReservationTest.shouldLeaveTheReservationPendingWhenTheRentalStartFails
 _Atualize este arquivo sempre que um contrato nascer ou evoluir (veja [README.md](./README.md))._
 
 ---
-_Last updated: 2026-10-05 (contrato de disponibilidade do reservation: 503 com corpo estável e `Retry-After` quando o inventory está inacessível, em vez de 200 com lista vazia)._
+_Last updated: 2026-10-21 (contrato de disponibilidade do BFF: `GET /available` responde 503 com
+`Retry-After` e fragmento explicativo quando o reservation está inacessível, sem nunca devolver
+lista vazia — consumidor do contrato do reservation-service)._

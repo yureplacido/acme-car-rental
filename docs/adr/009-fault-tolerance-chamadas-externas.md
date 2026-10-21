@@ -1,9 +1,9 @@
 # ADR 009 — Fault tolerance nas chamadas externas: timeout, retry seletivo e fallback que sinaliza
 
 - **Status:** Accepted / implementada
-- **Data:** 2026-10-05
+- **Data:** 2026-10-05 (revisada em 2026-10-21 — §6, o lado consumidor)
 - **Contexto:** Capítulo 10 — Cloud Native Patterns (fault tolerance)
-- **Escopo:** `reservation-service`, nas duas fronteiras de saída: escrita para `rental-service` e leitura para `inventory-service`
+- **Escopo:** `reservation-service`, nas duas fronteiras de saída: escrita para `rental-service` e leitura para `inventory-service`; e `users-service`, na fronteira de consumo do `GET /reservations/availability` (§6)
 
 ## Contexto
 
@@ -15,7 +15,7 @@ reservation-service
    └── GraphQL allCars        → inventory-service   (leitura, em FindAvailableVehicles)
 ```
 
-Não é o único serviço do repositório com chamada síncrona de saída: o `users-service` também chama `reservation-service` (`GET /reservations/availability`, em `ReservationsRestGateway`), e hoje sem qualquer política — consequência registrada em "Consequências".
+Não é o único serviço do repositório com chamada síncrona de saída: o `users-service` também chama `reservation-service` (`GET /reservations/availability`, em `ReservationsRestGateway`). Ele é **consumidor de um contrato de falha** — e não produtor —, o que muda a política: a decisão está na §6.
 
 Sem política explícita, as duas chamadas heredam o comportamento padrão do cliente HTTP: esperar até o prazo do transporte (no Quarkus, 30 s de leitura e 15 s de conexão por padrão). Isso consome orçamento da event loop, segura a requisição do cliente e, no caso da leitura, não dá ao consumidor como distinguir duas respostas semanticamente opostas:
 
@@ -140,6 +140,30 @@ timeout.value=300 + timeout.unit=MILLIS                            → 300 ms  (
 
 Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o tempo decorrido** com limites bilaterais e `@Timeout` de classe — uma chave com nome errado ou sem unidade vira falha em segundos, não um teste que passa em silêncio nem uma suíte que demora minutos.
 
+### 6. O consumidor (`users-service`): prazo de transporte e sinal de aplicação, sem repetir o que já foi repetido
+
+O `users-service` chama `GET /reservations/availability` com um cliente **bloqueante** (`AvailabilityClient.availability` devolve `Collection<Car>`). Até este item a chamada ia sem prazo e sem tratamento: o cliente herdava os 30 s de leitura do Quarkus e qualquer falha do outro lado virava exceção crua para a tela. Com o retry de leitura do §2, o caminho de falha passou a custar ~9 s em `%prod` (3 idas × 3 s de deadline do reservation) segurando thread do BFF — e, quando o reservation respondia 503, o BFF não traduzia nada.
+
+A política do consumidor é **propositalmente diferente** da do produtor, porque os dois papéis são diferentes:
+
+```text
+connect-timeout = 500      fase de conexão, curta e sem valor semântico
+read-timeout    = 3000     a espera pelo outro lado; estourar = mesmo resultado do 503
+```
+
+- **Sem `quarkus-smallrye-fault-tolerance`.** O upstream já tem timeout, retry seletivo e fallback que sinaliza (§2) e **já devolve 503 com corpo estável** (§3). Repetir no BFF não produziria um sinal novo — só multiplicaria a carga e a espera sobre um serviço já em falha, com o retry interno dele contando 3×. O BFF não é o lugar certo para repetir; é o lugar para **traduzir**.
+- **O prazo vai para a config, no formato do REST client** (`quarkus.rest-client.reservations-availability.connect-timeout=500`, `read-timeout=3000`), não para annotations: a limitação é do transporte, que é onde a chamada bloqueante retém a thread. O `read-timeout` tem a mesma natureza medida documentada no §4 — inatividade com rearmamento, não deadline absoluto —, então ele cobre connect e a espera por headers, não a leitura do corpo.
+- **A configKey é própria da leitura, por causa da escrita.** `quarkus.rest-client.<configKey>.*` é configuração **por cliente**, não por método — e o cliente que existia antes carregava os três caminhos (`all`, `create`, `availability`) sob a mesma `reservations`. O efeito colateral teria sido aplicar o prazo de 3 s da leitura ao `POST /reservations`, que é **não idempotente** (restrição medida em `StartRentalTest`, o eixo inteiro das §2/§3): um prazo curto numa escrita não idempotente a transforma em escrita de resultado incerto, que é exatamente o modo que esta ADR proíbe repetir. A separação é o próprio motivo de existir `AvailabilityClient`, e a guarda é executável: `ReservationsRestGatewayTest.shouldNotPutTheAvailabilityDeadlineOnTheNonIdempotentWrite` falha se os prazos voltarem para a configKey da escrita.
+- **A taxonomia é medida, não deduzida — e fixada.** `ReservationsClientFailureTest` faz a caracterização contra um servidor HTTP de verdade: o 503 do outro lado chega como `ClientWebApplicationException` (um `WebApplicationException`), e conexão recusada e estouro de prazo chegam como `ProcessingException`. Só esses dois tipos entram no `catch` — união de padrão, não um `catch (Exception)`: a lista é curta e medida. Cada caso **verifica o tipo** (`assertInstanceOf`) além de imprimir a medida: sem isso a classe ficaria verde se um upgrade do Quarkus mudasse a taxonomia, e o `catch` do adapter viraria letra morta com a suíte passando — o mesmo defeito que motivou esta ADR, do outro lado.
+- **O resultado inconclusivo vira sinal de aplicação, nunca lista vazia.** O adapter de saída lança `AvailabilityUnavailable` (`application/exception`) — o análogo do `InventoryUnavailable`, sem anotações de política. `ReservationFacadeTest.shouldPropagateAvailabilityUnavailableInsteadOfReturningAnEmptyList` fixa a distinção: `[]` é "nenhum veículo no período"; o sinal é "não deu para saber". O adapter inbound (`AvailabilityUnavailableMapper`) responde `503` com `Retry-After: 30` e o fragmento explicativo. A causa vai para `LOG.warnf` **no mesmo `catch`** (mesmo nível do `GraphQLInventoryGateway.inventoryUnreachable`) e nunca para o corpo — é obrigatório, não decorativo: o mapper consome a exceção via `@ServerExceptionMapper`, então o Quarkus não a loga sozinho, e sem essas linhas o mascaramento da escolha 2 abaixo ficaria sem canal de diagnóstico. `ReservationsAvailabilityUnavailableTest.shouldNotLeakInfrastructureDetailWhenAvailabilityIsUnavailable` nega o vazamento no corpo.
+
+Duas escolhas desta fronteira são deliberadas e ficam explícitas aqui, porque são as que os guardians tendem a questionar:
+
+1. **O BFF não instala a extensão de FT.** Isso não é omissão: a extensão (e a tabela de dependências do cap. 10) permanece com o `reservation-service` como único consumidor dela. Se um dia o BFF precisar de repetição ou de bulkhead, aí a extensão entra — mas aí haveria um medidor que a justificasse.
+2. **Qualquer falha upstream vira 503 do BFF, não só o 503 do reservation.** Um 500 do reservation, um 401 de token propagado, um 404 de path mudado: o browser recebe "temporarily unavailable, try again". A escolha protege o usuário e o contrato (`contracts.md`) de vazar detalhe de infraestrutura em erro de rede; o custo é mascarar defeito determinístico do upstream como indisponibilidade transitória. É o mesmo tipo de trade-off assumido no §3 com a URL de catálogo errada, e pela mesma razão: não fazer `if` sobre mensagem de exceção ou sobre status cru seria mais frágil que a própria mascarada.
+
+O fragmento da indisponibilidade é `text/html`, porque o consumidor é o htmx: o `index.html` registra um `htmx:beforeSwap` que força a troca das respostas 503 — sem ele o htmx descarta o corpo de erro e a tabela simplesmente não muda. O gancho é **escopado ao alvo** (`event.detail.target.id === 'availability'`), para que um 503 de `/get` ou `/reserve` continue sendo erro e não seja trocado em silêncio. É o único elo da cadeia 503→usuário sem evidência executável: o repo não tem infra de JS, então o hook é **risco residual conhecido** — se algum dia o htmx mudar a forma do `beforeSwap`, quem o descobrirá é o usuário, não a suíte.
+
 ## Alternativas consideradas
 
 **Retry na escrita.** Rejeitado: duplicaria locação. Uma chave de idempotência tornaria a escrita repetível, mas é mudança de contrato entre os dois serviços e está fora do escopo deste item. Quando existir, esta ADR pode ser revista: o teste de caracterização de `StartRental` é o que avisa.
@@ -154,6 +178,8 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 
 **Retry manual dentro do adapter.** Rejeitado: mesma política fora do lugar padrão, mais difícil de revisar e de configurer por ambiente.
 
+**Repetir a política no `users-service` (§6).** Rejeitado: o BFF consome um contrato de falha que **já** existe e **já** cumpre a repetição do outro lado. Um `@Retry` no BFF transformaria 1 ida doente em 3 idas doentes (3 × o `read-timeout` de 3 s do BFF), sobre um serviço já em falha, sem acrescentar um sinal novo — a resposta voltaria 503 de qualquer forma. O que o BFF precisa não é repetir, é **não esperar para sempre** (prazos de transporte) e **não mentir** (sinal + fragmento). Se um dia o BFF precisar de repetição, a condição é objetiva e mensurável: taxa de erro observável em `/q/metrics` do reservation, e aí entra junto o breaker da alternativa acima.
+
 ## Consequências
 
 **Boas.**
@@ -162,13 +188,16 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 - Erro de GraphQL (inventory respondeu com `errors`) não é disfarçado de indisponibilidade nem de resultado de negócio.
 - A escrita não duplica locação, mesmo com rental-service instável.
 - Prazos por ambiente sem tocar em código de regra.
+- O BFF herda o mesmo sinal: o browser recebe 503 com explicação em vez de tabela vazia, e a thread do BFF tem prazo para sair da chamada de falha.
 
 **Ruins.**
 
 - Uma consulta de disponibilidade contra o inventory fora do ar custa 3 idas (1 tentativa + 2 repetições). Com inventory fora, o custo se multiplica por 3; é preciso observar taxa de erro e latência antes de escolher circuit breaker.
 - Uma URL de catálogo errada (404) também é repetida 3 vezes antes de virar 503, porque o cliente não tipa o status.
-- O `users-service`, que consome `GET /reservations/availability`, ainda não trata 503: precisa passar a tratar resultado inconclusivo em item próprio, em vez de receber lista vazia com o sentido errado. Pior, o cliente dele é **bloqueante** (`ReservationsClient.availability` devolve `Collection<Car>`), sem prazo e sem política alguma — e com o retry de leitura novo, o caminho de falha passou a custar ~9 s em `%prod` (3 idas × 3 s) segurando thread do BFF. É dívida criada por esta ADR e visível agora.
-- 503 é uma resposta nova para quem consome `GET /reservations/availability`; clientes precisam tratá-la explicitamente.
+- ~~O `users-service`, que consome `GET /reservations/availability`, ainda não trata o 503~~ — **resolvido nesta revisão** (§6). O BFF agora tem prazo de transporte (`connect-timeout=500`, `read-timeout=3000`), converte a falha medida em `AvailabilityUnavailable` e responde 503 com o fragmento explicativo. O caminho de falha deixou de ser ilimitado e o resultado inconclusivo deixou de virar lista vazia. O que permanece é uma consequência nova: **503 virou resposta do `GET /available` do BFF**, então o browser/htmx precisa tratá-la — e trata, via `htmx:beforeSwap`.
+- 503 é uma resposta nova para quem consome `GET /reservations/availability`; o BFF já a trata, mas **outros** consumidores do endpoint precisam tratá-la explicitamente.
+- O 503 do BFF cobre **qualquer** falha upstream (§6): um 500 determinístico do reservation aparece para o browser como "tente de novo em instantes". É mascarada deliberada, com a causa no log do adapter de saída.
+- A espera máxima do BFF por uma disponibilidade caiu de 30 s (default do Quarkus) para ~3,5 s (500 ms de connect + 3 s de read), mas `read-timeout` é inatividade com rearmamento: um fluxo de bytes que nunca para não estoura. O abort real da chamada em voo continua sem prova de integração, como no §4.
 - A dívida de `CreateReservation` (reserva `PENDING` órfã quando a escrita falha) continua aberta e é visível agora, porque a falha deixa de ser engolida.
 - O erro de GraphQL sai como **500 sem corpo estável**: o `@ServerExceptionMapper` cobre só `InventoryUnavailable`, então esse caminho não tem contrato de corpo. Um mapper de erro inesperado é contrato novo (roadmap.md, cap. 10). Hoje o mesmo recurso tem dois regimes de erro assimétricos — `/availability` tem 503 estável e `/reservations` tem 500 cru.
 - A assinatura do fallback `inventoryUnreachable(Throwable)` só resolve no modo não-compat, que esta ADR trata como default. A propriedade real é `quarkus.fault-tolerance.mp-compatibility` (booleana, default `false` no Quarkus) — não existe `compatibility-mode`. Se alguém declarar `mp-compatibility=true`, o fallback deixa de casar e o **build falha em augmentação** (`FaultToleranceDefinitionException`: "can't find fallback method … with matching parameter types and return type"), que é bem melhor do que degradar em silêncio. O teste que exige a causa original preservada é também a prova desse modo.
@@ -196,6 +225,14 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 | `ReservationWriteFailureTest` (3 testes) | contrato de falha da escrita: prazo estourado e chamada recusada dão 500 com **uma** ida ao rental-service, e a reserva fica visível como `PENDING` |
 | `CreateReservationTest.shouldLeaveTheReservationPendingWhenTheRentalStartFails` | caracterização da dívida: escrita única, reserva fica `PENDING`, falha sobe |
 | `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` | caracterização da não-idempotência que proíbe retry na escrita |
+| `ReservationsClientFailureTest` (3 testes, users-service) | taxonomia **medida e fixada** do cliente REST do BFF: 503 → `ClientWebApplicationException` (um `WebApplicationException`), conexão recusada → `ProcessingException`, estouro de prazo → `ProcessingException` (causa `TimeoutException`) — cada caso faz `assertInstanceOf`, então um upgrade que mude a taxonomia fica vermelho; é a base do `catch` do adapter de saída |
+| `ReservationsRestGatewayTest.shouldSignalAvailabilityUnavailableWhenReservationsAnswersAnError` | resposta não-2xx do reservation vira `AvailabilityUnavailable`, não lista vazia |
+| `ReservationsRestGatewayTest.shouldSignalAvailabilityUnavailableWhenTheTransportFails` | falha de transporte também vira `AvailabilityUnavailable` |
+| `ReservationsRestGatewayTest.shouldMapTheFleetWhenReservationsResponds` | caminho feliz preservado |
+| `ReservationsRestGatewayTest.shouldBoundTheAvailabilityReadWithTransportTimeouts` | guarda de configuração: as duas chaves do cliente de leitura existem e são positivas e curtas (≤1 s connect, ≤3 s read) |
+| `ReservationsRestGatewayTest.shouldNotPutTheAvailabilityDeadlineOnTheNonIdempotentWrite` | guarda contra o acoplamento: `quarkus.rest-client.reservations.read-timeout` (a configKey da escrita não idempotente) segue o default do Quarkus — falha se os prazos voltarem para serem globais |
+| `ReservationFacadeTest.shouldPropagateAvailabilityUnavailableInsteadOfReturningAnEmptyList` | a fachada **propaga** o sinal: `[]` é resultado legítimo e o sinal é "não deu para saber" |
+| `ReservationsAvailabilityUnavailableTest` (3 testes) | contrato HTTP do BFF: 503 com `Retry-After: 30` e o fragmento explicativo; 200 quando o reservation responde; nenhum detalhe de infraestrutura no corpo |
 
 ## Relação com outras decisões
 
@@ -205,4 +242,4 @@ Por isso `timeout.unit` vem sempre explícito, e as classes de teste **medem o t
 
 ## Estado da decisão
 
-**Accepted / implementada**, com evidência de teste unitário dos adapters, de caracterização do cliente real e de contrato da fronteira (inclusive a cadeia completa com o gateway em CDI). Faltam duas evidências, ambas em aberto no roadmap do cap. 10: falha em integração real com o container fora do ar (que também provaria o abort da chamada em voo, hoje só guardado por configuração) e o tratamento do 503 pelo `users-service`.
+**Accepted / implementada**, com evidência de teste unitário dos adapters, de caracterização do cliente real (os dois lados: `GraphQLInventoryClientFailureTest` no reservation e `ReservationsClientFailureTest` no BFF) e de contrato da fronteira (inclusive a cadeia completa com o gateway de leitura em CDI e o contrato HTTP do `GET /available` do BFF). Faltam duas evidências, ambas em aberto no roadmap do cap. 10: falha em integração real com o container fora do ar (que também provaria o abort da chamada em voo, hoje só guardado por configuração) e um mapper de erro inesperado no reservation para o `POST /reservations` deixar de sair como 500 cru.

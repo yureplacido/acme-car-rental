@@ -20,4 +20,6 @@ public class ReservationsTemplates {
     public static native TemplateInstance availablecars(Collection<AvailableCar> cars,
                                                         LocalDate startDate,
                                                         LocalDate endDate);
+
+    public static native TemplateInstance availabilityunavailable();
 }

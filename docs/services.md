@@ -154,8 +154,22 @@ defectos acima (`ReservationRegistersInConsulTest`, `RentalRegistersInConsulTest
 **passing** no boot e saída limpa do catálogo após o deregister).
 
 O `users-service` também tem chamada síncrona de saída (`ReservationsRestGateway` →
-`GET /reservations/availability`), com cliente **bloqueante** e sem prazo nem política, e ainda
-**não** trata o 503: é dívida aberta, registrada na ADR 009.
+`GET /reservations/availability`) e é **consumidor** do contrato de falha acima: não repete nem
+re-tenta, traduz. O cliente de leitura é bloqueante e **tem configKey própria**
+(`AvailabilityClient`, `quarkus.rest-client.reservations-availability.connect-timeout=500`,
+`read-timeout=3000`) — não por capricho: `quarkus.rest-client.<configKey>.*` é configuração por
+cliente, e a escrita `POST /reservations` que compartilhava a `ReservationsClient` não é
+idempotente, então o prazo curto da leitura não pode alcançá-la. Antes não havia prazo nenhum e o
+caminho de falha segurava thread do BFF por ~9 s. A taxonomia de falha foi **medida e fixada**
+contra o cliente REST real (`ReservationsClientFailureTest`, com `assertInstanceOf`): resposta
+não-2xx chega como `WebApplicationException`, conexão recusada e estouro de prazo como
+`ProcessingException`; os dois viram `AvailabilityUnavailable` (`application/exception`), nunca
+lista vazia. A causa é logada no `catch` (`LOG.warnf`, mesmo lugar do análogo `GraphQLInventoryGateway`) —
+necessária porque o mapper consome a exceção. A fronteira responde 503 com `Retry-After: 30` e o
+fragmento explicativo (`AvailabilityUnavailableMapper` + `availabilityunavailable.html`); o
+`index.html` registra um `htmx:beforeSwap` escopado ao alvo `#availability` porque o htmx não troca
+respostas de erro por padrão. Decisão na [ADR 009 §6](adr/009-fault-tolerance-chamadas-externas.md),
+contrato em [contracts.md](contracts.md).
 
 ## rental-service
 
@@ -281,23 +295,58 @@ It owns browser-facing orchestration and presentation models, not the Reservatio
 Application:
 - `ReservationFacade`
 
-Port:
+Ports:
 - `ReservationsGateway`
 
+Application signals:
+- `application/exception/AvailabilityUnavailable` — "não deu para saber", distinto de lista vazia
+
 Adapters:
-- Qute/web
+- Qute/web (`ReservationsResource`, templates em `ReservationsTemplates`)
+- inbound de falha: `AvailabilityUnavailableMapper` (→ 503 + `Retry-After` + fragmento)
 - OIDC/security
-- REST to reservation (via Stork: `stork://reservations`, catálogo Consul)
+- REST to reservation (via Stork: `stork://reservations`, catálogo Consul) — dois clientes:
+  `ReservationsClient` (listagem e escrita) e `AvailabilityClient` (leitura, com prazo próprio)
 
 Transport models from reservation remain inside the outbound adapter.
 
 A saída resolve a localização do reservation no Consul (`stork://reservations`), publicado pelo
-adapter próprio de registro (`ConsulServiceRegistration`) como `reservations`. Como `ReservationsClient`
-carrega `@AccessToken`, o caminho completo só roda dentro de request autenticado (o filtro aborta 401
+adapter próprio de registro (`ConsulServiceRegistration`) como `reservations`. Como os dois clientes
+carregam `@AccessToken`, o caminho completo só roda dentro de request autenticado (o filtro aborta 401
 sem token). Por isso a prova de discovery do BFF (`ReservationsServiceDiscoveryTest`) atua no nível do
 **Stork** — resolução da instância no catálogo + requisição direta ao endereço resolvido — em vez de
 dentro do cliente OIDC; o caminho completo REST Client→Stork→Consul fica evidenciado no
 reservation-service (sem token).
+
+O BFF é o único consumidor do contrato de falha do reservation e trata a indisponibilidade como
+**tradução, não como repetição** (decisão na [ADR 009 §6](adr/009-fault-tolerance-chamadas-externas.md)):
+
+- `adapter/out/reservation/ReservationsRestGateway.availability` converte
+  `WebApplicationException | ProcessingException` em `AvailabilityUnavailable`. A lista de tipos
+  é **medida e fixada** contra o cliente REST real em `ReservationsClientFailureTest`
+  (com `assertInstanceOf`, então upgrade que mude a taxonomia fica vermelho), não deduzida —
+  mesma lição do lado do reservation (`GraphQLInventoryClientFailureTest`).
+- O prazo é **do transporte** (`connect-timeout=500`, `read-timeout=3000`), porque o cliente é
+  bloqueante; não há `quarkus-smallrye-fault-tolerance` neste módulo. Um `@Retry` aqui
+  multiplicaria o custo de um serviço já em falha, sem acrescentar sinal novo. O prazo mora numa
+  configKey própria (`AvailabilityClient` / `reservations-availability`), porque
+  `quarkus.rest-client.<configKey>.*` é por cliente e a escrita `POST /reservations` (não
+  idempotente) não pode herdar o prazo da leitura — guarda em
+  `shouldNotPutTheAvailabilityDeadlineOnTheNonIdempotentWrite`.
+- `adapter/in/web/AvailabilityUnavailableMapper` responde **503** com `Retry-After: 30` e o
+  fragmento `availabilityunavailable.html`. Nunca 200 com lista vazia — lista vazia significaria
+  "nenhum veículo", que é uma mentira de negócio.
+- A causa vai para `LOG.warnf` no `catch` do gateway, nunca para o corpo
+  (`ReservationsAvailabilityUnavailableTest.shouldNotLeakInfrastructureDetailWhenAvailabilityIsUnavailable`).
+  O log é obrigatório: o mapper consome a exceção, então o Quarkus não a loga sozinho — sem ele
+  o mascaramento acima ficaria sem diagnóstico.
+- O `index.html` registra um `htmx:beforeSwap` **escopado ao alvo `#availability`**, que força a
+  troca das respostas 503: sem ele o htmx descarta o corpo de erro e a tabela não muda em
+  silêncio. O escopo evita que um 503 de `/get` ou `/reserve` seja trocado em silêncio também.
+
+Custo conhecido: **qualquer** falha upstream vira 503 do BFF, inclusive um 500 determinístico do
+reservation. É mascarada deliberada para não vazar infraestrutura ao browser, registrada como
+consequência da ADR 009.
 
 ## inventory-cli
 

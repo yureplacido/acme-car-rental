@@ -1,5 +1,6 @@
 package org.acme.users.application;
 
+import org.acme.users.application.exception.AvailabilityUnavailable;
 import org.acme.users.application.model.AvailableCar;
 import org.acme.users.application.model.ReservationView;
 import org.acme.users.application.port.out.ReservationsGateway;
@@ -23,6 +24,21 @@ class ReservationFacadeTest {
         assertNotNull(gateway.created);
         assertEquals(99L, gateway.created.carId());
         assertEquals(LocalDate.of(2035, 3, 20), gateway.created.startDay());
+    }
+
+    @Test
+    void shouldPropagateAvailabilityUnavailableInsteadOfReturningAnEmptyList() {
+        ReservationsGateway gateway = new FakeGateway() {
+            @Override
+            public java.util.Collection<AvailableCar> availability(LocalDate startDate, LocalDate endDate) {
+                throw new AvailabilityUnavailable(new IllegalStateException("reservations is down"));
+            }
+        };
+        ReservationFacade facade = new ReservationFacade(gateway);
+
+        assertThrows(AvailabilityUnavailable.class,
+                () -> facade.availableCars(LocalDate.of(2035, 6, 1), LocalDate.of(2035, 6, 10)),
+                "o resultado inconclusivo nao pode virar lista vazia");
     }
 
     static class FakeGateway implements ReservationsGateway {

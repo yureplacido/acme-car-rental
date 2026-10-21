@@ -110,6 +110,31 @@ comportamento é medido em tentativas — não em mensagem de log:
   a falha é observada **por assinatura**: `await().indefinitely()` re-empacota exceção checada em
   `CompletionException`, e atribuir essa forma ao cliente faria a `@Retry` parecer aplicada sem
   estar.
+- **Exceção medida: o MP REST Client exige boot.** `ReservationsClientFailureTest` (BFF) mede a
+  mesma coisa — tipos que o cliente real lança contra um servidor HTTP de verdade —, mas
+  **precisa de `@QuarkusTest`**: o `RestClientBuilder` resolve o builder via
+  `RestClientBuilderResolver`, e o `resteasy-reactive-client` não registra implementor fora do app
+  em execução (sem `META-INF/services/org.eclipse.microprofile.rest.client.spi.RestClientBuilderResolver`
+  e sem `static` que o instale). Sem boot a sonda falha com
+  `IllegalStateException: No RestClientBuilderResolver implementation found!` — verificado tirando
+  a anotação e rodando a classe, não presumido. A regra "sem Quarkus" vale para o cliente que
+  *sobe sozinho* (SmallRye GraphQL); para este, isolamento não é negociável. O mesmo bloqueio já
+  estava documentado na §Service discovery (`@AccessToken` aborta fora de request): a sonda em
+  `src/test` contorna o token, mas não contorna o boot.
+- **Os prazos de transporte do BFF são duas chaves e uma separação.** `quarkus.rest-client.<configKey>.*`
+  é configuração **por cliente**, não por método — por isso a leitura tem configKey própria
+  (`reservations-availability`) e a escrita não idempotente fica fora do alcance do `read-timeout`
+  curto. As duas metades têm guarda: `shouldBoundTheAvailabilityReadWithTransportTimeouts`
+  (chaves existem e são curtas) e
+  `shouldNotPutTheAvailabilityDeadlineOnTheNonIdempotentWrite` (a escrita segue o default).
+  Ambas são guarda de configuração, não prova de comportamento: provar que o cliente **injetado**
+  recebe os valores é o abort em voo, ainda em aberto (ver abaixo).
+- **Limite conhecido do contrato HTTP do BFF:** `ReservationsAvailabilityUnavailableTest` roda em
+  `%test.quarkus.http.auth.permission.available.paths=available`, que libera o `GET /available` sem
+  OIDC justamente para o teste HTTP ser possível (`@QuarkusTest` não autentica o browser). Consequência:
+  o ramo "401 de token propagado mascarado como 503" (consequência da ADR 009 §6) **não é exercitado**
+  — em `%prod`/`%docker` o endpoint continua atrás do login. Não é falha do teste, é o limite do
+  perfil: o 401 é da política de segurança, não da fronteira de disponibilidade.
 - **Caracterização antes de política:** quando a política depende de uma propriedade do outro
   serviço (aqui, "a escrita não é idempotente"), o teste que fixa essa propriedade fica no
   serviço dono dela (`StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice`).
@@ -134,6 +159,14 @@ testcontainers** — sem mock) e padrões que valem para quem vier a tocar nesse
   (`Stork.getInstance().getService(...).getInstances().await().indefinitely()`) + requisição
   direta ao endereço resolvido - registrado na javadoc do teste. Não tentar "empurrar" o
   BFF para o cliente OIDC: é comportamento do framework, não da fronteira dele.
+- **A mesma restrição reaparece quando se mede a falha do cliente do BFF, e vale o mesmo
+  truque.** `ReservationsClientFailureTest` (cap. 10, ADR 009 §6) precisa medir como o
+  `AvailabilityClient` classifica cada falha, mas o cliente tem `@AccessToken` e o filtro
+  abortaria com 401 antes de a requisição sair. A medida usa uma **interface-sonda equivalente
+  em `src/test`** (mesmo `@Path`/método, sem `@AccessToken`): é o mesmo `resteasy-reactive`,
+  medindo o mapeamento de erro recebido e de falha de transporte, que não dependem do filtro
+  de token. A lição é a mesma do cap. 8/10 — a taxonomia **se mede**, não se deduz da
+  documentação, e o atalho de teste é aceitável quando ele mede a mesma coisa.
 - **Registro de serviço se testa no boot, com perfil dedicado e assert de "passing".** O
   registro é síncrono no boot (adapter próprio em `adapter/out/registration`, `@Observes
   StartupEvent`/`@PreDestroy`); o `application.properties` desliga em `%test` e o teste
@@ -251,6 +284,27 @@ fica no git, e `b6c726e` ainda quebrava a compilação — corrigido em `8bd81cd
 exceção já aceita para o item 9 (RED documentado acima, não commitado), agora tornada padrão:
 o cenário "nome não resolve" é coberto por asserção (size==1 e host/port do stub), não por um
 RED prévio no histórico. Reabilitar RED real fica como dívida aceita.
+
+**Dívida declarada da ADR 009 §6 (users-service, 503 de disponibilidade).** Os testes novos do BFF
+(`ReservationsClientFailureTest`, `ReservationsRestGatewayTest`, `ReservationsAvailabilityUnavailableTest`
+e o caso novo do `ReservationFacadeTest`) foram escritos GREEN-first na mesma série de trabalho,
+mas **o RED principal é demonstrável, não presumido**: o primeiro caso a falhar foi
+`ReservationsRestGatewayTest.shouldSignalAvailabilityUnavailableWhenReservationsAnswersAnError`,
+porque `ReservationsRestGateway.availability` ainda não tinha `try` — o diff da mudança mostra o
+`catch` sendo adicionado, então o teste não passa contra o código anterior. Da mesma forma o
+guarda da separação de clientes foi escrito antes dela e falhou por
+`cannot find symbol: AvailabilityClient` (observado nesta mudança), e o `assertNotNull` da
+caracterização foi trocado por `assertInstanceOf` quando ficou claro que a classe imprimia a
+medida sem fixá-la. A diferença para os itens 9/10: aqui o RED foi observado, não arquivado.
+
+O que **não** tem RED é
+`ReservationFacadeTest.shouldPropagateAvailabilityUnavailableInsteadOfReturningAnEmptyList`
+— a fachada é delegação pura, então o caso não pode falhar por mudança de comportamento; ele é
+**guarda** (ninguém captura o sinal e devolve `[]` depois), não evidência de ciclo completo, e
+a ADR 009 o lista como evidência de fronteira, não de RED. E
+`ReservationsAvailabilityUnavailableTest` depende do Quarkus boot para falar HTTP, então o ciclo
+se completa nela como em todo contrato de fronteira: o que a isola de "escrito depois" é o caso
+do gateway acima, vermelho contra o código anterior.
 
 ## Nomenclatura
 Prefira nomes como shouldRejectReservationWhenVehicleIsAlreadyReserved e evite nomes que descrevem implementação.

@@ -191,8 +191,9 @@ ter sido justamente a versão, não a escolha de provider, que derrotou o mecani
   de transporte inalterado. A saída GraphQL permanece na ADR de inventory (URL externalizada) —
   é a divergência que o item 9 documenta.
 - **ADR 009 (fault tolerance)** — a descoberta entrega a instância; a política (timeout/retry)
-  continua nos adapters de saída, intacta. A dívida do `users-service` (sem tratar 503) permanece
-  aberta lá.
+  continua nos adapters de saída, intacta. O `users-service` já trata o 503 desde 2026-10-21
+  (§6 da ADR 009): prazo de transporte no cliente de leitura e `AvailabilityUnavailable`, sem
+  fault tolerance no BFF.
 
 ## Estado da decisão
 

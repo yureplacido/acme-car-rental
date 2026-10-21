@@ -125,6 +125,19 @@
             <artifactId>testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Cap.10 divida (ADR 009): contrato HTTP do /available indisponivel (RestAssured) e
+             @InjectMock do cliente/fachada. Atencao: desde o Quarkus 3.31 o artefato
+             quarkus-junit5-mockito foi relocado para quarkus-junit-mockito. -->
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit-mockito</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

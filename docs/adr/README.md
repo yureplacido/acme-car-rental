@@ -16,7 +16,7 @@ As ADRs também são material de estudo: devem explicar **por que** uma decisão
 | 6 | [ADR 006 — Import massivo reativo de veículos](./006-reactive-inventory-bulk-import.md) | backpressure e cancelamento no import | Proposed |
 | 7 | [ADR 007 — Inbox transacional com o efeito de negócio](./007-transactional-inbox.md) | claim + efeito na mesma transação | Accepted / implementada |
 | 8 | [ADR 008 — Transactional outbox (versão final)](./008-transactional-outbox.md) | outbox transacional, substitui a ADR 004 | Accepted / implementada |
-| 9 | [ADR 009 — Fault tolerance nas chamadas externas](./009-fault-tolerance-chamadas-externas.md) | timeout, retry seletivo e fallback que sinaliza indisponibilidade | Accepted / implementada |
+| 9 | [ADR 009 — Fault tolerance nas chamadas externas](./009-fault-tolerance-chamadas-externas.md) | timeout, retry seletivo e fallback que sinaliza indisponibilidade; o consumidor (BFF) tem prazo de transporte e sinal de aplicação | Accepted / implementada |
 | 10 | [ADR 010 — Service discovery](./010-service-discovery.md) | descoberta Stork + Consul e publicação por adapter próprio (item 9) | Accepted / implementada |
 | 11 | [ADR 011 — Imagens e perfis cloud-native](./011-imagens-e-perfis-cloud-native.md) | imagem pré-construída imutável e runtime por `QUARKUS_PROFILE` (item 10) | Accepted |
 
@@ -56,4 +56,4 @@ Uma ADR deve ser criada quando houver uma decisão arquitetural que altere respo
 
 > A ordem acima é um roteiro de estudo. Uma ADR futura só deve ser marcada como implementada quando existir evidência executável no código e nos testes.
 ---
-_Last updated: 2026-10-07 (ADR 010 do cap. 10 item 9 — service discovery — registrada)_
+_Last updated: 2026-10-21 (ADR 009 revisada — §6, o lado consumidor: o `users-service` trata a disponibilidade inconclusiva como 503 com prazo de transporte e sinal de aplicação)_
