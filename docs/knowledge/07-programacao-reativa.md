@@ -103,8 +103,17 @@ subscriber.request(1);
 subscriber.awaitItems(1);
 ```
 
-Esse teste é o **contrato de backpressure** do caso de uso. Sem ele, aumentar
+Esse teste é o **contrato de backpressure do caso de uso**. Sem ele, aumentar
 `max-concurrency` para 1000 derrubaria o banco sem nenhum teste falhar.
+
+⚠️ **Mas ele não é backpressure ponta a ponta — e a diferença importa.** O que o teste prova é o
+*prefetch do `Merge`*: o upstream é limitado a `maxConcurrency` requests. O `AssertSubscriber` do
+teste é um **subscriber de teste**, não um cliente gRPC; o adapter gRPC não encaminha a demanda do
+cliente para o repositório. Então, hoje, nenhum cliente real consegue dizer "não me mande ainda" —
+e a [ADR 006 §Backpressure](../adr/006-reactive-inventory-bulk-import.md) proíbe explicitamente
+tratar limite de concorrência como backpressure. O cenário que fecharia essa distinção
+(`shouldNotMaterializeTheEntireInputStreamBeforeProcessing`, previsto na ADR 006) **ainda não foi
+escrito** e está aberto como item do Cap. 8 no [roadmap](../roadmap.md).
 
 ## 5. Cancelamento é comportamento observável (cap. 8.4)
 

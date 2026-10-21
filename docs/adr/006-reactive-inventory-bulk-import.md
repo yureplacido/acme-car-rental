@@ -2,7 +2,11 @@
 
 ## Status
 
-Proposed
+Accepted / implementada (2026-10-21). O núcleo especificado aqui existe em código e tem
+evidência executável: `BulkRegisterVehicles`, a porta reativa `Uni<Vehicle> save(...)`, o gRPC
+`add(stream) returns (stream)` com `merge(maxConcurrency)` configurável por
+`inventory.bulk.max-concurrency`, e os testes de concorrência, cancelamento, timeout e retry.
+Ver a seção **Estado da decisão** no fim deste documento para o que ficou fora do primeiro slice.
 
 ## Context
 
@@ -255,4 +259,41 @@ None blocking for the first implementation slice.
 The initial concurrency value, timeout values and future retry strategy are implementation policies and can be refined after measurements.
 
 ---
-_Last updated: 2026-09-27_
+
+## Estado da decisão (2026-10-21)
+
+**Implementado com evidência executável.** Esta ADR deixou de ser `Proposed`: o código que ela
+especifica existe e é testado.
+
+| Compromisso da ADR | Evidência |
+|---|---|
+| `BulkRegisterVehicles` com `Multi<Command>` → `Multi<Vehicle>` | `BulkRegisterVehiclesTest.shouldRegisterAllCommandsFromStream` |
+| Concorrência limitada e configurável (`N` fora do domínio) | `inventory.bulk.max-concurrency` (default 4) + `shouldNeverExceedConfiguredConcurrency` (`maxInFlight == 2`) |
+| Cancelamento propagado e sem trabalho novo | `BulkRegisterVehiclesCancellationTest` (2 em voo canceladas, nenhuma terceira inicia) |
+| Porta reativa `Uni<Vehicle> save(Vehicle)` | `BulkRegisterVehicles` + `VehicleRepository` reativo |
+| gRPC como fronteira, sem decidir política | `GrpcInventoryResource.add` só traduz e delega |
+| Falha de item não corrompe os demais | política fail-fast preservando os já persistidos |
+
+**Fora do primeiro slice, e o limite é deliberado:**
+
+1. **Backpressure ponta a ponta não existe.** O que está provado é o *prefetch do `Merge`*: com
+   demanda 0 a jusante, o upstream recebe exatamente `maxConcurrency` requests
+   (`BulkRegisterVehiclesBackpressureTest`). O gRPC **não** encaminha a demanda do cliente para o
+   repositório, então um cliente real não consegue hoje dizer "não me mande ainda". A distinção
+   importa porque esta própria ADR proíbe tratar limite de concorrência como backpressure.
+2. **`shouldNotMaterializeTheEntireInputStreamBeforeProcessing` não foi escrito.** A ADR o
+   listava nos cenários de teste (§Test-first scenarios / Application tests); segue ausente. É o
+   cenário que fecharia a distinção do item 1.
+3. **`shouldPropagatePersistenceFailure` não foi escrito.** A política fail-fast está descrita
+   (§Failure policy), mas não tem teste próprio.
+4. **Persistência:** o caminho sob teste usa repositório fake. Se o adapter real usa Hibernate
+   Reactive/Panache não bloqueante não é verificado por estes testes, e sim pela stack do
+   inventory (cap. 7).
+5. **Operações de query** continuam a migração deliberada prevista em §Reactive output port —
+   não foram convertidas neste slice.
+
+O item 1 e o item 2 são o mesmo problema visto de dois ângulos e são o que resta para fechar o
+Cap. 8 no roadmap.
+
+---
+_Last updated: 2026-10-21_
