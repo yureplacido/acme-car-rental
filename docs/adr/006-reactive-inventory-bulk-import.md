@@ -2,10 +2,14 @@
 
 ## Status
 
-Accepted / implementada (2026-10-21). O núcleo especificado aqui existe em código e tem
-evidência executável: `BulkRegisterVehicles`, a porta reativa `Uni<Vehicle> save(...)`, o gRPC
-`add(stream) returns (stream)` com `merge(maxConcurrency)` configurável por
-`inventory.bulk.max-concurrency`, e os testes de concorrência, cancelamento, timeout e retry.
+Accepted / implementada — **escopo: camada de aplicação** (2026-10-21). O núcleo especificado
+aqui existe em código e tem evidência executável: `BulkRegisterVehicles`, a porta reativa
+`Uni<Vehicle> save(...)`, o gRPC `add(stream) returns (stream)` com `merge(maxConcurrency)`
+configurável por `inventory.bulk.max-concurrency`, e os testes de concorrência, cancelamento,
+timeout e retry.
+
+Dois compromissos desta ADR **não** têm evidência executável: os quatro cenários de teste de
+adapter (§Adapter/integration tests — 0 de 4) e o wiring CDI da propriedade de concorrência.
 Ver a seção **Estado da decisão** no fim deste documento para o que ficou fora do primeiro slice.
 
 ## Context
@@ -161,7 +165,12 @@ When one item fails:
 - the corresponding reactive operation fails;
 - stream failure is propagated;
 - downstream cancellation is respected;
+- in-flight sibling operations are cancelled, so a failed stream stops doing work;
 - already completed items remain persisted.
+
+Cancellation has two distinct paths, and both are observable: the consumer may cancel the
+stream, or a failure may cancel the siblings that were in flight. Who cancels changes the
+scenario, so each path carries its own test.
 
 Per-item retry and dead-letter handling belong to later Messaging/Resilience slices.
 
@@ -190,13 +199,22 @@ If any genuinely blocking operation remains during migration, it must be isolate
 
 ### Application tests
 
-`BulkRegisterVehiclesTest`
+The scenarios below are the ones this ADR specified. The table maps each one to the test that
+implements it today: the names diverged during implementation — the code names describe the
+behaviour more precisely — and renaming the code back to the original wording would be a
+degradation, so the mapping lives here.
 
-- shouldRegisterAllCommandsFromTheStream
-- shouldPreserveTheConfiguredMaximumConcurrency
-- shouldPropagatePersistenceFailure
-- shouldStopOnCancellation
-- shouldNotMaterializeTheEntireInputStreamBeforeProcessing
+| Scenario specified by this ADR | Executable evidence |
+|---|---|
+| shouldRegisterAllCommandsFromTheStream | `BulkRegisterVehiclesTest.shouldRegisterAllCommandsFromStream` |
+| shouldPreserveTheConfiguredMaximumConcurrency | `BulkRegisterVehiclesTest.shouldNeverExceedConfiguredConcurrency` (`maxInFlight == 2` with limit 2) |
+| shouldPropagatePersistenceFailure | `BulkRegisterVehiclesFailurePolicyTest.shouldPropagatePersistenceFailureWithoutLosingAlreadyPersistedItems` |
+| shouldStopOnCancellation | `BulkRegisterVehiclesCancellationTest.shouldPropagateCancellationToActiveOperationsAndStopNewOnes` |
+| shouldNotMaterializeTheEntireInputStreamBeforeProcessing | `BulkRegisterVehiclesMaterializationTest.shouldNotMaterializeTheEntireInputStreamBeforeProcessing` |
+
+A counterpoint case guards the negative test: `shouldConsumeTheWholeSourceWhenDemandIsUnbounded`
+proves the source is fully consumed under unbounded demand, so a pipeline that simply consumed
+nothing cannot pass the test above by accident.
 
 ### Domain tests
 
@@ -210,6 +228,10 @@ Existing Vehicle tests remain authoritative for registration behavior.
 - protobuf DTOs map to application commands;
 - reactive persistence is used without blocking the event loop;
 - end-to-end bulk import completes with the expected number of persisted vehicles.
+
+**None of these four has executable evidence yet (0 de 4).** The repository has no gRPC adapter
+test at all, and `inventory-cli` has no test source tree. The status of this ADR is therefore
+scoped to the application layer — see **Estado da decisão**.
 
 ## Forbidden shortcuts
 
@@ -252,6 +274,12 @@ After implementation:
 - update `docs/ddd-tdd-standards.md` only if a new repository-wide reactive convention is established;
 - mark corresponding Cap. 8 roadmap items complete only after executable evidence exists.
 
+**Fulfilled in this slice:** `docs/architecture.md` (reactive ingestion flow), `docs/services.md`
+(the `BulkRegisterVehicles` use case), `docs/testing.md` (concurrency/backpressure evidence) and
+`docs/ddd-tdd-standards.md` §8 — the last one because the rule "claiming backpressure requires
+demand, production and a counterpoint" is a repository-wide convention, not a one-off for this
+ADR.
+
 ## Open questions
 
 None blocking for the first implementation slice.
@@ -262,21 +290,22 @@ The initial concurrency value, timeout values and future retry strategy are impl
 
 ## Estado da decisão (2026-10-21)
 
-**Implementado com evidência executável.** Esta ADR deixou de ser `Proposed`: o código que ela
-especifica existe e é testado.
+**Implementado com evidência executável, no escopo da camada de aplicação.** Esta ADR deixou
+de ser `Proposed`: o código que ela especifica existe e é testado. O que segue é o compromisso e
+onde a prova está — e, depois, o que continua sem prova.
 
 | Compromisso da ADR | Evidência |
 |---|---|
 | `BulkRegisterVehicles` com `Multi<Command>` → `Multi<Vehicle>` | `BulkRegisterVehiclesTest.shouldRegisterAllCommandsFromStream` |
-| Concorrência limitada e configurável (`N` fora do domínio) | `inventory.bulk.max-concurrency` (default 4) + `shouldNeverExceedConfiguredConcurrency` (`maxInFlight == 2`) |
+| Concorrência limitada e configurável (`N` fora do domínio) | `inventory.bulk.max-concurrency` (default 4) + `BulkRegisterVehiclesTest.shouldNeverExceedConfiguredConcurrency` (`maxInFlight == 2`) |
 | Cancelamento propagado e sem trabalho novo | `BulkRegisterVehiclesCancellationTest` (2 em voo canceladas, nenhuma terceira inicia) |
-| Backpressure: o pipeline **não materializa** o stream inteiro | `BulkRegisterVehiclesMaterializationTest.shouldNotMaterializeTheEntireInputStreamBeforeProcessing` (fonte de 100 itens, no máximo `maxConcurrency` produzidos sem demanda) + o contraponto `shouldConsumeTheWholeSourceWhenDemandIsUnbounded` |
+| Backpressure: o pipeline **não materializa** o stream inteiro | `BulkRegisterVehiclesMaterializationTest.shouldNotMaterializeTheEntireInputStreamBeforeProcessing` (identidade `produced <= requested <= maxConcurrency`; sem demanda, `requested=4` e `produced=4` numa fonte de 100) + o contraponto `shouldConsumeTheWholeSourceWhenDemandIsUnbounded` |
 | Backpressure: trabalho em voo limitado | `BulkRegisterVehiclesBackpressureTest` (demanda 0 → exatamente 2 requests ao upstream) |
 | Política fail-fast: a falha propaga e o já persistido fica | `BulkRegisterVehiclesFailurePolicyTest.shouldPropagatePersistenceFailureWithoutLosingAlreadyPersistedItems` |
 | Política fail-fast: a falha cancela as irmãs em voo | `BulkRegisterVehiclesFailurePolicyTest.shouldCancelSiblingsInFlightWhenOneItemFails` (comportamento medido do `merge`, não presumido) |
 | Porta reativa `Uni<Vehicle> save(Vehicle)` | `BulkRegisterVehicles` + `VehicleRepository` reativo |
 | gRPC como fronteira, sem decidir política | `GrpcInventoryResource.add` só traduz e delega |
-| Falha de item não corrompe os demais | política fail-fast preservando os já persistidos |
+| Falha de item não corrompe os demais | o item que falhou não é gravado e os concluídos ficam: `saved == 2` com a falha no 3º item (`BulkRegisterVehiclesFailurePolicyTest`) |
 
 **Fora do primeiro slice, e o limite é deliberado:**
 
@@ -285,13 +314,25 @@ especifica existe e é testado.
    demanda do cliente para o repositório, então um cliente real não consegue hoje dizer "não me
    mande ainda". É limite do adapter de transporte, e não do use case: a distinção importa porque
    esta própria ADR proíbe tratar limite de concorrência como backpressure.
-2. **Persistência:** o caminho sob teste usa repositório fake. Se o adapter real usa Hibernate
-   Reactive/Panache não bloqueante não é verificado por estes testes, e sim pela stack do
-   inventory (cap. 7).
-3. **Operações de query** continuam a migração deliberada prevista em §Reactive output port —
+2. **Operações de query** continuam a migração deliberada prevista em §Reactive output port —
    não foram convertidas neste slice.
-4. **Retry e DLQ por item** não entram aqui, por decisão explícita da §Failure policy: pertencem
+3. **Retry e DLQ por item** não entram aqui, por decisão explícita da §Failure policy: pertencem
    ao slice de Messaging/Resiliência (a política de retry do reservation é a ADR 002).
+
+### O que ainda não tem evidência executável
+
+Declarar a ADR como implementada só é honesto se o que falta também estiver escrito. Estas três
+linhas são **compromissos assumidos sem prova**, não comportamento escondido:
+
+| Compromisso | Situação |
+|---|---|
+| §Adapter/integration tests — gRPC streaming, mapeamento protobuf, persistência reativa, bulk ponta a ponta | **0 de 4.** Não existe teste de adapter gRPC no repositório, e o `inventory-cli` não tem árvore de teste. É o contrato de ingestão do sistema, e uma mudança no `.proto` ou no mapeamento `InsertCarRequest → Command` hoje passaria verde. |
+| O wiring CDI de `inventory.bulk.max-concurrency` para o construtor do use case | **Sem teste.** A evidência prova que o use case respeita o `N` que recebe — e que ele é de fora do domínio — mas quem injeta o `N` (o container) não é exercitado. |
+| Persistência reativa real (Hibernate Reactive/Panache não bloqueante) | **Sem teste neste slice.** O caminho sob teste usa repositório fake; a stack reativa do inventory é coberta pelo cap. 7. |
+
+**Versões:** a evidência desta ADR usa `merge`, `AssertSubscriber` e `UniAssertSubscriber` do
+**Mutiny 3.3.0** — a versão que o `quarkus-bom` 3.39.3 resolve para este repositório. Nenhum
+`pom.xml` fixa a versão do Mutiny; ela vem do BOM, e por isso é version-sensitive.
 
 ---
 _Last updated: 2026-10-21_

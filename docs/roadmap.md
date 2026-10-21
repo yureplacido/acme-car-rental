@@ -43,7 +43,7 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [x] Cap. 5 — Testing
 - [x] Cap. 6 — Web, OIDC e segurança
 - [x] Cap. 7 — Database access
-- [ ] Cap. 8 — Reactive programming (5 de 6 itens fechados; o sexto — timeout/cancellation/retry — está parcial: coberto no inventory, falta o abort em voo que atravessa o processo — ver a seção do capítulo)
+- [ ] Cap. 8 — Reactive programming (7 de 8 itens fechados; o último — timeout/cancellation/retry nos adapters externos — está parcial: coberto no inventory, falta o abort em voo que atravessa o processo — ver a seção do capítulo)
 - [x] Cap. 9 — Quarkus Messaging
 
 ## Cap. 8 — Reactive programming
@@ -75,9 +75,11 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
       duplo e os dois lados estão provados:
       (1) **o pipeline não materializa o stream inteiro** —
       `BulkRegisterVehiclesMaterializationTest.shouldNotMaterializeTheEntireInputStreamBeforeProcessing`
-      usa uma fonte de 100 itens e mostra que, sem demanda a jusante, o upstream produz **no máximo
-      `maxConcurrency`** — não os 100. O contraponto `shouldConsumeTheWholeSourceWhenDemandIsUnbounded`
-      impede que um pipeline que simplesmente não consome nada passe;
+      usa uma fonte de 100 itens e prova a **identidade** `produced <= requested <= maxConcurrency`:
+      sem demanda a jusante, o upstream recebe 4 pedidos e produz 4 — não os 100. Com o pipeline
+      materializando, a asserção acusa a **demanda** (`9223372036854775807` pedidos), não o
+      sintoma. O contraponto `shouldConsumeTheWholeSourceWhenDemandIsUnbounded` impede que um
+      pipeline que simplesmente não consome nada passe;
       (2) **o trabalho em voo fica limitado** —
       `BulkRegisterVehiclesBackpressureTest.shouldNotEmitWithoutDownstreamDemandAndBoundUpstreamPrefetch`
       mostra que, com subscriber de demanda 0, o upstream recebe **exatamente 2** requests e nada

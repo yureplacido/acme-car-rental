@@ -115,7 +115,8 @@ tratar limite de concorrência como backpressure.
 
 A outra metade do contrato — o pipeline **não materializar o stream inteiro** — é medida por
 `BulkRegisterVehiclesMaterializationTest`, com uma fonte de 100 itens: sem demanda a jusante, o
-upstream produz no máximo `maxConcurrency`, não 100. Esse teste tem um contraponto
+upstream recebe 4 pedidos e produz 4 — a identidade `produzido <= pedido <= concorrência`, que
+mede a causa (a demanda) e não o sintoma (a contagem de itens). Esse teste tem um contraponto
 (`shouldConsumeTheWholeSourceWhenDemandIsUnbounded`) para que um pipeline que simplesmente não
 consumisse nada não passasse por engano.
 
@@ -221,4 +222,6 @@ imperativo e CPU-bound — e mesmo assim, CPU-bound é o **pior** caso para Loom
 
 ---
 
-_Última atualização: 2026-09-26 (cap. 8)._
+_Última atualização: 2026-10-21 (cap. 8: a medição de não materialização passa a ser a identidade
+`produzido <= pedido <= concorrência` — 4 pedidos e 4 itens sem demanda a jusante — e não uma
+contagem)._

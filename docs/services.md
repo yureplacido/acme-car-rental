@@ -54,6 +54,9 @@ Future behavior can add scheduled maintenance, inspections, damage assessment an
 ### Application use cases
 
 - `RegisterVehicle`
+- `BulkRegisterVehicles` — import massivo reativo (`Multi<Command>` → `Multi<Vehicle>`), com
+  concorrência limitada por `inventory.bulk.max-concurrency` (default 4, fora do domínio),
+  política fail-fast e cancelamento das irmãs em voo (ADR 006)
 - `SearchVehicles`
 - `FindVehicleByPlate`
 - `ListVehicles`

@@ -306,6 +306,20 @@ a ADR 009 o lista como evidência de fronteira, não de RED. E
 se completa nela como em todo contrato de fronteira: o que a isola de "escrito depois" é o caso
 do gateway acima, vermelho contra o código anterior.
 
+**Dívida declarada do cap. 8 (ADR 006, import massivo reativo).** O bulk de inventário veio em
+`6333bdc` — um squash de PR (#2) que traz **a ADR, a implementação e os testes no mesmo commit**,
+então a história RED do bulk não fica no git. É o mesmo formato já aceito como exceção para os
+itens 9/10, e por isso está declarado aqui.
+
+O que **não** é dívida é a evidência dos cenários que a ADR listava e que nunca foram escritos:
+`shouldNotMaterializeTheEntireInputStreamBeforeProcessing`,
+`shouldPropagatePersistenceFailure` e `shouldStopOnCancellation` **não existiam** — não havia
+teste para quebrarem, e a ADR era a especificação, não o registro de uma evidência. Os testes
+escritos depois (`BulkRegisterVehiclesMaterializationTest`,
+`BulkRegisterVehiclesFailurePolicyTest`) nasceram vermelhos de verdade, e o RED de um deles foi
+na **escrita da asserção**: a expectativa estava errada, não o código de produção (ver §O que
+"provar backpressure" significa).
+
 ## Nomenclatura
 Prefira nomes como shouldRejectReservationWhenVehicleIsAlreadyReserved e evite nomes que descrevem implementação.
 
@@ -328,14 +342,27 @@ passa verde sem provar a segunda. O par que separa as duas:
   mede **materialização** — se o pipeline drenasse a fonte, produziria todos os itens mesmo sem
   demanda a jusante. (`BulkRegisterVehiclesMaterializationTest`, fonte de 100 itens)
 
+A forma que o segundo teste usa é uma **identidade**, não uma contagem: `produced <= requested` e
+`requested <= maxConcurrency`. Isso mede a causa, não o sintoma — com o pipeline materializando, a
+falha acusa a **demanda** (`o upstream deveria receber no maximo 4 pedidos, mas recebeu
+9223372036854775807`), e não apenas "produziu 100 de 100".
+
 O segundo tem um **contraponto obrigatório** (`shouldConsumeTheWholeSourceWhenDemandIsUnbounded`):
 sem ele, um pipeline que simplesmente não consome nada passaria pelo primeiro por engano. Teste
 negativo sem o positivo que o contradiz não prova nada.
 
-**Falha e cancelamento são eixos separados.** A ADR 006 (§Failure policy) exige três coisas da
-falha de um item: que ela propague como falha do stream, que os itens já concluídos permaneçam
-persistidos (fail-fast não é rollback) e que o cancelamento a jusante seja respeitado. O terceiro
-tem dois caminhos distintos, e ambos precisam de teste:
+Vale registrar o que **não** é exclusividade do teste novo: o `BulkRegisterVehiclesBackpressureTest`,
+que já existia, também detecta a materialização — o upstream materializando recebe
+`Long.MAX_VALUE` em vez dos 2 requests esperados. O teste novo é a **métrica explícita** (itens
+produzidos, e a identidade com a demanda) **mais o contraponto**; o antigo é o detector
+implicito pela contagem de requests. Nenhum dos dois torna o outro redundante: medem eixos
+diferentes, e é a combinação que fecha a distinção que a ADR 006 exige.
+
+**Falha e cancelamento são eixos separados.** A ADR 006 (§Failure policy) exige cinco coisas da
+falha de um item: que a operação reativa do item que falhou falhe, que a falha propague como
+falha do stream, que o cancelamento a jusante seja respeitado, que as irmãs em voo sejam
+canceladas e que os itens já concluídos permaneçam persistidos (fail-fast não é rollback). O
+cancelamento tem dois caminhos distintos, e ambos precisam de teste:
 
 - **cancelamento por decisão do consumidor** — `BulkRegisterVehiclesCancellationTest`: quem
   cancela é o downstream, e as operações em voo recebem o cancelamento;
@@ -344,22 +371,35 @@ tem dois caminhos distintos, e ambos precisam de teste:
   **medido**, não presumido — um probe descartável mostrou `started=2 cancelled=1` antes de o
   teste ser escrito.
 
+**"Persistido" tem que significar "gravado", não "chamou `save()`".** O fake registra o item em
+`saved` **quando a operação conclui**, e não quando ela é invocada. Com o registro na invocação, um
+item cancelado contaria como persistido, e a afirmação "os itens já concluídos permanecem
+persistidos" da ADR estaria sendo medida por um proxy errado. Com o registro na conclusão, o teste
+de cancelamento das irmãs afirma `saved == 0` (nada foi gravado) e `cancelled == 1`.
+
 **Provar que o teste tem força é parte do trabalho.** Um teste novo que passa não prova que mede o
 que diz medir. O padrão do repositório é introduzir temporariamente o defeito e ver o teste
 falhar com a mensagem esperada — foi assim que se validou o teste de materialização (com
-`collect().asList()` antes do processamento, a asserção acusou "produziu 100 de 100"), o de
-fail-fast (com a política de erro trocada, a falha deixou de propagar e os 4 itens foram
-persistidos) e o de cancelamento das irmãs (com a falha engolida, 2 testes caíram). Nenhuma
-mudança de produção foi mantida dessas experiências.
+`collect().asList()` antes do processamento, a asserção acusou a demanda de
+`9223372036854775807` pedidos), o de fail-fast (com a política de erro trocada, a falha deixou de
+propagar e os 4 itens foram persistidos) e o de cancelamento das irmãs (com a falha engolida, os
+dois testes de política de falha caíram). Nenhuma mudança de produção foi mantida dessas
+experiências.
 
 **RED genuíno também acontece na escrita da asserção.** O teste de cancelamento das irmãs falhou
 na primeira execução — e a asserção, não o código, estava errada: eu esperava zero gravações,
-mas o item em voo já havia alcançado o repositório (o que importa é ter sido *cancelado*, não
-gravado). A falha do RED corrigiu a expectativa, e não o código de produção.
+mas o item em voo já havia alcançado o repositório (o que importava era ter sido *cancelado*, não
+gravado). A falha do RED corrigiu a expectativa, e não o código de produção. A correção posterior
+foi no fake, não no comportamento: registrar a gravação na conclusão, e não na invocação — o que
+trocou a afirmação de `saved == 1` por `saved == 0`.
 
 ---
-_Last updated: 2026-10-13 (cap.11 item 11.1: `KubernetesConfigProfileTest` sobe o mesmo
-jar sob o config profile `kubernetes` com `getConfigProfile()` e overrides de boot-safety;
-Kafka companions com rede determinística nomeada (reuso entre boots, evita `403 Pool
-overlaps`; ver §Kafka). Antes, 2026-10-08: service discovery com dois backends testáveis
-por tag `consul`/`kubernetes` e subnets pinadas 172.29/172.30 contra rotas de VPN)._
+_Last updated: 2026-10-21 (cap. 8: o que "provar backpressure" significa agora mede a identidade
+`produzido <= pedido <= concorrência`, em vez de uma contagem; "persistido" passou a significar
+"gravado" — o fake registra na conclusão, e não na invocação; e a dívida RED do bulk reativo
+(ADR + implementação + testes no mesmo squash, `6333bdc`) está declarada. Antes, 2026-10-13
+(cap.11 item 11.1: `KubernetesConfigProfileTest` sobe o mesmo jar sob o config profile `kubernetes`
+com `getConfigProfile()` e overrides de boot-safety; Kafka companions com rede determinística
+nomeada (reuso entre boots, evita `403 Pool overlaps`; ver §Kafka). Antes, 2026-10-08: service
+discovery com dois backends testáveis por tag `consul`/`kubernetes` e subnets pinadas
+172.29/172.30 contra rotas de VPN)._

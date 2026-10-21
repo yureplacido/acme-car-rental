@@ -466,6 +466,21 @@ A regra arquitetural é:
 - adapters usam clientes reativos;
 - operações bloqueantes são isoladas;
 - backpressure é tratado como capacidade do fluxo, não como sinônimo de thread pool.
+
+### Fluxo reativo de ingestão (inventory)
+
+O `inventory-service` expõe o import massivo pelo gRPC bidirecional
+`rpc add(stream InsertCarRequest) returns (stream CarResponse)`. O adapter traduz e delega; a
+política fica no use case `BulkRegisterVehicles` (`Multi<Command>` → `Multi<Vehicle>`), que
+encadeia `merge(maxConcurrency)` com `inventory.bulk.max-concurrency` (default 4) — configuração
+de aplicação, fora do domínio. A porta de saída é reativa (`Uni<Vehicle> save(Vehicle)`).
+
+O que está **provado** (ADR 006): a ausência de materialização — a produção do upstream nunca
+excede a demanda recebida, e a demanda é limitada pela concorrência — e o cancelamento, nos dois
+caminhos (decisão do consumidor e falha de uma irmã). **Fronteira conhecida:** o gRPC não
+encaminha a demanda do cliente para o repositório, então o backpressure ponta a ponta no
+transporte não existe. É limite do adapter de transporte, e limite de concorrência não pode ser
+vendido como backpressure (ADR 006, §Backpressure).
  
 ### Prohibited Patterns
 

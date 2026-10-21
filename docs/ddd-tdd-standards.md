@@ -345,6 +345,20 @@ Reactive code must explicitly account for:
 
 `Uni` does not create a thread automatically. `Multi` models a stream. Concurrency limiting and backpressure are different controls.
 
+**Claiming backpressure requires three things, and all three are measurable.** A concurrency limit
+alone is not backpressure, and a test that only counts in-flight operations proves only the limit.
+Any service that claims backpressure must provide:
+
+- **demand** — the upstream requests it received (`onRequest()`), bounded by the concurrency limit;
+- **production** — the items the upstream actually emitted (`onItem()`), never more than what was
+  requested, so the pipeline cannot have materialized the stream;
+- **a counterpoint** — a case proving the source *is* fully consumed under unbounded demand, so a
+  pipeline that simply consumed nothing cannot pass the negative test by accident.
+
+The first two are what "does not materialize the stream" means, and the third is what makes the
+negative test meaningful. Asserting the identity `production <= demand <= concurrency` measures
+the cause rather than the symptom.
+
 The domain remains synchronous and framework-free even when adapters/application orchestration are reactive.
 
 ## 9. Quarkus book alignment
