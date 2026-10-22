@@ -529,8 +529,16 @@ que o javadoc do Vert.x chama de `idleTimeout` "com nome confuso" e marca como `
 espera por headers; **a leitura do corpo não tem prazo** neste cliente. Sem o ajuste, a
 requisição de `POST /rentals` ficaria em voo muito depois do deadline. `RentalRestGatewayFaultToleranceTest
 .shouldKeepTheWriteDeadlineAboveTheTransportTimeout` compara os dois prazos e falha se a
-ordem se inverter — é uma **guarda de configuração**, não a prova do abort (essa vem de
-integração com o container fora do ar, pendência aberta no roadmap do cap. 10). A escrita não tem override por perfil
+ordem se inverter — é uma **guarda de configuração**, não a prova do abort. A prova do abort
+existe e é executável: o par `RentalTransportAbortTest` +
+`RentalTransportTimeoutAboveFaultToleranceDeadlineTest` (reservation-service, `@Tag("consul")`)
+roda o caminho de produção inteiro — Consul real → Stork → `RentalClient` → `RentalGateway` com
+o `@Timeout` de 2 s — contra um peer real que aceita a conexão e nunca responde, e afirma o que
+aconteceu **do outro lado do socket**: a conexão foi fechada, em ~1,5 s, com a causa
+`NoStackTraceTimeoutException` (a hierarquia do Vert.x, `java.util.concurrent.TimeoutException`,
+observada por tipo). O contraditório troca **uma** variável — o prazo de transporte para 5 s,
+acima do deadline de FT — e mostra que o socket fica de pé, com o chamador levando
+`TimeoutException` de FT aos ~2 s. A escrita não tem override por perfil
 justamente para essa relação valer em qualquer ambiente.
 
 **Configuração** — política na annotation, valor operacional na config:

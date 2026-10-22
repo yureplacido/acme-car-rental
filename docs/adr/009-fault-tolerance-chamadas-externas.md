@@ -105,18 +105,79 @@ O mecanismo merece precisão: `read-timeout` **não** é um deadline absoluto. E
 "com nome confuso" e marca como `@Deprecated`; a implementação **rearma** o tempo a cada chunk
 recebido, **cancela** o timer quando chegam os headers, e o `idleTimeout` do socket fica no
 default `0`, ou seja, desligado. O que ele de fato limita é a fase de connect (500 ms, via
-`connect-timeout`) e a espera pelos headers — a leitura do corpo da resposta **não tem prazo**
+`connect-timeout`, e o próprio `read-timeout` entra também como teto de aquisição de conexão do
+pool) e a espera pelos headers — a leitura do corpo da resposta **não tem prazo**
 no cliente REST do Quarkus.
 
 A ordem continua correta e é o que importa para a decisão: mesmo quando o `read-timeout` não
 estoura, o `@Timeout` de 2 s entrega `TimeoutException` ao chamador — o que ele não faz é
-abortar a chamada em voo. Por isso o teste de integração com o container fora do ar não é
-evidência de item futuro, é a **única** prova possível do abort: nenhum teste com cliente
-mockado observa o `reset(cause)` do Vert.x.
+abortar a chamada em voo.
 
-O teste de guarda compara as duas com o valor exposto pela própria annotation, de modo que aumentar o deadline sem o ajuste correspondente do transporte quebra o build. O escopo dele é esse: **é uma guarda de configuração**, não a prova de que a requisição foi abortada — a prova do cancelamento a montante seria um teste de integração com o container fora do ar, hoje em aberto no roadmap. É também por isso que a escrita **não tem override por perfil**: um deadline só, válido em todos, para que a relação com o prazo de transporte seja verificável em qualquer ambiente.
+A prova possível do abort nunca foi o cliente mockado (ele não tem socket para abortar): é o
+outro lado real — um peer TCP de verdade, em que o socket existe, o pedido sai por ele e o
+fechamento é observado pela outra ponta — e, precisamente, um outro lado que **aceita** a
+conexão e não responde. Um container realmente fora do ar não serviria: ele recusa a conexão,
+e recusa não tem chamada em voo para abortar.
 
-A leitura não tem essa segunda camada: o cliente GraphQL do SmallRye não expõe chave de prazo (verificado no modelo de configuração de `quarkus-smallrye-graphql-client` 3.39.3 — só `url`, proxy, TLS, WebSocket). Uma consulta de catálogo abandonada custa menos que uma escrita, porque é idempotente e o fallback existe. O deadline da annotation cobre o chamador, mas **não** a conexão: como o `@Timeout` não cancela, a requisição abandonada persiste nos defaults do Vert.x 4.5.33 medidos nesta revisão — `connect-timeout` 60 s e `idleTimeout` 0, isto é, **sem prazo de leitura**. São até 60 s de conexão retida na fase de connect, ou indefinidamente na de read, por tentativa, ×3. A configuração não oferece uma segunda camada como no REST client, então esse custo é aceito como dívida conhecida, e não como ausência de risco.
+O peer roda na JVM do teste: o que a prova exige não é isolamento de processo do peer, e sim
+que o socket do cliente exista de verdade e que a outra ponta veja o fechamento. Por isso esta
+evidência é **de JVM** — o peer em processo separado (o desenho que o caminho nativo exigiria)
+não é o que está medido aqui.
+
+Essa prova existe, e é um par de testes sobre o caminho de produção inteiro. Um Consul real
+publica a instância "rentals" apontando para um **buraco negro** — um `ServerSocket` cru que
+aceita a conexão, lê o pedido e nunca responde. O caminho exercitado é o de produção inteiro: o
+`RentalClient` de produção (`stork://rentals`), resolvido pelo Stork no Consul, e o
+`RentalGateway` de produção, com o `@Timeout` de 2 s.
+
+O buraco negro é socket cru, e não `HttpServer`, por uma razão medida: o abort chega como
+**fim de stream**, e não como reset — o fechamento é limpo, sem RST. Então o EOF na próxima
+leitura é o sinal que distingue "o cliente abortou" de "o cliente desistiu por timeout e deixou
+a conexão pendurada". É a diferença entre abortar e desistir, e do lado do cliente ela é
+invisível. O que o harness mede é exatamente esse EOF, e é o EOF que a asserção exige.
+
+O lado **positivo** (`RentalTransportAbortTest`) tem o prazo de transporte de produção (1500 ms),
+abaixo do deadline de FT (2000 ms). Medido:
+
+```text
+elapsed = 1545 ms
+CompletionException → io.vertx.core.impl.NoStackTraceTimeoutException:
+  "The timeout period of 1500ms has been exceeded while executing POST /rental/start/alice/42 for server <endereço>"
+peer: o cliente FECHOU a conexão (fim de stream lido pelo servidor)
+```
+
+Os 1545 ms são o que separa o transporte do `@Timeout`: o deadline de FT (2 s) ainda não tinha
+vencido quando a falha chegou, e a causa raiz é um `java.util.concurrent.TimeoutException` — a
+hierarquia do Vert.x, disjunta da do SmallRye FT, que deriva de `FaultToleranceException`. O
+teste afirma também que o peer recebeu o pedido de produção (`POST /rental/start/alice/42`) e
+que o fechamento foi limpo, e não um reset.
+
+O lado **negativo** (`RentalTransportTimeoutAboveFaultToleranceDeadlineTest`) é o contraditório do
+mesmo experimento: o mesmo caminho de produção, o mesmo buraco negro, e **uma** variável trocada
+— o prazo de transporte acima do deadline de FT (5000 ms, por um `@TestProfile`). A ordem se
+inverte, e o resultado é o oposto: o deadline de FT vence aos ~2.018 ms e entrega
+`TimeoutException` ao chamador, o prazo de transporte não dispara, e **o socket continua
+aberto** do lado do peer. A chamada foi abandonada, não abortada — é a caracterização do
+`@Timeout` que não cancela, agora observada no fio real e não no mock.
+
+Sem o lado negativo, o positivo provaria apenas que a chamada terminou: o deadline de FT também
+termina a chamada, e nada no lado do cliente distingue as duas coisas.
+
+E a mutação está **versionada**, não em um experimento manual: ela é um perfil de teste
+(`TransportTimeoutAboveDeadlineProfile`), então o build verifica a cada execução que o
+comportamento do caminho de produção depende mesmo do prazo — e o gêmeo falha alto se a mutação
+deixar de ser aplicada.
+
+**Qual fase está provada.** O `read-timeout` vira `HttpClientRequest.setTimeout`, que é
+inatividade e **se cancela quando chegam os headers** (§2). A prova acima cobre a fase que ele
+de fato limita: a espera pelos headers, que no buraco negro nunca chegam. A leitura do corpo
+**depois** dos headers continua sem prazo — a limitação que esta ADR já registra no §2 —, e
+esta revisão não a cobre nem a promete. É a mesma ressalva que vale para o cliente GraphQL
+(logo abaixo).
+
+O teste de guarda compara as duas com o valor exposto pela própria annotation, de modo que aumentar o deadline sem o ajuste correspondente do transporte quebra o build. O escopo dele continua sendo esse: **é uma guarda de configuração** — quem prova que a requisição foi abortada é o par de testes com o peer real. É também por isso que a escrita **não tem override por perfil**: um deadline só, válido em todos, para que a relação com o prazo de transporte seja verificável em qualquer ambiente. (O perfil que existe — `TransportTimeoutAboveDeadlineProfile` — é de **teste**, e existe para provar o contrário.)
+
+A leitura não tem essa segunda camada: o cliente GraphQL do SmallRye não expõe chave de prazo para o HTTP (verificado no modelo de configuração de `quarkus-smallrye-graphql-client` 3.39.3 — `url`, headers, proxy, TLS, `max-redirects` e `init-payload`; o único timeout é `websocket-initialization-timeout`, do canal WebSocket). Uma consulta de catálogo abandonada custa menos que uma escrita, porque é idempotente e o fallback existe. O deadline da annotation cobre o chamador, mas **não** a conexão: como o `@Timeout` não cancela, a requisição abandonada persiste nos defaults do Vert.x 4.5.33 medidos nesta revisão — `connect-timeout` 60 s e `idleTimeout` 0, isto é, **sem prazo de leitura**. São até 60 s de conexão retida na fase de connect, ou indefinidamente na de read, por tentativa, ×3. A configuração não oferece uma segunda camada como no REST client, então esse custo é aceito como dívida conhecida, e não como ausência de risco.
 
 O casamento por tipo considera a cadeia de causas, não só a exceção de topo: é o modo
 não-compatível (`SpecCompatibility.inspectExceptionCauseChain`) que o habilita. Hoje isso não
@@ -197,7 +258,7 @@ O fragmento da indisponibilidade é `text/html`, porque o consumidor é o htmx: 
 - ~~O `users-service`, que consome `GET /reservations/availability`, ainda não trata o 503~~ — **resolvido nesta revisão** (§6). O BFF agora tem prazo de transporte (`connect-timeout=500`, `read-timeout=3000`), converte a falha medida em `AvailabilityUnavailable` e responde 503 com o fragmento explicativo. O caminho de falha deixou de ser ilimitado e o resultado inconclusivo deixou de virar lista vazia. O que permanece é uma consequência nova: **503 virou resposta do `GET /available` do BFF**, então o browser/htmx precisa tratá-la — e trata, via `htmx:beforeSwap`.
 - 503 é uma resposta nova para quem consome `GET /reservations/availability`; o BFF já a trata, mas **outros** consumidores do endpoint precisam tratá-la explicitamente.
 - O 503 do BFF cobre **qualquer** falha upstream (§6): um 500 determinístico do reservation aparece para o browser como "tente de novo em instantes". É mascarada deliberada, com a causa no log do adapter de saída.
-- A espera máxima do BFF por uma disponibilidade caiu de 30 s (default do Quarkus) para ~3,5 s (500 ms de connect + 3 s de read), mas `read-timeout` é inatividade com rearmamento: um fluxo de bytes que nunca para não estoura. O abort real da chamada em voo continua sem prova de integração, como no §4.
+- A espera máxima do BFF por uma disponibilidade caiu de 30 s (default do Quarkus) para ~3,5 s (500 ms de connect + 3 s de read), mas `read-timeout` é inatividade com rearmamento: um fluxo de bytes que nunca para não estoura. O **abort** da chamada em voo está provado no caminho de escrita (§4, o par `RentalTransportAbortTest` + `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`, peer real) — é o mesmo mecanismo do REST client (`read-timeout` → `HttpClientRequest.setTimeout`, o idle timeout **da requisição**; o `idleTimeout` do socket segue desligado, §2 → fechamento da conexão), e vale para a fase que ele de fato limita, a espera pelos headers. O que não foi repetido é a prova no cliente de leitura do BFF: lá não há `@Timeout`, logo não há dois prazos a distinguir, e a leitura é idempotente com fallback.
 - A dívida de `CreateReservation` (reserva `PENDING` órfã quando a escrita falha) continua aberta e é visível agora, porque a falha deixa de ser engolida.
 - O erro de GraphQL sai como **500 sem corpo estável**: o `@ServerExceptionMapper` cobre só `InventoryUnavailable`, então esse caminho não tem contrato de corpo. Um mapper de erro inesperado é contrato novo (roadmap.md, cap. 10). Hoje o mesmo recurso tem dois regimes de erro assimétricos — `/availability` tem 503 estável e `/reservations` tem 500 cru.
 - A assinatura do fallback `inventoryUnreachable(Throwable)` só resolve no modo não-compat, que esta ADR trata como default. A propriedade real é `quarkus.fault-tolerance.mp-compatibility` (booleana, default `false` no Quarkus) — não existe `compatibility-mode`. Se alguém declarar `mp-compatibility=true`, o fallback deixa de casar e o **build falha em augmentação** (`FaultToleranceDefinitionException`: "can't find fallback method … with matching parameter types and return type"), que é bem melhor do que degradar em silêncio. O teste que exige a causa original preservada é também a prova desse modo.
@@ -212,6 +273,8 @@ O fragmento da indisponibilidade é `text/html`, porque o consumidor é o htmx: 
 | `RentalRestGatewayFaultToleranceTest.shouldNotRetryRentalStartWhenItFails` | escrita não repete: exatamente uma chamada em falha |
 | `RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteCallInFlightWhenTheFaultToleranceDeadlineFires` | caracterização da biblioteca: o `@Timeout` avisa o chamador e **não** cancela a chamada a montante (é a premissa da segunda camada de prazo) |
 | `RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout` | guarda de configuração: `connect-timeout` e `read-timeout` abaixo do deadline de FT (as duas chaves, não só uma) |
+| `RentalTransportAbortTest.shouldAbortTheWriteInFlightWhenTheTransportTimeoutFires` | **o abort, provado com peer real**: caminho de produção (Consul real → Stork → `RentalClient` → `RentalGateway` com `@Timeout`), a falha chega em ~1,5 s — antes do deadline de FT de 2 s — com causa `java.util.concurrent.TimeoutException` (a hierarquia do Vert.x, disjunta da do SmallRye FT, observada **por tipo**, sem parse de mensagem), e o buraco negro do outro lado viu a conexão fechar **por fim de stream**, e não por reset. O teste também afirma que o peer recebeu o pedido de produção (`POST /rental/start/alice/42`) |
+| `RentalTransportTimeoutAboveFaultToleranceDeadlineTest.shouldAbandonTheWriteInFlightWhenTheTransportTimeoutIsAboveTheFaultToleranceDeadline` | contraditório do anterior, com **uma** variável trocada (prazo de transporte acima do deadline de FT, por `@TestProfile`): mesmo caminho de produção e mesmo peer → o deadline de FT vence aos ~2 s, o prazo de transporte não dispara e **o socket continua aberto** (a chamada foi abandonada, não abortada). Sem ele, o teste anterior provaria que a chamada terminou, não que foi abortada — e a mutação fica **versionada**, então o build verifica a força da prova a cada execução |
 | `RentalRestGatewayFaultToleranceTest.shouldStartTheRentalWhenTheServiceAnswersInTime` | caminho feliz não foi quebrado |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldReturnTheVehiclesWhenInventoryAnswersInTime` | resposta normal preservada |
 | `GraphQLInventoryGatewayFaultToleranceTest.shouldRetryWhenInventoryAnswersWithoutGraphqlEnvelope` | resposta HTTP sem envelope GraphQL é repetida e a leitura se recupera na 3ª tentativa |
@@ -242,4 +305,4 @@ O fragmento da indisponibilidade é `text/html`, porque o consumidor é o htmx: 
 
 ## Estado da decisão
 
-**Accepted / implementada**, com evidência de teste unitário dos adapters, de caracterização do cliente real (os dois lados: `GraphQLInventoryClientFailureTest` no reservation e `ReservationsClientFailureTest` no BFF) e de contrato da fronteira (inclusive a cadeia completa com o gateway de leitura em CDI e o contrato HTTP do `GET /available` do BFF). Faltam duas evidências, ambas em aberto no roadmap do cap. 10: falha em integração real com o container fora do ar (que também provaria o abort da chamada em voo, hoje só guardado por configuração) e um mapper de erro inesperado no reservation para o `POST /reservations` deixar de sair como 500 cru.
+**Accepted / implementada**, com evidência de teste unitário dos adapters, de caracterização do cliente real (os dois lados: `GraphQLInventoryClientFailureTest` no reservation e `ReservationsClientFailureTest` no BFF) e de contrato da fronteira (inclusive a cadeia completa com o gateway de leitura em CDI e o contrato HTTP do `GET /available` do BFF). O **abort** da chamada em voo, que era a prova que faltava, está fechado desde 2026-10-22: um **par** de testes (`RentalTransportAbortTest` e `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`) exercita o caminho de produção contra um peer real (Consul real → Stork → buraco negro) e observa, do outro lado do socket, o instante em que a conexão é fechada — com o contraditório que prova que o fechamento é causado pelo prazo de transporte e não pelo deadline de FT, e com a mutação **versionada** (`TransportTimeoutAboveDeadlineProfile`), de modo que o build verifica a força da prova a cada execução. O escopo é a fase que o prazo de transporte de fato limita — a espera pelos headers da resposta (§4): a leitura do corpo depois dos headers continua sem prazo, como já registrado no §2. A prova depende do backend **Consul** (`@Tag("consul")`): com o perfil `-P kubernetes`, o par não roda, porque o caminho de descoberta testado é o de Consul. Falta **uma** evidência, ainda aberta no roadmap do cap. 10: um mapper de erro inesperado no reservation para o `POST /reservations` deixar de sair como 500 cru.

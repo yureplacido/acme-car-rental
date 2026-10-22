@@ -256,9 +256,9 @@ O teste precisa de CDI, HTTP, banco ou broker?
 | Domain (8) | `InvoiceTest`, `InvoiceLineTest`, `VehicleTest`, `VehicleDailyRateTest`, `VehicleTelemetryTest`, `MaintenanceOrderTest`, `RentalTest`, `ReservationTest` |
 | Application (22) | `CreateInvoiceTest`, `OpenInvoiceForRentalTest`, `ConsumeVehicleRegisteredTest`, `ConsumeReservationConfirmedTest`, `ConsumeRentalCompletedTest`, `PublishPendingOutboxEventsTest`, `RegisterVehicleTest`, `RegisterVehicleEventTest`, `RegisterVehicleRetryTest`, `RegisterVehicleTimeoutTest`, `BulkRegisterVehiclesTest`, `BulkRegisterVehiclesBackpressureTest`, `BulkRegisterVehiclesCancellationTest`, `BulkRegisterVehiclesMaterializationTest`, `BulkRegisterVehiclesFailurePolicyTest`, `DecommissionVehicleTest`, `FindVehicleByPlateTest`, `FindAvailableVehiclesTest`, `SearchVehiclesTest`, `StartRentalTest`, `CreateReservationTest`, `ReservationFacadeTest` |
 | Adapter unit (8) | `KafkaVehicleRegisteredConsumerTest`, `KafkaReservationConfirmedConsumerTest`, `KafkaRentalCompletedConsumerTest`, `VehicleRegisteredEventPublisherTest`, `EventJsonCodecTest` (inventory), `EventJsonCodecTest` (billing), `MicrometerOutboxMetricsTest`, `MicrometerInventoryMetricsTest` |
-| Adapter/Integration (23) | `ReservationResourceTest`, `ReservationPersistenceTest`, `ReactiveExecutionResourceTest`, `StagingTest`, `BillingPersistenceTest`, `BillingOutboxIntegrationTest`, `BillingFlowKafkaIntegrationTest`, `DelayedRetryKafkaIntegrationTest`, `DlqKafkaIntegrationTest`, `TransactionalInboxRetryKafkaIntegrationTest`, `TransactionalInboxProcessorIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `OutboxMetricsIntegrationTest`, `VehicleRegisteredEventPublisherIntegrationTest`, `VehicleRegisteredTracePropagationIntegrationTest`, `BusinessMetricsIntegrationTest`, `BillingTracePropagationIntegrationTest`, `VehicleEntityMappingTest`, `HealthEndpointTest` (billing), `HealthEndpointTest` (inventory), `HealthEndpointTest` (rental), `HealthEndpointTest` (reservation), `HealthEndpointTest` (users) |
+| Adapter/Integration (26) | `ReservationResourceTest`, `ReservationPersistenceTest`, `ReactiveExecutionResourceTest`, `StagingTest`, `BillingPersistenceTest`, `BillingOutboxIntegrationTest`, `BillingFlowKafkaIntegrationTest`, `DelayedRetryKafkaIntegrationTest`, `DlqKafkaIntegrationTest`, `TransactionalInboxRetryKafkaIntegrationTest`, `TransactionalInboxProcessorIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `OutboxMetricsIntegrationTest`, `VehicleRegisteredEventPublisherIntegrationTest`, `VehicleRegisteredTracePropagationIntegrationTest`, `BusinessMetricsIntegrationTest`, `BillingTracePropagationIntegrationTest`, `VehicleEntityMappingTest`, `HealthEndpointTest` (billing), `HealthEndpointTest` (inventory), `HealthEndpointTest` (rental), `HealthEndpointTest` (reservation), `HealthEndpointTest` (users), `RentalTransportAbortTest`, `RentalTransportTimeoutAboveFaultToleranceDeadlineTest` |
 
-**Total: 86 classes de teste** = 45 `@QuarkusTest` + 40 JUnit puro + 1 `@QuarkusIntegrationTest`
+**Total: 88 classes de teste** = 47 `@QuarkusTest` + 40 JUnit puro + 1 `@QuarkusIntegrationTest`
 (`ReservationResourceIT`).
 
 `BillingPersistenceTest` é `@QuarkusTest` (Postgres via Dev Services), portanto está em
@@ -271,8 +271,24 @@ sem Quarkus — ver [14-cloud-native-patterns.md](./14-cloud-native-patterns.md)
 > **Dívida:** a tabela acima é um retrato de 2026-09-28 e **só a linha de Application foi
 > conferida e atualizada** (22 classes, com `BulkRegisterVehiclesMaterializationTest`,
 > `BulkRegisterVehiclesFailurePolicyTest` e `FindAvailableVehiclesTest` acrescentadas). As linhas
-> de adapter estão defasadas — o total real é 86, não 59 — e reclassificar todas as classes por
-> camada é um trabalho de inventário, não uma correção de linha.
+> de adapter estão defasadas — o total real é 88, não 59 — e reclassificar todas as classes por
+> camada é um trabalho de inventário, não uma correção de linha. A contagem do total e das
+>classes `@QuarkusTest` foi **remeasureda** em 2026-10-22 (86 → 88 classes), porque o total
+> declarava 86 e a soma real já dava 88 depois do par `RentalTransportAbortTest` +
+> `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`.
+
+O par `RentalTransportAbortTest` + `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`
+(reservation-service, `@Tag("consul")`) entra na linha de adapter/integration porque a fronteira
+**é** o comportamento sob prova: um Consul real publica a instância "rentals" apontando para um
+buraco negro que aceita a conexão e nunca responde, e o teste afirma o que aconteceu **do outro
+lado do socket** — a conexão foi fechada. O harness é
+`BlackholeRentalTestResource`, que **não** é classe de teste (não tem `@Test`) e por isso não
+entra na contagem: ele sobe o Consul real, o buraco negro e o registro da instância. O detalhe
+que custou medição está em [testing.md](../testing.md) §Fault tolerance: o abort chega como fim
+de stream, e é o EOF na próxima leitura — não um broken pipe — que distingue "abortou" de
+"desistiu e deixou a conexão pendurada". O contraditório do par é uma classe própria, com um
+`@TestProfile` que sobe o prazo de transporte para 5 s: a mutação fica **versionada**, e o build
+verifica a cada execução que a prova continua distinguindo as duas coisas.
 
 Tracing (cap. 10 item 7) usa `@QuarkusTest` porque o comportamento sob prova **é** a fronteira
 (propagação automática do OTel no Kafka): `VehicleRegisteredTracePropagationIntegrationTest`
@@ -290,8 +306,8 @@ matchers de métrica depois de adicionar OTel, lembrar da armadilha dos exemplar
 
 ---
 
-_Última atualização: 2026-10-21 (cap. 8: a linha de Application do inventário foi conferida e
-atualizada — 22 classes, com `BulkRegisterVehiclesMaterializationTest` e
-`BulkRegisterVehiclesFailurePolicyTest` — e o total real do repositório passou de 59 para 86
-classes; as linhas de adapter seguem defasadas e isso está declarado como dívida no próprio
-inventário)._
+_Última atualização: 2026-10-22 (cap. 8: a prova do abort em voo — o par `RentalTransportAbortTest`
++ `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`, com peer real e Consul real — entrou
+na linha de adapter/integration; o total do inventário foi remeasuredo, de 86 para 88 classes, e
+a linha de Application segue conferida em 22 classes; as linhas de adapter seguem defasadas e
+isso está declarado como dívida no próprio inventário)._

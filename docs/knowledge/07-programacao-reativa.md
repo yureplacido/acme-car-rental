@@ -135,6 +135,17 @@ assertEquals(1, repository.cancelled.get());   // o cancelamento chegou no adapt
 O segundo `assert` é o que importa: prova que o sinal de cancelamento **atravessou** todas
 as camadas e chegou no adapter. Sem ele, o teste só mostraria que o `Uni` falhou.
 
+A terceira forma de cancelamento é a que atravessa a **fronteira do processo**: a requisição
+HTTP já saiu, e o que a cancela não é um sinal do `Uni` — é o **prazo do transporte**. A ADR
+009 §4 mediu que o `@Timeout` do SmallRye FT devolve `TimeoutException` ao chamador e **deixa
+a chamada viva**; a prova executável disso é o par `RentalTransportAbortTest` +
+`RentalTransportTimeoutAboveFaultToleranceDeadlineTest` (reservation-service), contra um peer
+real que aceita a conexão e nunca responde: o prazo de transporte fecha o socket em ~1,5 s, e o
+que a prova é **do lado do peer**, que viu o fechamento. O contraditório do par mostra a
+diferença entre *abortar* e *desistir*: com o prazo de transporte acima do deadline de FT (uma
+mutação **versionada**, por `@TestProfile`), o socket fica **aberto** e o chamador leva
+`TimeoutException` de FT aos ~2 s, com a requisição órfã do outro lado.
+
 ## 6. I/O bloqueante no event loop = `HR000068` / `cannot be blocked`
 
 ⚠️ **A armadilha mais cara de todo o projeto.** Em `OutboxRelayKafkaIntegrationTest` a
