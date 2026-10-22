@@ -193,7 +193,7 @@ Complementos que o projeto usa:
 | encadear asserções no event loop | `UniAsserter` | testes de billing |
 | ler o banco **fora** de transação envolvente | `UniAsserter` | `BillingFlowKafkaIntegrationTest` |
 | assertar item/falha de `Uni` | `UniAssertSubscriber` | `RegisterVehicleTimeoutTest`, `RegisterVehicleRetryTest` |
-| controlar demanda e backpressure | `AssertSubscriber` | `BulkRegisterVehiclesBackpressureTest` |
+| controlar demanda e backpressure | `AssertSubscriber` | `BulkRegisterVehiclesBackpressureTest` (requests ao upstream), `BulkRegisterVehiclesMaterializationTest` (itens produzidos + contraponto) |
 | retry/backoff com jitter em asserção | `onFailure().retry().withBackOff(...).withJitter(...)` | `BillingFlowKafkaIntegrationTest.awaitInvoiceStatus` |
 
 ### 5.3 Por que `UniAsserter` e não `TransactionalUniAsserter` no `BillingFlowKafkaIntegrationTest`
@@ -254,18 +254,25 @@ O teste precisa de CDI, HTTP, banco ou broker?
 | Camada | Testes |
 |---|---|
 | Domain (8) | `InvoiceTest`, `InvoiceLineTest`, `VehicleTest`, `VehicleDailyRateTest`, `VehicleTelemetryTest`, `MaintenanceOrderTest`, `RentalTest`, `ReservationTest` |
-| Application (19) | `CreateInvoiceTest`, `OpenInvoiceForRentalTest`, `ConsumeVehicleRegisteredTest`, `ConsumeReservationConfirmedTest`, `ConsumeRentalCompletedTest`, `PublishPendingOutboxEventsTest`, `RegisterVehicleTest`, `RegisterVehicleEventTest`, `RegisterVehicleRetryTest`, `RegisterVehicleTimeoutTest`, `BulkRegisterVehiclesTest`, `BulkRegisterVehiclesBackpressureTest`, `BulkRegisterVehiclesCancellationTest`, `DecommissionVehicleTest`, `FindVehicleByPlateTest`, `SearchVehiclesTest`, `StartRentalTest`, `CreateReservationTest`, `ReservationFacadeTest` |
+| Application (22) | `CreateInvoiceTest`, `OpenInvoiceForRentalTest`, `ConsumeVehicleRegisteredTest`, `ConsumeReservationConfirmedTest`, `ConsumeRentalCompletedTest`, `PublishPendingOutboxEventsTest`, `RegisterVehicleTest`, `RegisterVehicleEventTest`, `RegisterVehicleRetryTest`, `RegisterVehicleTimeoutTest`, `BulkRegisterVehiclesTest`, `BulkRegisterVehiclesBackpressureTest`, `BulkRegisterVehiclesCancellationTest`, `BulkRegisterVehiclesMaterializationTest`, `BulkRegisterVehiclesFailurePolicyTest`, `DecommissionVehicleTest`, `FindVehicleByPlateTest`, `FindAvailableVehiclesTest`, `SearchVehiclesTest`, `StartRentalTest`, `CreateReservationTest`, `ReservationFacadeTest` |
 | Adapter unit (8) | `KafkaVehicleRegisteredConsumerTest`, `KafkaReservationConfirmedConsumerTest`, `KafkaRentalCompletedConsumerTest`, `VehicleRegisteredEventPublisherTest`, `EventJsonCodecTest` (inventory), `EventJsonCodecTest` (billing), `MicrometerOutboxMetricsTest`, `MicrometerInventoryMetricsTest` |
 | Adapter/Integration (23) | `ReservationResourceTest`, `ReservationPersistenceTest`, `ReactiveExecutionResourceTest`, `StagingTest`, `BillingPersistenceTest`, `BillingOutboxIntegrationTest`, `BillingFlowKafkaIntegrationTest`, `DelayedRetryKafkaIntegrationTest`, `DlqKafkaIntegrationTest`, `TransactionalInboxRetryKafkaIntegrationTest`, `TransactionalInboxProcessorIntegrationTest`, `OutboxRelayKafkaIntegrationTest`, `OutboxMetricsIntegrationTest`, `VehicleRegisteredEventPublisherIntegrationTest`, `VehicleRegisteredTracePropagationIntegrationTest`, `BusinessMetricsIntegrationTest`, `BillingTracePropagationIntegrationTest`, `VehicleEntityMappingTest`, `HealthEndpointTest` (billing), `HealthEndpointTest` (inventory), `HealthEndpointTest` (rental), `HealthEndpointTest` (reservation), `HealthEndpointTest` (users) |
 
-**Total: 59 classes de teste** = 23 `@QuarkusTest` + 35 JUnit puro + 1 `@QuarkusIntegrationTest`
+**Total: 86 classes de teste** = 45 `@QuarkusTest` + 40 JUnit puro + 1 `@QuarkusIntegrationTest`
 (`ReservationResourceIT`).
+
 `BillingPersistenceTest` é `@QuarkusTest` (Postgres via Dev Services), portanto está em
 Adapter/Integration e **não** em "Adapter unit" — a camada "adapter unit" é JUnit puro,
 sem container. `MicrometerOutboxMetricsTest` e `MicrometerInventoryMetricsTest` são JUnit puro
-com um `SimpleMeterRegistry` real (shape inaugurada pelo cap. 10: adapter de métrica testado
+com um `SimpleMeterRegistry` real (shape inaugurated pelo cap. 10: adapter de métrica testado
 sem Quarkus — ver [14-cloud-native-patterns.md](./14-cloud-native-patterns.md) §4 e
 [testing.md](../testing.md) §Observability).
+
+> **Dívida:** a tabela acima é um retrato de 2026-09-28 e **só a linha de Application foi
+> conferida e atualizada** (22 classes, com `BulkRegisterVehiclesMaterializationTest`,
+> `BulkRegisterVehiclesFailurePolicyTest` e `FindAvailableVehiclesTest` acrescentadas). As linhas
+> de adapter estão defasadas — o total real é 86, não 59 — e reclassificar todas as classes por
+> camada é um trabalho de inventário, não uma correção de linha.
 
 Tracing (cap. 10 item 7) usa `@QuarkusTest` porque o comportamento sob prova **é** a fronteira
 (propagação automática do OTel no Kafka): `VehicleRegisteredTracePropagationIntegrationTest`
@@ -283,7 +290,8 @@ matchers de métrica depois de adicionar OTel, lembrar da armadilha dos exemplar
 
 ---
 
-_Última atualização: 2026-09-28 (padrão derivado das correções de `billing-service`,
-commit `a6fddc0`, e do inventário conferido: 59 classes de teste; cap. 10 acrescenta a
-shape de teste de adapter de métrica com `SimpleMeterRegistry` puro e a shape de teste de
-tracing com `InMemorySpanExporter` CDI — billing e inventory)._
+_Última atualização: 2026-10-21 (cap. 8: a linha de Application do inventário foi conferida e
+atualizada — 22 classes, com `BulkRegisterVehiclesMaterializationTest` e
+`BulkRegisterVehiclesFailurePolicyTest` — e o total real do repositório passou de 59 para 86
+classes; as linhas de adapter seguem defasadas e isso está declarado como dívida no próprio
+inventário)._

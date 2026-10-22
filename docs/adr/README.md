@@ -13,7 +13,7 @@ As ADRs também são material de estudo: devem explicar **por que** uma decisão
 | 3 | [ADR 003 — Dead Letter Queue (DLQ)](./003-dead-letter-queue.md) | destino após esgotar tentativas | Accepted / implementada |
 | 4 | [ADR 004 — Transactional outbox](./004-transactional-outbox.md) | consistência entre persistência de negócio e publicação de eventos | Accepted / implementada |
 | 5 | [ADR 005 — Inbox durável](./005-durable-inbox.md) | idempotência durável associada ao efeito de negócio | Accepted / implementada |
-| 6 | [ADR 006 — Import massivo reativo de veículos](./006-reactive-inventory-bulk-import.md) | backpressure e cancelamento no import | Proposed |
+| 6 | [ADR 006 — Import massivo reativo de veículos](./006-reactive-inventory-bulk-import.md) | backpressure e cancelamento no import | Accepted / implementada (escopo: camada de aplicação — a demanda não atravessa o gRPC, é limite declarado do adapter) |
 | 7 | [ADR 007 — Inbox transacional com o efeito de negócio](./007-transactional-inbox.md) | claim + efeito na mesma transação | Accepted / implementada |
 | 8 | [ADR 008 — Transactional outbox (versão final)](./008-transactional-outbox.md) | outbox transacional, substitui a ADR 004 | Accepted / implementada |
 | 9 | [ADR 009 — Fault tolerance nas chamadas externas](./009-fault-tolerance-chamadas-externas.md) | timeout, retry seletivo e fallback que sinaliza indisponibilidade; o consumidor (BFF) tem prazo de transporte e sinal de aplicação | Accepted / implementada |

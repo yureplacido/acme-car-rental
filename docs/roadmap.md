@@ -43,19 +43,59 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [x] Cap. 5 — Testing
 - [x] Cap. 6 — Web, OIDC e segurança
 - [x] Cap. 7 — Database access
-- [ ] Cap. 8 — Reactive programming
+- [ ] Cap. 8 — Reactive programming (7 de 8 itens fechados; o último — timeout/cancellation/retry nos adapters externos — está parcial: coberto no inventory, falta o abort em voo que atravessa o processo — ver a seção do capítulo)
 - [x] Cap. 9 — Quarkus Messaging
 
 ## Cap. 8 — Reactive programming
 
 - [x] Reservation usa Hibernate Reactive + PostgreSQL reativo
 - [x] Reservation usa GraphQL client tipado reativo
-- [ ] Tornar o fluxo de Inventory explicitamente reativo quando a natureza do caso justificar
-- [ ] Demonstrar Uni versus Multi em casos de negócio reais
-- [ ] Demonstrar event loop versus worker pool com teste/observabilidade
-- [ ] Demonstrar concorrência controlada
-- [ ] Demonstrar backpressure em um fluxo de ingestão
+- [x] Tornar o fluxo de Inventory explicitamente reativo quando a natureza do caso justificar
+      — implementado em `BulkRegisterVehicles` (`Multi<Command>` → `Multi<Vehicle>`, porta
+      `Uni<Vehicle> save(...)`), exposto pelo gRPC bidirecional
+      `rpc add(stream InsertCarRequest) returns (stream CarResponse)`; a decisão e os
+      cenários estão na **ADR 006** (`reactive-inventory-bulk-import`, agora
+      Accepted/implementada). Evidência: `BulkRegisterVehiclesTest.shouldRegisterAllCommandsFromStream`.
+- [x] Demonstrar Uni versus Multi em casos de negócio reais — os **dois** modelos no mesmo
+      adapter gRPC do inventory, sobre o mesmo domínio: `add(Multi)→Multi` (fluxo de bulk,
+      concorrência limitada por `Merge`) e `remove(...)→Uni` (operação de item único com
+      `flatMap` sobre um `Optional`). `Multi` onde há fluxo, `Uni` onde há resultado único —
+      não escolha estética. Evidência: `GrpcInventoryResource` + `BulkRegisterVehiclesTest`.
+- [x] Demonstrar event loop versus worker pool com teste/observabilidade — endpoint de
+      diagnóstico `ReactiveExecutionResource` (`/reactive/execution/event-loop` devolve
+      `Uni<String>`; `/worker` leva `@Blocking`) e `ReactiveExecutionResourceTest` assere o
+      nome da thread de cada caminho: `vert.x-eventloop-thread` no primeiro,
+      `executor-thread` no segundo. Não é inferência de documentação: é a thread observada.
+      (O endpoint é declaradamente diagnóstico — não faz parte da API de negócio.)
+- [x] Demonstrar concorrência controlada — `merge(maxConcurrency)` com
+      `inventory.bulk.max-concurrency` (default 4) configurável e fora do domínio;
+      `shouldNeverExceedConfiguredConcurrency` assere `maxInFlight == 2` com limite 2 e 6 itens
+      (não `<= 2`: prova que o limite é *usado*, não apenas respeitado).
+- [x] Demonstrar backpressure em um fluxo de ingestão — o critério da ADR 006 (§Backpressure) é
+      duplo e os dois lados estão provados:
+      (1) **o pipeline não materializa o stream inteiro** —
+      `BulkRegisterVehiclesMaterializationTest.shouldNotMaterializeTheEntireInputStreamBeforeProcessing`
+      usa uma fonte de 100 itens e prova a **identidade** `produced <= requested <= maxConcurrency`:
+      sem demanda a jusante, o upstream recebe 4 pedidos e produz 4 — não os 100. Com o pipeline
+      materializando, a asserção acusa a **demanda** (`9223372036854775807` pedidos), não o
+      sintoma. O contraponto `shouldConsumeTheWholeSourceWhenDemandIsUnbounded` impede que um
+      pipeline que simplesmente não consome nada passe;
+      (2) **o trabalho em voo fica limitado** —
+      `BulkRegisterVehiclesBackpressureTest.shouldNotEmitWithoutDownstreamDemandAndBoundUpstreamPrefetch`
+      mostra que, com subscriber de demanda 0, o upstream recebe **exatamente 2** requests e nada
+      é emitido.
+      **Fronteira conhecida (não é item aberto):** o que está provado é o *prefetch do `Merge`*, e
+      o gRPC **não** encaminha a demanda do cliente para o repositório — hoje nenhum cliente gRPC
+      real consegue dizer "não me mande ainda". É limite do adapter de transporte, não do use
+      case, e a ADR 006 é explícita em não tratar limite de concorrência como backpressure.
 - [ ] Definir timeout/cancellation/retry nos adapters externos (parcial: reservation, cap. 10 item 8 — ADR 009; users-service/BFF, §6 da mesma ADR — prazos de transporte, sem annotations de FT; falta o abort real da chamada em voo)
+      — e no inventory os três têm evidência própria: `RegisterVehicleTimeoutTest`
+      (`shouldFailWhenReactiveOperationExceedsDeadline`), `RegisterVehicleRetryTest`
+      (`shouldRetryTransientFailureAndSucceed`, `shouldStopAfterConfiguredNumberOfRetries`) e
+      `BulkRegisterVehiclesCancellationTest`
+      (`shouldPropagateCancellationToActiveOperationsAndStopNewOnes`, que prova que o cancelamento
+      chega às operações em voo **e** que nenhuma terceira começa). O que continua aberto é o que
+      atravessa a fronteira do processo (o abort em voo do BFF, na ADR 009 §6).
 
 ## Cap. 9 — Messaging
 
