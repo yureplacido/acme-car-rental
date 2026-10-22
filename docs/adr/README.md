@@ -56,4 +56,4 @@ Uma ADR deve ser criada quando houver uma decisão arquitetural que altere respo
 
 > A ordem acima é um roteiro de estudo. Uma ADR futura só deve ser marcada como implementada quando existir evidência executável no código e nos testes.
 ---
-_Last updated: 2026-10-21 (ADR 009 revisada — §6, o lado consumidor: o `users-service` trata a disponibilidade inconclusiva como 503 com prazo de transporte e sinal de aplicação)_
+_Last updated: 2026-10-22 (ADR 009 §4 revisada — a prova do abort da chamada em voo passou a existir: o par `RentalTransportAbortTest` + `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`, com peer real, o caminho de produção inteiro e a mutação versionada. Falta **uma** evidência na ADR: o mapper de erro inesperado do reservation, no cap. 10)_

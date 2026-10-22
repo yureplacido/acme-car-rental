@@ -100,10 +100,43 @@ comportamento é medido em tentativas — não em mensagem de log:
 - **Prazo de transporte vs. deadline de FT:** o `@Timeout` do SmallRye FT em método que devolve
   `Uni` não cancela a chamada a montante, então a escrita também tem prazo de transporte
   (`quarkus.rest-client."<cliente>".read-timeout`) e um teste compara os dois
-  (`RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout`, uma
-  guarda de configuração — o abort em voo não é provado por aqui e permanece como dívida
-  aberta (roadmap/knowledge: o `read-timeout` é inatividade com rearmamento, e a prova do
-  cancelamento exige integração real).
+  (`RentalRestGatewayFaultToleranceTest.shouldKeepTheWriteDeadlineAboveTheTransportTimeout`) — é
+  uma **guarda de configuração**, e a guarda sozinha não prova que a requisição foi abortada.
+  A prova do abort é outra, com peer real (bullet seguinte).
+- **O abort em voo, provado do lado do peer.** O par `RentalTransportAbortTest` +
+  `RentalTransportTimeoutAboveFaultToleranceDeadlineTest` (reservation-service,
+  `@Tag("consul")`) exercita o caminho de produção inteiro — Consul real → Stork →
+  `RentalClient` (`stork://rentals`) → `RentalGateway` com o `@Timeout` de 2 s — contra um
+  **buraco negro**: um `ServerSocket` cru que aceita a conexão, lê o pedido e nunca responde.
+  O que o teste afirma não é "a chamada falhou", e sim **"do outro lado do socket, a conexão foi
+  fechada"** — a prova que nenhum cliente mockado entrega. Quatro detalhes custaram medição:
+  (1) o buraco negro é socket cru, e não `HttpServer`, porque o abort chega como **fim de
+  stream** (fechamento limpo, sem RST), e o EOF na próxima leitura é o que distingue "abortou" de
+  "desistiu e deixou a conexão pendurada" — é o EOF que o harness mede e que a asserção exige;
+  (2) a distinção entre "o transporte abortou" e "o `@Timeout` venceu" é o **tempo** (a falha
+  chega antes do deadline de FT) e o **tipo** da causa — `java.util.concurrent.TimeoutException`
+  (hierarquia do Vert.x), disjunta da do SmallRye FT, que deriva de `FaultToleranceException`:
+  observar por tipo, e não por parse de mensagem, como a ADR 009 §2 prescreve;
+  (3) um container realmente fora do ar **não serviria** — ele recusa a conexão, e recusa não tem
+  chamada em voo para abortar; o que a prova exige é um peer que aceita e não responde;
+  (4) sem o contraditório, o teste provaria que a chamada **terminou**, não que foi **abortada**
+  — o deadline de FT também termina a chamada, e nada no lado do cliente distingue as duas.
+  O contraditório troca **uma** variável (o prazo de transporte para 5 s, acima do deadline de
+  FT, por um `@TestProfile`): o deadline de FT vence aos ~2 s, o prazo de transporte não dispara
+  e o socket fica **aberto** — a chamada foi abandonada, não abortada. E, como a mutação está
+  **versionada** (e não em um experimento manual revertido), o build verifica a força da prova a
+  cada execução. O escopo é a fase que o prazo de transporte de fato limita — a espera pelos
+  headers da resposta; a leitura do corpo depois dos headers continua sem prazo (ADR 009 §2) e
+  esta prova não a cobre.
+- **A segunda camada de prazo é específica do cliente REST.** O padrão "prazo do transporte
+  abaixo do deadline de FT" só existe onde o cliente expõe a chave: o `quarkus-rest-client` do
+  Quarkus expõe `connect-timeout`/`read-timeout`. O cliente GraphQL do SmallRye **não expõe
+  nenhuma chave de prazo para o HTTP** (medido no modelo de configuração do
+  `quarkus-smallrye-graphql-client` 3.39.3: `url`, headers, proxy, TLS, `max-redirects` e
+  `init-payload`; o único timeout é `websocket-initialization-timeout`, do canal WebSocket), e por
+  isso a leitura de catálogo não tem a segunda camada — lá o deadline da annotation cobre o
+  chamador, mas **não** a conexão (ADR 009 §2). Copiar o padrão para o cliente GraphQL e esperar
+  um deadline de leitura é esperar um prazo que não existe.
 - **Taxonomia caracterizada antes da política:** quando a `@Retry`/`@Fallback` depende do tipo de
   falha que o **cliente** lança, esse contrato se mede em JUnit puro com socket real
   (`GraphQLInventoryClientFailureTest`), sem Quarkus — o que se mede é a biblioteca, não a CDI. E
@@ -127,8 +160,10 @@ comportamento é medido em tentativas — não em mensagem de log:
   curto. As duas metades têm guarda: `shouldBoundTheAvailabilityReadWithTransportTimeouts`
   (chaves existem e são curtas) e
   `shouldNotPutTheAvailabilityDeadlineOnTheNonIdempotentWrite` (a escrita segue o default).
-  Ambas são guarda de configuração, não prova de comportamento: provar que o cliente **injetado**
-  recebe os valores é o abort em voo, ainda em aberto (ver abaixo).
+  Ambas são guarda de configuração, não prova de comportamento: o comportamento — o prazo do
+  transporte abortando a chamada em voo — está provado no par `RentalTransportAbortTest` +
+  `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`, com peer real (e com o contraditório
+  que mostra que, com o prazo acima do deadline de FT, a conexão fica de pé).
 - **Limite conhecido do contrato HTTP do BFF:** `ReservationsAvailabilityUnavailableTest` roda em
   `%test.quarkus.http.auth.permission.available.paths=available`, que libera o `GET /available` sem
   OIDC justamente para o teste HTTP ser possível (`@QuarkusTest` não autentica o browser). Consequência:
@@ -208,8 +243,10 @@ testcontainers** — sem mock) e padrões que valem para quem vier a tocar nesse
   `@Tag("kubernetes")` (Stork-k8s contra **mock do API server** — sem kind/k3s, ver abaixo).
   Cada pom define `acme.test.discovery.excludedGroups=kubernetes` no surefire e o profile
   `-P kubernetes` troca para `consul`; assim o build CI roda o backend Consul e `-P kubernetes`
-  valida o Kubernetes com o mesmo classpath. Valores medidos: reservation baseline 45 /
-  `-P kubernetes` 43 (o k8s tem 1 teste), users 6/5, rental 10/8, inventory 45, billing 62.
+  valida o Kubernetes com o mesmo classpath. Valores medidos em 2026-10-22 (baseline / `-P
+  kubernetes`): reservation 51 / 47 (47 = 51 − 5 `@Tag("consul")` + 1 `@Tag("kubernetes")`), users
+  20 / 19, rental 11 / 9, inventory 51 / 51, billing 70 / 70. Os módulos sem tag de discovery não
+  mudam de contagem com o perfil.
 - **O mock do API server substitui o cluster, sem virar testes de Kong.** O resource de teste
   (`KubernetesRentalDiscoveryTestResource` / `KubernetesReservationsDiscoveryTestResource`)
   arranca `KubernetesServer` (fabric8) e injeta recursos com o client do teste; o teste pede
@@ -305,6 +342,20 @@ a ADR 009 o lista como evidência de fronteira, não de RED. E
 `ReservationsAvailabilityUnavailableTest` depende do Quarkus boot para falar HTTP, então o ciclo
 se completa nela como em todo contrato de fronteira: o que a isola de "escrito depois" é o caso
 do gateway acima, vermelho contra o código anterior.
+
+**Prova sem mudança de produção (cap. 8, ADR 009 §4).** O par `RentalTransportAbortTest` +
+`RentalTransportTimeoutAboveFaultToleranceDeadlineTest` não introduz comportamento novo: ele
+fixa um comportamento que **já existe** (o prazo do transporte abortando a chamada em voo),
+então não há ciclo RED contra código anterior — não há código anterior a derrubar. O que
+substitui o RED é a **verificação da força por injeção do defeito**, e ela é **versionada**:
+o contraditório é uma classe própria, com um `@TestProfile` que sobe o prazo de transporte para
+5 s (acima do deadline de FT). Com a mutação aplicada, o deadline de FT vence aos ~2 s, o
+prazo de transporte não dispara e o socket fica **aberto** do lado do peer — e o gêmeo falha alto
+se a mutação deixar de ser aplicada. O lado positivo tem a mesma proteção pelo outro lado: se
+a config de produção subisse o `read-timeout` para 5 s, ele cairia com "a falha veio do deadline
+de fault tolerance" — ou seja, mexer no prazo de produção quebra o build, e o build verifica a
+cada execução que a prova continua dependendo do prazo. Nenhuma alteração de produção foi feita
+para o teste passar — a mutação é do **teste**, e fica no repositório.
 
 **Dívida declarada do cap. 8 (ADR 006, import massivo reativo).** O bulk de inventário veio em
 `6333bdc` — um squash de PR (#2) que traz **a ADR, a implementação e os testes no mesmo commit**,

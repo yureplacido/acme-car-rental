@@ -605,12 +605,17 @@ flowchart TB
  
 | Command | Scope | Speed |
 |---------|-------|-------|
-| `./mvnw test` | All modules (reactor) | ~2-3 min |
-| `./mvnw -pl inventory-service test` | Single module | ~30s |
-| `./mvnw -pl reservation-service -am test` | Module + deps | ~1 min |
+| `./mvnw test` | All modules (reactor) | ~8 min |
+| `./mvnw -pl inventory-service test` | Single module | ~1 min |
+| `./mvnw -pl reservation-service -am test` | Module + deps | ~4 min |
 | `./mvnw verify -Pnative` | Native integration | ~10+ min |
  
 - `./mvnw test` na raiz executa os testes de todos os módulos em ordem de reactor.
+- Tempos medidos em 2026-10-22 (reactor completo: 7 min 46 s; `reservation-service`: 3 min 55 s).
+- O par do cap. 8 (`RentalTransportAbortTest` + `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`)
+  soma ~33 s de tempo de teste no `reservation-service` (2,3 s + 30,6 s, reportados pelo surefire):
+  cada classe sobe a sua própria aplicação, o seu Consul e os seus containers de Dev Services. É o
+  preço de provar o abort com peer real — o cliente mockado não prova.
 - Subconjunto: `./mvnw -pl reservation-service -am test`.
 - O reactor resolve `org.acme:inventory-proto` diretamente do módulo `inventory-proto` (validado
   inclusive para o codegen `scan-for-proto` do Quarkus), dispensando a instalação manual no `~/.m2`

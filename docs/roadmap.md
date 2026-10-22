@@ -43,7 +43,7 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
 - [x] Cap. 5 — Testing
 - [x] Cap. 6 — Web, OIDC e segurança
 - [x] Cap. 7 — Database access
-- [ ] Cap. 8 — Reactive programming (7 de 8 itens fechados; o último — timeout/cancellation/retry nos adapters externos — está parcial: coberto no inventory, falta o abort em voo que atravessa o processo — ver a seção do capítulo)
+- [x] Cap. 8 — Reactive programming (8 de 8 itens fechados — o último, timeout/cancellation/retry nos adapters externos, fechou em 2026-10-22 com a prova do abort em voo contra peer real; a prova cobre a fase que o prazo de transporte de fato limita — a espera pelos headers da resposta; ver a seção do capítulo)
 - [x] Cap. 9 — Quarkus Messaging
 
 ## Cap. 8 — Reactive programming
@@ -88,14 +88,32 @@ está em **Quarkus 3.39.3** (`quarkus.platform.version`). Por isso:
       o gRPC **não** encaminha a demanda do cliente para o repositório — hoje nenhum cliente gRPC
       real consegue dizer "não me mande ainda". É limite do adapter de transporte, não do use
       case, e a ADR 006 é explícita em não tratar limite de concorrência como backpressure.
-- [ ] Definir timeout/cancellation/retry nos adapters externos (parcial: reservation, cap. 10 item 8 — ADR 009; users-service/BFF, §6 da mesma ADR — prazos de transporte, sem annotations de FT; falta o abort real da chamada em voo)
+- [x] Definir timeout/cancellation/retry nos adapters externos (reservation, cap. 10 item 8 — ADR 009; users-service/BFF, §6 da mesma ADR — prazos de transporte, sem annotations de FT; **fechado em 2026-10-22** com a prova do abort em voo, no escopo da fase que o prazo de transporte limita)
       — e no inventory os três têm evidência própria: `RegisterVehicleTimeoutTest`
       (`shouldFailWhenReactiveOperationExceedsDeadline`), `RegisterVehicleRetryTest`
       (`shouldRetryTransientFailureAndSucceed`, `shouldStopAfterConfiguredNumberOfRetries`) e
       `BulkRegisterVehiclesCancellationTest`
       (`shouldPropagateCancellationToActiveOperationsAndStopNewOnes`, que prova que o cancelamento
-      chega às operações em voo **e** que nenhuma terceira começa). O que continua aberto é o que
-      atravessa a fronteira do processo (o abort em voo do BFF, na ADR 009 §6).
+      chega às operações em voo **e** que nenhuma terceira começa).
+      — **o que atravessa a fronteira do processo** (o item que faltava) está provado em um
+      **par** de testes (reservation-service, `@Tag("consul")`):
+      `RentalTransportAbortTest` (o lado positivo) e
+      `RentalTransportTimeoutAboveFaultToleranceDeadlineTest` (o contraditório), sobre o caminho
+      de produção inteiro — Consul real → Stork → `RentalClient` (`stork://rentals`) →
+      `RentalGateway` com o `@Timeout` de 2 s — contra um peer real que aceita a conexão e nunca
+      responde. O que o teste prova é o que nenhum cliente mockado entrega: **do outro lado do
+      socket, a conexão foi fechada**. Medido: falha em 1.545 ms (antes do deadline de FT de
+      2 s), causa `NoStackTraceTimeoutException` — observada **por tipo**
+      (`java.util.concurrent.TimeoutException`, hierarquia do Vert.x, disjunta da do SmallRye
+      FT), sem parse de mensagem — e o peer fechou a conexão **por fim de stream**, não por
+      reset. O contraditório fecha a causalidade com **uma** variável trocada (o prazo de
+      transporte acima do deadline de FT, por um `@TestProfile`): o deadline de FT vence aos
+      ~2.018 ms, o prazo de transporte não dispara e o socket fica **aberto** — a chamada foi
+      abandonada, não abortada, que é exatamente o modo de falha que a ADR 009 §4 descrevia.
+      A mutação está **versionada**, não em um experimento manual: o build verifica a força da
+      prova a cada execução. O escopo é a fase que o prazo de transporte de fato limita — a
+      espera pelos headers da resposta; a leitura do corpo depois dos headers continua sem
+      prazo (ADR 009 §2), e esta prova não a cobre nem a promete.
 
 ## Cap. 9 — Messaging
 
@@ -211,7 +229,8 @@ Notas de escopo:
       indisponibilidade. A fronteira responde 503 com corpo estável (`code`, `message`,
       `retryAfterSeconds`) e `Retry-After: 30`, sem vazar detalhe de infraestrutura.
       Evidência: `GraphQLInventoryClientFailureTest` (3), `GraphQLInventoryGatewayFaultToleranceTest` (6),
-      `RentalRestGatewayFaultToleranceTest` (5), `AvailabilityThroughInventoryChainTest` (3),
+      `RentalRestGatewayFaultToleranceTest` (5), `RentalTransportAbortTest` (1),
+      `RentalTransportTimeoutAboveFaultToleranceDeadlineTest` (1), `AvailabilityThroughInventoryChainTest` (3),
       `ReservationWriteFailureTest` (3), `AvailabilityUnavailableTest` (3),
       `FindAvailableVehiclesTest` (3, sendo 2 do item 8) e `StartRentalTest.shouldCreateAnotherRentalForTheSameReservationWhenCalledTwice` (1).
       No `users-service` (consumidor do mesmo contrato de falha, §6 da ADR 009): a política é
@@ -237,12 +256,15 @@ Notas de escopo:
       tratava o 503 — e usava cliente bloqueante sem prazo, custando ~9 s no caminho de falha em
       `%prod` segurando thread do BFF~~ — **fechada em 2026-10-21**: o BFF tem prazo de transporte,
       converte a falha medida em `AvailabilityUnavailable` e responde 503 com o fragmento
-      explicativo (§6 da ADR 009). Duas evidências ainda em aberto: o
-      **abort** da chamada em voo é a única coisa que a guarda de configuração não prova
-      (`read-timeout` é inatividade com rearmamento, não deadline — a prova exige integração
-      real; o caminho mais direto é `@QuarkusIntegrationTest` com um servidor que nunca responde,
-      o esqueleto já existe no `shouldCharacterizeTheFailureWhenReservationsNeverResponds`), e o
-      mapper do erro de GraphQL sai como 500 sem corpo estável
+      explicativo (§6 da ADR 009). A prova do **abort** da chamada em voo — a única coisa que a
+      guarda de configuração não prova (`read-timeout` é inatividade com rearmamento, não deadline
+      — a prova exige integração real) — **fechada em 2026-10-22** com o par
+      `RentalTransportAbortTest` + `RentalTransportTimeoutAboveFaultToleranceDeadlineTest`
+      (peer real que aceita a conexão e nunca responde; o caminho de produção inteiro, Consul →
+      Stork → cliente → gateway com `@Timeout`; do outro lado do socket, a conexão fechada em
+      ~1,5 s — e, com o prazo de transporte acima do deadline de FT, o socket **aberto**, o que
+      fecha a causalidade). Resta **uma** evidência em aberto: o mapper do erro de GraphQL sai como 500 sem
+      corpo estável
 - [x] Service discovery desacoplando localização de serviço da configuração
       — **Stork (REST Client) + Consul** [3.39.3]. **Descoberta via Stork**
       (`stork-service-discovery-consul`, 2.7.10, BOM) e **publicação por adapter próprio**
